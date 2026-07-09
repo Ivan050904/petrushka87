@@ -19,6 +19,7 @@ class EntryType(str, Enum):
     note = "note"
     diary = "diary"
     resource = "resource"
+    transcription = "transcription"
 
 
 class EntryCreate(BaseModel):

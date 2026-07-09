@@ -49,3 +49,8 @@ class Entry(Base):
     )
 
     user = relationship("User", back_populates="entries")
+    transcription_job = relationship(
+        "TranscriptionJob",
+        back_populates="entry",
+        uselist=False,
+    )

@@ -9,9 +9,10 @@ import httpx
 from pydantic import ValidationError
 
 from app.core.config import settings
-from app.services.ai.base import AIUnavailableError, EntryClassification, TaskParseResult
+from app.services.ai.analyze import analyze_text_with_context, answer_stream
+from app.services.ai.life_notes import LifeNoteAnalyzeResult
 
-SYSTEM_PROMPT = """Classify one LetsCore personal note. Return JSON only:
+SYSTEM_PROMPT = """Classify one Folio-One personal note. Return JSON only:
 {"type":"task|event|finance|person|note|diary|resource","title":"short title","metadata":{},"confidence":0-1}
 Types: task=todo/reminder/action; event=class/conference/meeting/happening to track;
 finance=income/expense; person=person info;
@@ -112,6 +113,24 @@ class OpenAICompatibleClient:
             return TaskParseResult.model_validate(raw_result)
         except ValidationError as exc:
             raise AIUnavailableError("AI task parse response did not match schema") from exc
+
+    def analyze_text(
+        self,
+        content: str,
+        *,
+        entry_date: str | None = None,
+        context: Any | None = None,
+    ) -> LifeNoteAnalyzeResult:
+        return analyze_text_with_context(content, entry_date=entry_date, context=context)
+
+    def answer(
+        self,
+        query: str,
+        *,
+        history: list[dict[str, str]],
+        context: Any,
+    ):
+        return answer_stream(query=query, history=history, context=context)
 
 
 def _extract_message_content(payload: dict[str, Any]) -> str:

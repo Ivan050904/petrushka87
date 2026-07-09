@@ -2,6 +2,12 @@ import type { Entry } from "@/lib/types";
 
 import { entryModuleHref, getString } from "@/lib/entry-helpers";
 import { referenceHref } from "@/lib/navigation";
+import {
+  defaultAgendaExpansionRange,
+  expandWeeklyOccurrences,
+  isRecurringTask,
+  readTaskRecurrence,
+} from "@/lib/recurrence";
 
 export type AgendaKind = "task" | "event" | "reminder" | "birthday";
 
@@ -12,6 +18,15 @@ export type AgendaItem = {
   date: Date;
   href: string;
   entry?: Entry;
+  occurrenceDate?: string;
+  recurring?: boolean;
+  skipped?: boolean;
+};
+
+export type AgendaBuildOptions = {
+  rangeStart?: Date;
+  rangeEnd?: Date;
+  includeSkippedRecurrences?: boolean;
 };
 
 export type CalendarDay = {
@@ -75,9 +90,29 @@ function entryAgendaItem(entry: Entry, kind: Exclude<AgendaKind, "birthday">, da
   return { id: `${kind}-${entry.id}`, kind, title: entry.title, date, href, entry };
 }
 
-export function buildAgendaItems(entries: Entry[]): AgendaItem[] {
+export function buildAgendaItems(entries: Entry[], options?: AgendaBuildOptions): AgendaItem[] {
+  const defaultRange = defaultAgendaExpansionRange();
+  const rangeStart = options?.rangeStart ?? defaultRange.rangeStart;
+  const rangeEnd = options?.rangeEnd ?? defaultRange.rangeEnd;
+
   return entries.flatMap((entry) => {
     if (entry.type === "task" && !isTaskClosed(entry)) {
+      if (isRecurringTask(entry.metadata) && readTaskRecurrence(entry.metadata)) {
+        return expandWeeklyOccurrences(entry, rangeStart, rangeEnd, {
+          includeSkipped: options?.includeSkippedRecurrences,
+        }).map((occurrence) => ({
+          id: `task-${entry.id}-${occurrence.dateKey}`,
+          kind: "task" as const,
+          title: entry.title,
+          date: occurrence.date,
+          href: entryModuleHref(entry),
+          entry,
+          occurrenceDate: occurrence.dateKey,
+          recurring: true,
+          skipped: occurrence.skipped,
+        }));
+      }
+
       const date = parseEntryDate(entry.metadata.scheduled_at) ?? parseEntryDate(entry.metadata.deadline);
       return date ? [entryAgendaItem(entry, "task", date, entryModuleHref(entry))] : [];
     }

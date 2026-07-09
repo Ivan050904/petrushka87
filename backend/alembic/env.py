@@ -11,7 +11,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from app.core.config import settings  # noqa: E402
 from app.db.base import Base  # noqa: E402
-from app.models import entry, user  # noqa: F401,E402
+from app.models import assistant, entry, entry_embedding, entry_link, transcription, user  # noqa: F401,E402
 
 config = context.config
 config.set_main_option("sqlalchemy.url", str(settings.database_url))

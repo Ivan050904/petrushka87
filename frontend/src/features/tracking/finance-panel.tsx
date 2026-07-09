@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { FilePenLine, Plus, Search, Trash2, TrendingDown, TrendingUp, WalletCards, X } from "lucide-react";
+import { FilePenLine, Plus, Search, Trash2, TrendingDown, TrendingUp, Upload, WalletCards, X } from "lucide-react";
+
+import { FinanceDashboard } from "@/features/tracking/finance-dashboard";
+import { FinanceImportWizard } from "@/features/tracking/finance-import-wizard";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,8 +17,9 @@ import { Notice } from "@/components/ui/notice";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useRequireAuth } from "@/hooks/use-auth";
-import { createEntry, deleteEntry, getErrorMessage, listEntries, updateEntry } from "@/lib/api";
+import { createEntry, deleteEntry, getErrorMessage, getFinanceSummary, listEntries, updateEntry } from "@/lib/api";
 import { entryDescription, formatCurrency, formatDate, getNumber, getString } from "@/lib/entry-helpers";
+import type { FinanceSummary } from "@/lib/finance-import";
 import { formatFinanceDirection } from "@/lib/labels";
 import type { Entry } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -38,7 +42,8 @@ const emptyFinanceForm: FinanceForm = {
   description: "",
 };
 
-const FINANCE_DRAFT_STORAGE_KEY = "letscore_finance_draft";
+const FINANCE_DRAFT_STORAGE_KEY = "folio_one_finance_draft";
+type FinancePanelTab = "import" | "operations" | "dashboard";
 
 type FinanceTotal = {
   currency: string;
@@ -69,6 +74,9 @@ export function FinancePanel({
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDraftLoaded, setIsDraftLoaded] = useState(false);
+  const [panelTab, setPanelTab] = useState<FinancePanelTab>("import");
+  const [summary, setSummary] = useState<FinanceSummary | null>(null);
+  const [isSummaryLoading, setIsSummaryLoading] = useState(false);
   const draftKey = user?.id ? `${FINANCE_DRAFT_STORAGE_KEY}:${user.id}` : null;
 
   function setSelectedId(id: string | null) {
@@ -98,6 +106,33 @@ export function FinancePanel({
   useEffect(() => {
     void loadEntries();
   }, [loadEntries]);
+
+  const loadSummary = useCallback(async () => {
+    if (!token) {
+      return;
+    }
+    setIsSummaryLoading(true);
+    try {
+      const result = await getFinanceSummary(token);
+      setSummary(result);
+    } catch {
+      setSummary(null);
+    } finally {
+      setIsSummaryLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (panelTab === "dashboard") {
+      void loadSummary();
+    }
+  }, [loadSummary, panelTab, entries.length]);
+
+  async function handleImported() {
+    await loadEntries();
+    await loadSummary();
+    setPanelTab("dashboard");
+  }
 
   useEffect(() => {
     setIsDraftLoaded(false);
@@ -157,6 +192,10 @@ export function FinancePanel({
     const totalsByCurrency = new Map<string, Omit<FinanceTotal, "currency">>();
     for (const entry of entries) {
       const amount = getNumber(entry.metadata.amount);
+      const kind = getString(entry.metadata.kind);
+      if (kind === "transfer") {
+        continue;
+      }
       const direction = getString(entry.metadata.direction);
       const currency = normalizeCurrency(getString(entry.metadata.currency, "RUB"));
       const current = totalsByCurrency.get(currency) ?? { income: 0, expense: 0 };
@@ -314,12 +353,25 @@ export function FinancePanel({
     <>
       <div className={cn("flex flex-col", compact ? "min-h-0 flex-1 gap-3" : "gap-4")}>
         {!embedded ? (
-          <header className="flex flex-col gap-1">
-            <h1 className="text-2xl font-semibold leading-8">Финансы</h1>
-            <p className="text-sm text-muted-foreground">Расходы, доходы и баланс по валютам.</p>
+          <header className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1">
+              <h1 className="text-2xl font-semibold leading-8">Финансы</h1>
+              <p className="text-sm text-muted-foreground">Импорт выписок, операции и дашборд по категориям.</p>
+            </div>
+            <FinancePanelTabs value={panelTab} onChange={setPanelTab} />
           </header>
+        ) : (
+          <FinancePanelTabs value={panelTab} onChange={setPanelTab} compact />
+        )}
+
+        {panelTab === "import" ? <FinanceImportWizard onImported={() => void handleImported()} /> : null}
+
+        {panelTab === "dashboard" ? (
+          <FinanceDashboard summary={summary} isLoading={isSummaryLoading} />
         ) : null}
 
+        {panelTab === "operations" ? (
+          <>
         {compact ? (
           <FinanceSummaryStrip totals={totals} />
         ) : (
@@ -534,8 +586,53 @@ export function FinancePanel({
             </CardContent>
           </Card>
         </section>
+          </>
+        ) : null}
       </div>
     </>
+  );
+}
+
+function FinancePanelTabs({
+  value,
+  onChange,
+  compact = false,
+}: {
+  value: FinancePanelTab;
+  onChange: (tab: FinancePanelTab) => void;
+  compact?: boolean;
+}) {
+  const tabs: Array<{ id: FinancePanelTab; label: string; icon?: typeof Upload }> = [
+    { id: "import", label: "Импорт", icon: Upload },
+    { id: "operations", label: "Операции", icon: WalletCards },
+    { id: "dashboard", label: "Дашборд", icon: TrendingDown },
+  ];
+
+  return (
+    <div className={cn("flex flex-wrap gap-2", compact && "shrink-0")} role="tablist" aria-label="Разделы финансов">
+      {tabs.map((tab) => {
+        const Icon = tab.icon;
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={value === tab.id}
+            onClick={() => onChange(tab.id)}
+            className={cn(
+              "focus-ring inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition",
+              value === tab.id
+                ? "border-primary bg-primary/10 text-foreground"
+                : "border-border bg-card text-muted-foreground hover:text-foreground",
+              compact && "text-xs",
+            )}
+          >
+            {Icon ? <Icon className="size-3.5" aria-hidden="true" /> : null}
+            {tab.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

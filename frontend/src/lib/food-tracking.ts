@@ -24,8 +24,8 @@ export type NutritionTargetsForm = {
   carbs: string;
 };
 
-export const FOOD_DRAFT_STORAGE_KEY = "letscore_food_draft";
-export const FOOD_TARGETS_STORAGE_KEY = "letscore_food_targets";
+export const FOOD_DRAFT_STORAGE_KEY = "folio_one_food_draft";
+export const FOOD_TARGETS_STORAGE_KEY = "folio_one_food_targets";
 
 export const DEFAULT_NUTRITION_TARGETS: NutritionTargets = {
   calories: 2200,

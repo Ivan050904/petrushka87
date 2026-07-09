@@ -33,7 +33,7 @@ def test_get_file_storage_returns_s3_storage_when_configured(
         s3_storage,
         "settings",
         SimpleNamespace(
-            s3_bucket_name="letscore-test",
+            s3_bucket_name="folio-one-test",
             s3_prefix="uploads",
             s3_endpoint_url="",
             s3_region="",
@@ -51,7 +51,7 @@ def test_get_file_storage_returns_s3_storage_when_configured(
     assert stored_file.content_type == "text/markdown"
     assert stored_file.size == 5
     assert stored_file.key.startswith("uploads/")
-    assert fake_client.uploaded["bucket"] == "letscore-test"
+    assert fake_client.uploaded["bucket"] == "folio-one-test"
     assert fake_client.uploaded["body"] == b"hello"
 
 

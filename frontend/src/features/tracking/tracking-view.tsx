@@ -15,7 +15,6 @@ import { Notice } from "@/components/ui/notice";
 import { FinancePanel } from "@/features/tracking/finance-panel";
 import { HabitsPanel } from "@/features/tracking/habits-panel";
 import { TRACKING_GRID, TRACKING_SCROLL_COL, TRACKING_SHELL } from "@/features/tracking/tracking-layout";
-import { TrackingTabPills } from "@/features/tracking/tracking-tabs";
 import { useRequireAuth } from "@/hooks/use-auth";
 import { createEntry, deleteEntry, getErrorMessage, listEntries, updateEntry } from "@/lib/api";
 import { formatDate, getNumber, getString } from "@/lib/entry-helpers";
@@ -36,7 +35,7 @@ import {
   type NutritionTargets,
   type NutritionTargetsForm,
 } from "@/lib/food-tracking";
-import { trackingHref, type TrackingTab } from "@/lib/navigation";
+import { parseTrackingTab, trackingTabHref, type TrackingTab } from "@/lib/navigation";
 import { buildNutritionSummary, foodEntryDate } from "@/lib/nutrition-summary";
 import type { Entry } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -76,38 +75,18 @@ const foodInputClass = "min-h-8 h-8 px-2.5 py-1 text-sm xl:min-h-10 xl:h-10 xl:p
 const foodMacroInputClass =
   "focus-ring min-h-8 w-full min-w-0 border-0 bg-transparent py-1 pr-1.5 text-sm font-mono outline-none placeholder:text-muted-foreground/70 xl:min-h-10 xl:py-1.5 xl:text-base";
 
-function parseTrackingTab(value: string | null): TrackingTab {
-  if (value === "finance" || value === "food") {
-    return value;
-  }
-  return "habits";
-}
-
-function trackingTabHref(tab: TrackingTab, selected?: string | null) {
-  return trackingHref({
-    tab: tab === "habits" ? undefined : tab,
-    selected: selected ?? undefined,
-  });
-}
-
 export function TrackingView() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const tab = parseTrackingTab(searchParams.get("tab"));
   const selectedId = searchParams.get("selected");
 
-  function changeTab(nextTab: TrackingTab) {
-    router.replace(trackingTabHref(nextTab));
-  }
-
   function changeSelected(nextSelected: string | null) {
-    router.replace(trackingTabHref(tab, nextSelected));
+    router.replace(trackingTabHref(tab, nextSelected ?? undefined));
   }
 
   return (
     <div className={TRACKING_SHELL}>
-      <TrackingTabPills value={tab} onChange={changeTab} />
-
       <div className="flex min-h-0 flex-1 flex-col">
         {tab === "habits" ? <HabitsPanel embedded compact /> : null}
         {tab === "finance" ? (

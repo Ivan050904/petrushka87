@@ -1,10 +1,10 @@
-# LetsCore Design System v2
+# Folio-One Design System v2
 
 Source: June 2026 IA redesign (variant A) — capture-first personal operations.
 
 ## Product posture
 
-LetsCore is a daily command center for personal life operations. The morning screen should answer "what matters today" in one glance. Capture happens anywhere with one field; deep editing is on demand, not by default.
+Folio-One is a daily command center for personal life operations. The morning screen should answer "what matters today" in one glance. Capture happens anywhere with one field; deep editing is on demand, not by default.
 
 ## Information architecture
 
@@ -42,7 +42,7 @@ In lists, timelines, and previews show at most **two signals** per row: what it 
 
 ## Palette — brand blue
 
-Semantic tokens in `frontend/src/app/globals.css`, aligned with the LetsCore logo (`#2563EB` family):
+Semantic tokens in `frontend/src/app/globals.css`, aligned with the Folio-One logo (`#2563EB` family):
 
 - Background: cool blue-white (`214 100% 97%`) — not neutral gray
 - Surface: white card

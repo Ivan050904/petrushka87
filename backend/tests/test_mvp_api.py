@@ -139,13 +139,13 @@ def test_entry_search_matches_metadata(client: TestClient) -> None:
             "metadata": {
                 "full_name": "Maxim Ivanov",
                 "description": "Designer",
-                "contacts": ["telegram: letscore-max"],
+                "contacts": ["telegram: folio-one-max"],
             },
         },
     )
     assert created.status_code == 201
 
-    listed = client.get("/api/v1/entries", headers=headers, params={"q": "letscore-max"})
+    listed = client.get("/api/v1/entries", headers=headers, params={"q": "folio-one-max"})
 
     assert listed.status_code == 200
     assert listed.json()["total"] == 1
@@ -625,7 +625,7 @@ def test_resource_upload_and_download(client: TestClient) -> None:
         "/api/v1/resources",
         headers=headers,
         data={"title": "Readme", "description": "Project notes"},
-        files={"file": ("../notes.md", b"# LetsCore\n", "text/markdown")},
+        files={"file": ("../notes.md", b"# Folio-One\n", "text/markdown")},
     )
     assert uploaded.status_code == 201
     resource = uploaded.json()
@@ -664,7 +664,7 @@ def test_resource_upload_and_download(client: TestClient) -> None:
 
     downloaded = client.get(f"/api/v1/resources/{resource['id']}/file", headers=headers)
     assert downloaded.status_code == 200
-    assert downloaded.content == b"# LetsCore\n"
+    assert downloaded.content == b"# Folio-One\n"
 
     removed = client.delete(f"/api/v1/entries/{resource['id']}", headers=headers)
     assert removed.status_code == 204

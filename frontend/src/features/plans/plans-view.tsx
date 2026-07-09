@@ -4,10 +4,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   AlarmClock,
+  CalendarDays,
   CalendarRange,
   CheckSquare,
   Sparkles,
   Plus,
+  Repeat,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +21,7 @@ import { Notice } from "@/components/ui/notice";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { EventsPanel } from "@/features/plans/events-panel";
+import { PlansWeekCalendar } from "@/features/plans/plans-week-calendar";
 import { TasksPanel } from "@/features/plans/tasks-panel";
 import { useRequireAuth } from "@/hooks/use-auth";
 import { createEntry, getErrorMessage, listEntries, parseTasks, updateEntry } from "@/lib/api";
@@ -31,6 +34,15 @@ import {
   filterPlansItems,
   formatAgendaDateTime,
 } from "@/lib/agenda";
+import {
+  isOccurrenceSkipped,
+  readTaskRecurrence,
+  recurrenceRuleLabel,
+  restoreOccurrenceMetadata,
+  restoreWeekMetadata,
+  skipOccurrenceMetadata,
+  skipWeekMetadata,
+} from "@/lib/recurrence";
 import { formatDate, getString } from "@/lib/entry-helpers";
 import { formatEntryType, formatTaskStatus } from "@/lib/labels";
 import type { Entry } from "@/lib/types";
@@ -66,9 +78,10 @@ export function PlansView() {
   const [quickInput, setQuickInput] = useState("");
   const [quickError, setQuickError] = useState<string | null>(null);
   const [isQuickSaving, setIsQuickSaving] = useState(false);
-  const [detailMode, setDetailMode] = useState<"timeline" | "tasks" | "events">(
+  const [detailMode, setDetailMode] = useState<"timeline" | "calendar" | "tasks" | "events">(
     initialTab === "tasks" ? "tasks" : initialTab === "events" ? "events" : "timeline",
   );
+  const [selectedAgendaId, setSelectedAgendaId] = useState<string | null>(searchParams.get("selected"));
 
   const loadEntries = useCallback(async () => {
     if (!token) {
@@ -99,7 +112,11 @@ export function PlansView() {
     () => filterPlansItems(agendaItems, scope, typeFilter),
     [agendaItems, scope, typeFilter],
   );
-  const selectedItem = visibleItems.find((item) => item.entry?.id === selectedId) ?? agendaItems.find((item) => item.entry?.id === selectedId) ?? null;
+  const selectedItem =
+    agendaItems.find((item) => item.id === selectedAgendaId) ??
+    visibleItems.find((item) => item.entry?.id === selectedId) ??
+    agendaItems.find((item) => item.entry?.id === selectedId) ??
+    null;
 
   async function createFromQuickInput() {
     if (!token || !quickInput.trim() || isQuickSaving) {
@@ -164,6 +181,15 @@ export function PlansView() {
         </Button>
         <Button
           type="button"
+          variant={detailMode === "calendar" ? "secondary" : "outline"}
+          size="sm"
+          onClick={() => setDetailMode("calendar")}
+        >
+          <CalendarDays data-icon="inline-start" />
+          Календарь
+        </Button>
+        <Button
+          type="button"
           variant={detailMode === "tasks" ? "secondary" : "outline"}
           size="sm"
           onClick={() => setDetailMode("tasks")}
@@ -182,6 +208,21 @@ export function PlansView() {
 
       {detailMode === "tasks" ? <TasksPanel embedded /> : null}
       {detailMode === "events" ? <EventsPanel embedded /> : null}
+
+      {detailMode === "calendar" ? (
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px] xl:items-start">
+          <PlansWeekCalendar
+            className="max-h-[calc(100dvh-11rem)] min-h-[520px]"
+            entries={entries}
+            selectedId={selectedAgendaId}
+            onSelect={(item) => {
+              setSelectedAgendaId(item.id);
+              setSelectedId(item.entry?.id ?? null);
+            }}
+          />
+          <PlanInspector item={selectedItem} token={token} onUpdated={loadEntries} />
+        </section>
+      ) : null}
 
       {detailMode === "timeline" ? (
         <>
@@ -255,8 +296,11 @@ export function PlansView() {
                     <TimelineRow
                       key={item.id}
                       item={item}
-                      selected={selectedId === item.entry?.id}
-                      onSelect={() => setSelectedId(item.entry?.id ?? null)}
+                      selected={selectedAgendaId === item.id || selectedId === item.entry?.id}
+                      onSelect={() => {
+                        setSelectedAgendaId(item.id);
+                        setSelectedId(item.entry?.id ?? null);
+                      }}
                     />
                   ))
                 )}
@@ -304,6 +348,7 @@ function TimelineRow({
         <span className="block truncate text-sm font-medium">{item.title}</span>
         <span className="mt-1 flex flex-wrap gap-2">
           <Badge variant="outline">{agendaLabel(item.kind)}</Badge>
+          {item.recurring ? <Badge variant="outline">Повтор</Badge> : null}
           {status ? <Badge variant="secondary">{formatTaskStatus(status)}</Badge> : null}
         </span>
       </span>
@@ -328,6 +373,12 @@ function PlanInspector({
   const [status, setStatus] = useState("inbox");
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSkipping, setIsSkipping] = useState(false);
+
+  const recurrence = entry?.type === "task" ? readTaskRecurrence(entry.metadata) : null;
+  const occurrenceSkipped = item?.occurrenceDate
+    ? isOccurrenceSkipped(entry?.metadata ?? {}, item.date)
+    : false;
 
   useEffect(() => {
     if (!entry) {
@@ -340,16 +391,32 @@ function PlanInspector({
     setTitle(entry.title);
     setContent(entry.content);
     if (entry.type === "task") {
-      setDateValue(toLocalInput(getString(entry.metadata.scheduled_at) || getString(entry.metadata.deadline)));
+      setDateValue(resolveInspectorDateValue(entry, item, "scheduled_at", "deadline"));
       setStatus(getString(entry.metadata.status, "inbox"));
     } else if (entry.type === "event") {
-      setDateValue(toLocalInput(getString(entry.metadata.starts_at)));
+      setDateValue(resolveInspectorDateValue(entry, item, "starts_at"));
       setStatus(getString(entry.metadata.status));
     } else if (entry.type === "reminder") {
-      setDateValue(toLocalInput(getString(entry.metadata.remind_at)));
+      setDateValue(resolveInspectorDateValue(entry, item, "remind_at"));
       setStatus(getString(entry.metadata.status, "scheduled"));
     }
-  }, [entry]);
+  }, [entry, item]);
+
+  async function updateRecurrenceMetadata(nextMetadata: Record<string, unknown>) {
+    if (!token || !entry) {
+      return;
+    }
+    setIsSkipping(true);
+    setError(null);
+    try {
+      await updateEntry(token, entry.id, { metadata: nextMetadata });
+      await onUpdated();
+    } catch (requestError) {
+      setError(getErrorMessage(requestError, "Не удалось обновить повторение."));
+    } finally {
+      setIsSkipping(false);
+    }
+  }
 
   async function save() {
     if (!token || !entry) {
@@ -365,7 +432,7 @@ function PlanInspector({
           metadata: {
             ...entry.metadata,
             status,
-            scheduled_at: dateValue || null,
+            ...(item?.recurring ? {} : { scheduled_at: dateValue || null }),
           },
         });
       } else if (entry.type === "event") {
@@ -392,17 +459,34 @@ function PlanInspector({
   if (!entry) {
     return (
       <aside className="rounded-md border border-dashed border-border bg-muted/20 p-6 text-center text-sm text-muted-foreground">
-        Выбери элемент в ленте, чтобы отредактировать детали.
+        Выбери элемент в календаре или ленте, чтобы отредактировать детали.
       </aside>
     );
   }
 
   return (
-    <aside className="rounded-md border border-border bg-card p-4 shadow-panel xl:sticky xl:top-4">
+    <aside className="rounded-md border border-border bg-card p-4 shadow-panel xl:sticky xl:top-4 xl:max-h-[calc(100dvh-11rem)] xl:overflow-y-auto">
       <div className="mb-4 flex items-center justify-between gap-2">
         <h2 className="text-base font-semibold">{formatEntryType(entry.type)}</h2>
         <Badge variant="secondary">{formatDate(entry.updated_at)}</Badge>
       </div>
+
+      {item?.recurring && recurrence ? (
+        <div className="mb-4 rounded-md border border-border bg-muted/20 p-3 text-sm">
+          <div className="flex items-center gap-2 font-medium text-secondary-foreground">
+            <Repeat className="size-4" aria-hidden="true" />
+            Еженедельный план
+          </div>
+          <p className="mt-2 text-muted-foreground">{recurrenceRuleLabel(recurrence)}</p>
+          {item.occurrenceDate ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Вхождение: {formatAgendaDateTime(item.date)}
+              {occurrenceSkipped ? " · отменено" : ""}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
       <FieldGroup>
         <Field>
           <FieldLabel htmlFor="plan-title">Название</FieldLabel>
@@ -413,8 +497,22 @@ function PlanInspector({
           <Textarea id="plan-content" value={content} onChange={(event) => setContent(event.target.value)} className="min-h-24" />
         </Field>
         <Field>
-          <FieldLabel htmlFor="plan-date">Дата и время</FieldLabel>
-          <Input id="plan-date" type="datetime-local" value={dateValue} onChange={(event) => setDateValue(event.target.value)} />
+          <FieldLabel htmlFor="plan-date">
+            {item?.recurring ? "Дата вхождения" : "Дата и время"}
+          </FieldLabel>
+          <Input
+            id="plan-date"
+            type="datetime-local"
+            value={dateValue}
+            readOnly={Boolean(item?.recurring)}
+            onChange={(event) => setDateValue(event.target.value)}
+            className={item?.recurring ? "bg-muted/40" : undefined}
+          />
+          {item?.recurring ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Для еженедельного плана дата берётся из календаря. Чтобы изменить время повторения, открой задачу во вкладке «Задачи».
+            </p>
+          ) : null}
         </Field>
         <Field>
           <FieldLabel htmlFor="plan-status">Статус</FieldLabel>
@@ -443,6 +541,51 @@ function PlanInspector({
           </Select>
         </Field>
         {error ? <Notice variant="error">{error}</Notice> : null}
+
+        {item?.recurring && item.occurrenceDate ? (
+          <div className="flex flex-col gap-2">
+            {occurrenceSkipped ? (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isSkipping}
+                  onClick={() => void updateRecurrenceMetadata(restoreOccurrenceMetadata(entry.metadata, item.date))}
+                >
+                  Вернуть на этот день
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isSkipping}
+                  onClick={() => void updateRecurrenceMetadata(restoreWeekMetadata(entry.metadata, item.date))}
+                >
+                  Вернуть всю неделю
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isSkipping}
+                  onClick={() => void updateRecurrenceMetadata(skipOccurrenceMetadata(entry.metadata, item.date))}
+                >
+                  Отменить на этот день
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isSkipping}
+                  onClick={() => void updateRecurrenceMetadata(skipWeekMetadata(entry.metadata, item.date))}
+                >
+                  Отменить всю неделю
+                </Button>
+              </>
+            )}
+          </div>
+        ) : null}
+
         <Button onClick={() => void save()} disabled={isSaving}>
           <Plus data-icon="inline-start" />
           {isSaving ? "Сохранение" : "Сохранить"}
@@ -460,6 +603,29 @@ function toLocalInput(value: string) {
   if (Number.isNaN(date.getTime())) {
     return value.length >= 16 ? value.slice(0, 16) : value;
   }
+  return toLocalInputFromDate(date);
+}
+
+function toLocalInputFromDate(date: Date) {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function resolveInspectorDateValue(
+  entry: Entry,
+  item: AgendaItem | null,
+  ...metadataKeys: string[]
+) {
+  if (item?.date && !Number.isNaN(item.date.getTime())) {
+    return toLocalInputFromDate(item.date);
+  }
+
+  for (const key of metadataKeys) {
+    const value = getString(entry.metadata[key]);
+    if (value) {
+      return toLocalInput(value);
+    }
+  }
+
+  return "";
 }

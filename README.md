@@ -1,4 +1,6 @@
-# LetsCore MVP
+# Folio-One
+
+Life folio — tasks, notes, habits, and more.
 
 Personal system for capturing and structuring daily life information.
 
@@ -89,12 +91,12 @@ python scripts/seed_demo.py --reset
 
 Credentials:
 
-- Email: `demo@letscore.local`
+- Email: `demo@folio-one.local`
 - Password: `demo12345`
 
 On the login screen, click **Войти в демо** for one-click access.
 
-The MVP uses `backend/storage/letscore.db` and `backend/storage/files` by default, so Docker/PostgreSQL is not required for local daily use yet.
+The MVP uses `backend/storage/folio_one.db` and `backend/storage/files` by default, so Docker/PostgreSQL is not required for local daily use yet.
 
 ## Quick checks
 
@@ -128,7 +130,7 @@ An optional S3-compatible provider is prepared for later use:
 pip install -e ".[s3]"
 FILE_STORAGE_PROVIDER=s3
 S3_BUCKET_NAME=...
-S3_PREFIX=letscore
+S3_PREFIX=folio-one
 S3_ENDPOINT_URL=
 S3_REGION=
 S3_ACCESS_KEY_ID=

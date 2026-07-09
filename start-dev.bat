@@ -11,7 +11,7 @@ set "ROOT=%~dp0"
 cd /d "%ROOT%"
 
 echo.
-echo  LetsCore MVP - dev servers
+echo  Folio-One - dev servers
 echo  ==========================
 echo.
 
@@ -53,7 +53,7 @@ if not exist "%PY%" (
 "%PY%" -c "import fastapi" >nul 2>&1
 if errorlevel 1 (
     echo [setup] Installing backend dependencies...
-    "%PIP%" install -q "alembic>=1.13.0" "fastapi>=0.115.0" "httpx>=0.27.0" "python-jose[cryptography]>=3.3.0" "python-multipart>=0.0.9" "sqlalchemy>=2.0.0" "uvicorn[standard]>=0.30.0"
+    "%PIP%" install -q "alembic>=1.13.0" "bcrypt>=5.0.0" "fastapi>=0.115.0" "faster-whisper>=1.1.0" "httpx>=0.27.0" "itsdangerous>=2.2.0" "jinja2>=3.1.5" "pydantic-settings>=2.7.0" "python-jose[cryptography]>=3.3.0" "python-multipart>=0.0.9" "rank-bm25>=0.2.2" "requests>=2.32.0" "sqlalchemy>=2.0.0" "uvicorn[standard]>=0.30.0" "yt-dlp>=2026.7.4"
     if errorlevel 1 (
         echo [error] Failed to install backend dependencies
         goto :done
@@ -93,8 +93,8 @@ ping 127.0.0.1 -n 2 >nul
 
 echo.
 echo Starting servers in separate windows...
-start "LetsCore Backend" /D "%ROOT%backend" cmd /k ".venv\Scripts\uvicorn.exe app.main:app --reload --port 8000"
-start "LetsCore Frontend" /D "%ROOT%frontend" cmd /k "npm run dev"
+start "Folio-One Backend" /D "%ROOT%backend" cmd /k ".venv\Scripts\uvicorn.exe app.main:app --reload --port 8000"
+start "Folio-One Frontend" /D "%ROOT%frontend" cmd /k "npm run dev"
 
 echo Waiting for startup...
 ping 127.0.0.1 -n 6 >nul

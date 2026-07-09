@@ -31,6 +31,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { CaptureDraftPreview } from "@/features/capture/capture-entry-preview";
 import { taskDraftToPayload } from "@/features/capture/quick-capture-helpers";
 import { aiTaskToCaptureDraft, parseQuickTasks, toDateTimeInputValue, type CaptureTaskDraft } from "@/features/capture/task-draft-parser";
+import { RecurrenceFields } from "@/features/plans/recurrence-fields";
+import {
+  defaultRecurrenceForm,
+  parseLegacyScheduledTime,
+  recurrenceFormFromMetadata,
+  recurrenceFormToMetadata,
+} from "@/lib/recurrence";
 import { useRequireAuth } from "@/hooks/use-auth";
 import {
   createEntry,
@@ -65,7 +72,9 @@ type TaskForm = {
   reminderAt: string;
   reminderText: string;
   reminderId: string;
-  recurrence: string;
+  recurrenceEnabled: boolean;
+  recurrenceWeekdays: number[];
+  recurrenceTime: string;
   tags: string;
   assigneeName: string;
   assigneeId: string;
@@ -88,7 +97,7 @@ const emptyTaskForm: TaskForm = {
   reminderAt: "",
   reminderText: "",
   reminderId: "",
-  recurrence: "",
+  ...defaultRecurrenceForm(),
   tags: "",
   assigneeName: "",
   assigneeId: "",
@@ -99,8 +108,8 @@ const emptyTaskForm: TaskForm = {
   parentId: "",
 };
 
-const TASK_DRAFT_STORAGE_KEY = "letscore_task_draft";
-const QUICK_TASK_STORAGE_KEY = "letscore_quick_task_input";
+const TASK_DRAFT_STORAGE_KEY = "folio_one_task_draft";
+const QUICK_TASK_STORAGE_KEY = "folio_one_quick_task_input";
 
 const taskScopeFilters: Array<{ value: TaskScopeFilter; label: string }> = [
   { value: "open", label: "Открытые" },
@@ -412,7 +421,7 @@ export function TasksPanel({ embedded = false }: { embedded?: boolean }) {
 
     try {
       const isCreating = !selectedId;
-      const payload = formToTaskPayload(form);
+      const payload = formToTaskPayload(form, selectedTask?.metadata ?? {});
       const savedTask = selectedId
         ? await updateEntry(token, selectedId, payload)
         : await createEntry(token, payload);
@@ -1021,12 +1030,18 @@ export function TasksPanel({ embedded = false }: { embedded?: boolean }) {
                         />
                       </Field>
 
-                      <Field>
-                        <FieldLabel htmlFor="task-recurrence">Повторение</FieldLabel>
-                        <Input
-                          id="task-recurrence"
-                          value={form.recurrence}
-                          onChange={(event) => setForm((current) => ({ ...current, recurrence: event.target.value }))}
+                      <Field className="md:col-span-2">
+                        <RecurrenceFields
+                          enabled={form.recurrenceEnabled}
+                          weekdays={form.recurrenceWeekdays}
+                          time={form.recurrenceTime}
+                          onEnabledChange={(recurrenceEnabled) =>
+                            setForm((current) => ({ ...current, recurrenceEnabled }))
+                          }
+                          onWeekdaysChange={(recurrenceWeekdays) =>
+                            setForm((current) => ({ ...current, recurrenceWeekdays }))
+                          }
+                          onTimeChange={(recurrenceTime) => setForm((current) => ({ ...current, recurrenceTime }))}
                         />
                       </Field>
 
@@ -1402,6 +1417,7 @@ function formatPriority(priority: TaskPriority) {
 }
 
 function taskToForm(task: Entry): TaskForm {
+  const recurrence = recurrenceFormFromMetadata(task.metadata);
   return {
     title: task.title,
     description: task.content === task.title ? "" : task.content,
@@ -1414,7 +1430,9 @@ function taskToForm(task: Entry): TaskForm {
     reminderAt: toDateTimeInputValue(getString(task.metadata.reminder_at)),
     reminderText: getString(task.metadata.reminder_text),
     reminderId: getString(task.metadata.reminder_id),
-    recurrence: getString(task.metadata.recurrence),
+    recurrenceEnabled: recurrence.recurrenceEnabled,
+    recurrenceWeekdays: recurrence.recurrenceWeekdays,
+    recurrenceTime: recurrence.recurrenceTime || parseLegacyScheduledTime(task.metadata),
     tags: readStringArray(task.metadata.tags).join(", "),
     assigneeName: getString(task.metadata.assignee_name),
     assigneeId: getString(task.metadata.assignee_id),
@@ -1426,28 +1444,36 @@ function taskToForm(task: Entry): TaskForm {
   };
 }
 
-function formToTaskPayload(form: TaskForm) {
-  const metadata = {
-    status: form.status,
-    priority: form.priority,
-    scheduled_at: form.scheduledAt || null,
-    deadline: form.deadline || null,
-    planned_duration_minutes: parseOptionalPositiveInteger(form.plannedDurationMinutes),
-    actual_duration_minutes: parseOptionalPositiveInteger(form.actualDurationMinutes),
-    reminder_at: form.reminderAt || null,
-    reminder_text: form.reminderText.trim() || null,
-    reminder_id: form.reminderAt || form.reminderText.trim() ? form.reminderId || null : null,
-    recurrence: form.recurrence.trim() || null,
-    tags: parseTags(form.tags),
-    assignee_id: form.assigneeId || null,
-    assignee_name: form.assigneeName.trim() || null,
-    assignee_create_suggestion: Boolean(form.assigneeName.trim() && !form.assigneeId),
-    related_person_ids: form.relatedPersonIds,
-    attachment_ids: form.attachmentIds,
-    linked_entry_ids: form.linkedEntryIds,
-    project: form.project || null,
-    parent_id: form.parentId || null,
-  };
+function formToTaskPayload(form: TaskForm, existingMetadata: Record<string, unknown> = {}) {
+  const metadata = recurrenceFormToMetadata(
+    {
+      status: form.status,
+      priority: form.priority,
+      scheduled_at: form.scheduledAt || null,
+      deadline: form.deadline || null,
+      planned_duration_minutes: parseOptionalPositiveInteger(form.plannedDurationMinutes),
+      actual_duration_minutes: parseOptionalPositiveInteger(form.actualDurationMinutes),
+      reminder_at: form.reminderAt || null,
+      reminder_text: form.reminderText.trim() || null,
+      reminder_id: form.reminderAt || form.reminderText.trim() ? form.reminderId || null : null,
+      recurrence_exceptions: existingMetadata.recurrence_exceptions ?? {},
+      skipped_weeks: existingMetadata.skipped_weeks ?? [],
+      tags: parseTags(form.tags),
+      assignee_id: form.assigneeId || null,
+      assignee_name: form.assigneeName.trim() || null,
+      assignee_create_suggestion: Boolean(form.assigneeName.trim() && !form.assigneeId),
+      related_person_ids: form.relatedPersonIds,
+      attachment_ids: form.attachmentIds,
+      linked_entry_ids: form.linkedEntryIds,
+      project: form.project || null,
+      parent_id: form.parentId || null,
+    },
+    {
+      recurrenceEnabled: form.recurrenceEnabled,
+      recurrenceWeekdays: form.recurrenceWeekdays,
+      recurrenceTime: form.recurrenceTime,
+    },
+  );
 
   return {
     type: "task" as const,
@@ -1476,7 +1502,11 @@ function parseTaskDraft(value: string | null): TaskForm | null {
     reminderAt: typeof parsed.reminderAt === "string" ? parsed.reminderAt : "",
     reminderText: typeof parsed.reminderText === "string" ? parsed.reminderText : "",
     reminderId: typeof parsed.reminderId === "string" ? parsed.reminderId : "",
-    recurrence: typeof parsed.recurrence === "string" ? parsed.recurrence : "",
+    recurrenceEnabled: typeof parsed.recurrenceEnabled === "boolean" ? parsed.recurrenceEnabled : defaultRecurrenceForm().recurrenceEnabled,
+    recurrenceWeekdays: Array.isArray(parsed.recurrenceWeekdays)
+      ? parsed.recurrenceWeekdays.filter((day): day is number => Number.isInteger(day) && day >= 1 && day <= 7)
+      : defaultRecurrenceForm().recurrenceWeekdays,
+    recurrenceTime: typeof parsed.recurrenceTime === "string" ? parsed.recurrenceTime : defaultRecurrenceForm().recurrenceTime,
     tags: typeof parsed.tags === "string" ? parsed.tags : "",
     assigneeName: typeof parsed.assigneeName === "string" ? parsed.assigneeName : "",
     assigneeId: typeof parsed.assigneeId === "string" ? parsed.assigneeId : "",
@@ -1501,7 +1531,9 @@ function hasTaskDraft(form: TaskForm) {
     Boolean(form.reminderAt.trim()) ||
     Boolean(form.reminderText.trim()) ||
     Boolean(form.reminderId.trim()) ||
-    Boolean(form.recurrence.trim()) ||
+    form.recurrenceEnabled ||
+    form.recurrenceWeekdays.some((day) => !defaultRecurrenceForm().recurrenceWeekdays.includes(day)) ||
+    form.recurrenceTime !== defaultRecurrenceForm().recurrenceTime ||
     Boolean(form.tags.trim()) ||
     Boolean(form.assigneeName.trim()) ||
     Boolean(form.assigneeId.trim()) ||

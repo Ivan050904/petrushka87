@@ -1,0 +1,350 @@
+﻿{% if not active_chat %}
+
+<div class="chat-empty">
+
+    <div class="chat-empty-visual" aria-hidden="true">
+
+        <svg class="empty-illus" viewBox="0 0 200 140" fill="none" xmlns="http://www.w3.org/2000/svg">
+
+            <rect x="30" y="25" width="140" height="90" rx="12" stroke="currentColor" stroke-width="2" opacity="0.35"/>
+
+            <circle cx="100" cy="70" r="22" stroke="currentColor" stroke-width="2" opacity="0.5"/>
+
+            <path d="M92 62l14 8-14 8V62z" fill="currentColor" opacity="0.45"/>
+
+            <rect x="50" y="125" width="100" height="8" rx="4" fill="currentColor" opacity="0.15"/>
+
+        </svg>
+
+    </div>
+
+    <div class="chat-empty-inner">
+
+        <h1>Новый чат по видео</h1>
+
+        <p class="muted">Вставь ссылку на YouTube — получишь пересказ, позиции спикеров и сможешь задавать вопросы.</p>
+
+        <form method="post" action="chats" class="url-form chat-url-form"
+
+              hx-post="chats" hx-target="#chat-main" hx-swap="innerHTML">
+
+            <label for="video-url" class="sr-only">Ссылка на YouTube</label>
+
+            <input type="url" id="video-url" name="url" placeholder="https://www.youtube.com/watch?v=..." required autofocus>
+
+            <button class="btn btn-primary btn-yt" type="submit">
+
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h12M13 8l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+
+                Отправить
+
+            </button>
+
+        </form>
+
+        <div class="example-videos">
+
+            <p class="muted small">Попробуй, например:</p>
+
+            <div class="example-chips">
+
+                <button type="button" class="chip example-link" data-url="https://www.youtube.com/watch?v=dQw4w9WgXcQ">Короткое видео</button>
+
+                <button type="button" class="chip example-link" data-url="https://www.youtube.com/watch?v=8jPQjjsBbIc">TED-выступление</button>
+
+                <button type="button" class="chip example-link" data-url="https://www.youtube.com/watch?v=BaW_jenozKc">Объясняющее видео</button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+{% else %}
+
+<div class="chat-header">
+
+    {% if youtube_thumbnail(active_chat.job.url) %}
+
+    <img class="chat-header-thumb" src="{{ youtube_thumbnail(active_chat.job.url) }}" alt="">
+
+    {% endif %}
+
+    <div class="chat-header-text">
+
+        <h1 id="chat-title">{{ active_chat.job.title or "Видео" }}</h1>
+
+        <a class="job-url muted small" href="{{ active_chat.job.url }}" target="_blank" rel="noopener">{{ active_chat.job.url }}</a>
+
+    </div>
+
+</div>
+
+
+
+<div class="chat-scroll" id="chat-scroll">
+
+    <div id="progress" class="progress-wrap" {% if active_chat.job.status in ['done', 'error'] %}hidden{% endif %}>
+
+        <div class="progress-head">
+
+            <span id="progress-pct">{{ active_chat.job.progress }}%</span>
+
+            <span id="stage" aria-live="polite">{{ active_chat.job.stage }}</span>
+
+        </div>
+
+        <div class="progress-steps" id="progress-steps" aria-label="Этапы обработки"></div>
+
+        <div class="progress-bar progress-bar-shimmer"
+
+             id="progress-bar"
+
+             role="progressbar"
+
+             aria-valuenow="{{ active_chat.job.progress }}"
+
+             aria-valuemin="0"
+
+             aria-valuemax="100"
+
+             aria-labelledby="progress-pct stage">
+
+            <div id="progress-fill" class="progress-fill" style="width: {{ active_chat.job.progress }}%"></div>
+
+        </div>
+
+        <p id="progress-eta" class="progress-eta muted small" hidden></p>
+
+        <p id="progress-status" class="sr-only" aria-live="polite">{{ active_chat.job.stage }}</p>
+
+    </div>
+
+
+
+    <div id="error-box" class="alert" role="alert" {% if active_chat.job.status != 'error' %}hidden{% endif %}>
+
+        <span id="error-text">{{ active_chat.job.error }}</span>
+
+        <div class="message-actions actions">
+
+            <button class="btn btn-primary btn-sm btn-retry" type="button" data-mode="full">Попробовать снова</button>
+
+        </div>
+
+    </div>
+
+
+
+    <div class="messages" id="messages" role="log" aria-live="polite" aria-label="Диалог по видео">
+
+        {% if active_chat.job.status == 'done' %}
+
+        <div class="message message-assistant message-enter" data-system="summary">
+
+            <div class="message-avatar" aria-hidden="true">AI</div>
+
+            <div class="message-content">
+
+                <div class="message-label">Пересказ
+
+                    <span id="source-note" class="muted small">
+
+                        {% if active_chat.job.source == 'whisper' %}· из речи{% elif active_chat.job.source == 'subtitles' %}· из субтитров{% endif %}
+
+                    </span>
+
+                </div>
+
+                <div class="message-bubble message-bubble-with-copy">
+
+                    <button type="button" class="btn-copy" aria-label="Скопировать" title="Копировать">
+
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M5 15V5a2 2 0 012-2h10" stroke="currentColor" stroke-width="1.8"/></svg>
+
+                    </button>
+
+                    <div id="summary" class="md-content">{{ active_chat.job.summary }}</div>
+
+                </div>
+
+                <div class="message-meta muted small" id="result-meta">
+
+                    {% if active_chat.job.duration_sec %}{{ fmt_duration(active_chat.job.duration_sec) }} · {% endif %}
+
+                    {{ active_chat.job.summary_model or default_ollama_model() }}
+
+                </div>
+
+                <div class="message-actions actions">
+
+                    <a class="btn btn-ghost btn-sm" href="chats/{{ active_chat.id }}/download/summary">Скачать .txt</a>
+
+                    <button class="btn btn-ghost btn-sm btn-retry" type="button" data-mode="llm">Пересказать заново</button>
+
+                    <button class="btn btn-ghost btn-sm btn-retry" type="button" data-mode="full">С нуля</button>
+
+                    <button class="btn btn-ghost btn-sm" id="toggle-transcript" type="button" aria-expanded="false" aria-controls="transcript-box">Полный текст</button>
+
+                </div>
+
+                <div id="transcript-box" class="transcript-box" hidden>
+
+                    <div id="transcript" class="transcript-text muted">Загрузка…</div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+
+        {% if active_chat.job.opinions %}
+
+        <div class="message message-assistant message-enter message-opinions" id="opinions-message" data-system="opinions">
+
+            <div class="message-avatar" aria-hidden="true">AI</div>
+
+            <div class="message-content">
+
+                <div class="message-label">Позиции и мнения</div>
+
+                <div class="message-bubble message-bubble-accent message-bubble-with-copy">
+
+                    <button type="button" class="btn-copy" aria-label="Скопировать" title="Копировать">
+
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M5 15V5a2 2 0 012-2h10" stroke="currentColor" stroke-width="1.8"/></svg>
+
+                    </button>
+
+                    <div id="opinions" class="md-content">{{ active_chat.job.opinions }}</div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        {% endif %}
+
+        {% endif %}
+
+
+
+        {% for msg in messages %}
+
+        <div class="message message-{{ msg.role }} message-enter">
+
+            {% if msg.role == 'assistant' %}
+
+            <div class="message-avatar" aria-hidden="true">AI</div>
+
+            {% endif %}
+
+            <div class="message-content">
+
+                <div class="message-bubble{% if msg.role == 'assistant' %} message-bubble-with-copy{% endif %}" aria-label="{% if msg.role == 'user' %}Вы{% else %}Ассистент{% endif %}">
+
+                    {% if msg.role == 'assistant' %}
+
+                    <button type="button" class="btn-copy" aria-label="Скопировать" title="Копировать">
+
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M5 15V5a2 2 0 012-2h10" stroke="currentColor" stroke-width="1.8"/></svg>
+
+                    </button>
+
+                    <div class="md-content">{{ msg.content }}</div>
+
+                    {% else %}
+
+                    {{ msg.content }}
+
+                    {% endif %}
+
+                </div>
+
+            </div>
+
+        </div>
+
+        {% endfor %}
+
+    </div>
+
+</div>
+
+
+
+<div class="chat-input-wrap">
+
+    <div class="suggestion-chips" id="suggestion-chips" {% if active_chat.job.status != 'done' %}hidden{% endif %}>
+
+        <button type="button" class="chip" data-prompt="В чём главная мысль этого видео?">Главная мысль</button>
+
+        <button type="button" class="chip" data-prompt="С чем автор не согласен?">Позиция автора</button>
+
+        <button type="button" class="chip" data-prompt="Кратко перескажи ещё раз своими словами.">Кратко ещё раз</button>
+
+    </div>
+
+    <form id="chat-form" class="chat-form chat-form-pill">
+
+        <label for="chat-input" class="sr-only">Вопрос по видео</label>
+
+        <div class="chat-input-pill">
+
+            <textarea
+
+                id="chat-input"
+
+                rows="1"
+
+                placeholder="{% if active_chat.job.status == 'done' %}Спроси что угодно по этому видео…{% else %}Дождитесь обработки видео…{% endif %}"
+
+                {% if active_chat.job.status != 'done' %}disabled aria-describedby="progress-status"{% endif %}></textarea>
+
+            <button class="chat-send-btn" id="chat-send" type="submit" aria-label="Отправить" {% if active_chat.job.status != 'done' %}disabled{% endif %}>
+
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h12M13 8l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+
+            </button>
+
+        </div>
+
+    </form>
+
+</div>
+
+
+
+<div id="copy-toast" class="copy-toast sr-only" aria-live="polite"></div>
+
+
+
+<div id="chat-boot"
+
+     data-chat-id="{{ active_chat.id }}"
+
+     data-status="{{ active_chat.job.status }}"
+
+     data-progress="{{ active_chat.job.progress }}"
+
+     hidden></div>
+
+{% endif %}
+
+
+
+{% if refresh_sidebar %}
+
+<aside class="chat-sidebar" hx-swap-oob="outerHTML:.chat-sidebar">
+
+{% include "partials/chat_sidebar_inner.html" %}
+
+</aside>
+
+{% endif %}
+

@@ -14,7 +14,7 @@ import { useRouter } from "next/navigation";
 import { getCurrentUser, loginUser, registerUser } from "@/lib/api";
 import type { User } from "@/lib/types";
 
-const TOKEN_KEY = "letscore_access_token";
+const TOKEN_KEY = "folio_one_access_token";
 
 type AuthContextValue = {
   token: string | null;

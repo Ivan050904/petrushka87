@@ -33,7 +33,7 @@ type ResourceDraft = {
   description: string;
 };
 
-const RESOURCE_DRAFT_STORAGE_KEY = "letscore_resource_draft";
+const RESOURCE_DRAFT_STORAGE_KEY = "folio_one_resource_draft";
 
 export function ResourcesPanel({ embedded = false }: { embedded?: boolean }) {
   const { token, user } = useRequireAuth();

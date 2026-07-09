@@ -18,10 +18,10 @@ from app.schemas.metadata import normalize_metadata
 from app.services.security import get_password_hash
 from app.storage import get_file_storage
 
-DEMO_EMAIL = "demo@letscore.local"
+DEMO_EMAIL = "demo@folio-one.local"
 DEMO_PASSWORD = "demo12345"
 DEMO_FULL_NAME = "Алексей Демо"
-DEMO_SEED_MARKER = "letscore-demo-v1"
+DEMO_SEED_MARKER = "folio-one-demo-v1"
 MIN_DEMO_ENTRIES = 40
 
 
@@ -162,9 +162,9 @@ def _build_demo_entries(user_id: Any) -> list[dict[str, Any]]:
 
     # Tasks — projects, statuses, deadlines
     task_specs = [
-        ("Подготовить презентацию продукта", "Собрать слайды и сценарий демо на 12 минут", "active", "LetsCore", -1, 10, 30, _datetime_offset(3, 18, 0)),
-        ("Согласовать макеты с дизайнером", "Пройтись по навигации и карточкам трекинга", "active", "LetsCore", -2, 11, 0, _datetime_offset(2, 15, 0)),
-        ("Написать README для репозитория", "Добавить раздел про демо-аккаунт и быстрый старт", "done", "LetsCore", -5, 14, 0, None),
+        ("Подготовить презентацию продукта", "Собрать слайды и сценарий демо на 12 минут", "active", "Folio-One", -1, 10, 30, _datetime_offset(3, 18, 0)),
+        ("Согласовать макеты с дизайнером", "Пройтись по навигации и карточкам трекинга", "active", "Folio-One", -2, 11, 0, _datetime_offset(2, 15, 0)),
+        ("Написать README для репозитория", "Добавить раздел про демо-аккаунт и быстрый старт", "done", "Folio-One", -5, 14, 0, None),
         ("Заказать продукты на неделю", "Овощи, крупы, курица, яйца", "active", "Дом", 0, 18, 0, _datetime_offset(0, 19, 30)),
         ("Оплатить интернет", "Проверить автоплатёж и чек", "inbox", "Дом", 0, 8, 15, _datetime_offset(2, 12, 0)),
         ("Записаться к стоматологу", "Профилактический осмотр", "inbox", "Здоровье", 0, 9, 0, None),
@@ -172,9 +172,9 @@ def _build_demo_entries(user_id: Any) -> list[dict[str, Any]]:
         ("Сдать отчёт по расходам", "Свести траты за июнь", "done", "Финансы", -3, 16, 0, None),
         ("Обновить резюме", "Добавить блок про pet-проекты", "active", "Карьера", -1, 20, 0, _datetime_offset(8, 12, 0)),
         ("Подготовить вопросы к ментору", "Сфокусироваться на архитектуре и UX", "active", "Карьера", 1, 9, 0, _datetime_offset(6, 17, 0)),
-        ("Разобрать входящие заметки", "Перевести 5 заметок в задачи", "inbox", "LetsCore", 0, 10, 0, None),
-        ("Сверстать виджет питания", "Дуга КБЖУ и компактные бары", "done", "LetsCore", -4, 13, 0, None),
-        ("Настроить CI для backend", "pytest + ruff в pull request", "cancelled", "LetsCore", -6, 12, 0, None),
+        ("Разобрать входящие заметки", "Перевести 5 заметок в задачи", "inbox", "Folio-One", 0, 10, 0, None),
+        ("Сверстать виджет питания", "Дуга КБЖУ и компактные бары", "done", "Folio-One", -4, 13, 0, None),
+        ("Настроить CI для backend", "pytest + ruff в pull request", "cancelled", "Folio-One", -6, 12, 0, None),
         ("Купить подарок на день рождения", "Книга или набор для кофе", "active", "Личное", 2, 11, 0, _datetime_offset(10, 19, 0)),
         ("Спланировать отпуск", "3 варианта маршрута на август", "inbox", "Личное", 0, 21, 0, None),
     ]
@@ -374,7 +374,7 @@ def _build_demo_entries(user_id: Any) -> list[dict[str, Any]]:
 
     # People
     people_specs = [
-        ("С. Л. Бедрина", "Научный руководитель", "1980-03-14", ["email: bedrina@university.edu", "telegram: @bedrina"]),
+        ("Алексей Воронов", "Тимлид в продуктовой команде", "1985-03-14", ["email: voronov@company.io", "telegram: @voronov"]),
         ("Мария Иванова", "Product designer", "1992-07-22", ["telegram: @masha_design", "email: masha@studio.ru"]),
         ("Дмитрий Козлов", "Backend-разработчик", "1995-11-03", ["github: kozlov-dev", "telegram: @kozlov"]),
         ("Анна Смирнова", "Ментор по карьере", "1988-01-19", ["email: anna@mentor.ru"]),
@@ -532,7 +532,7 @@ def seed_demo_entries(db: Session, user: User) -> int:
             content="Дашборд, inbox, планы, трекинг, справочник",
             metadata={
                 "status": "active",
-                "project": "LetsCore",
+                "project": "Folio-One",
                 "parent_id": str(parent.id),
                 "deadline": _datetime_offset(1, 16, 0),
             },
@@ -546,7 +546,7 @@ def seed_demo_entries(db: Session, user: User) -> int:
             content="Короткие подсказки к каждому слайду",
             metadata={
                 "status": "inbox",
-                "project": "LetsCore",
+                "project": "Folio-One",
                 "parent_id": str(parent.id),
             },
             created_at=_utc_from_local(0, 9, 30),

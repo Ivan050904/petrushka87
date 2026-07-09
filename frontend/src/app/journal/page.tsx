@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 
 type JournalMode = Extract<EntryType, "note" | "diary">;
 
-const JOURNAL_DRAFT_STORAGE_KEY = "letscore_journal_draft";
+const JOURNAL_DRAFT_STORAGE_KEY = "folio_one_journal_draft";
 const today = () => new Date().toISOString().slice(0, 10);
 
 function sortJournalEntries(entries: Entry[]) {
@@ -56,7 +56,7 @@ export default function JournalPage() {
     setIsLoading(true);
     setLoadError(null);
     Promise.all([
-      listEntries(token, { type: "diary", limit: 50 }),
+      listEntries(token, { type: "diary", limit: 50, exclude_collection: "life_notes" }),
       listEntries(token, { type: "note", limit: 50 }),
     ])
       .then(([diaryEntries, noteEntries]) => {

@@ -1,0 +1,60 @@
+"use client";
+
+import { Search } from "lucide-react";
+
+import { DEFAULT_LIFE_NOTE_CATEGORY } from "@/lib/life-notes";
+import { cn } from "@/lib/utils";
+
+type NotesHeaderProps = {
+  query: string;
+  onQueryChange: (value: string) => void;
+  categories: string[];
+  activeCategory: string | null;
+  onCategoryChange: (category: string | null) => void;
+};
+
+export function NotesHeader({
+  query,
+  onQueryChange,
+  categories,
+  activeCategory,
+  onCategoryChange,
+}: NotesHeaderProps) {
+  const pills = ["Все", ...categories.filter((category) => category !== DEFAULT_LIFE_NOTE_CATEGORY), DEFAULT_LIFE_NOTE_CATEGORY]
+    .filter((value, index, array) => array.indexOf(value) === index);
+
+  return (
+    <header className="sticky top-0 z-20 bg-[var(--notes-bg)]/95 px-4 pb-3 pt-4 backdrop-blur lg:px-6">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h1 className="text-3xl font-bold tracking-tight text-[var(--notes-text)]">Заметки</h1>
+      </div>
+
+      <label className="notes-search mb-4 flex items-center gap-3 px-4 py-3">
+        <Search className="size-5 shrink-0 text-[var(--notes-muted)]" />
+        <input
+          value={query}
+          onChange={(event) => onQueryChange(event.target.value)}
+          placeholder="Поиск заметок"
+          className="w-full bg-transparent text-sm outline-none"
+        />
+      </label>
+
+      <div className="scrollbar-hidden flex gap-2 overflow-x-auto pb-1">
+        {pills.map((pill) => {
+          const isAll = pill === "Все";
+          const isActive = isAll ? activeCategory === null : activeCategory === pill;
+          return (
+            <button
+              key={pill}
+              type="button"
+              onClick={() => onCategoryChange(isAll ? null : pill)}
+              className={cn("notes-pill focus-ring", isActive && "notes-pill-active")}
+            >
+              {pill}
+            </button>
+          );
+        })}
+      </div>
+    </header>
+  );
+}

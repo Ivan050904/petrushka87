@@ -1,0 +1,100 @@
+﻿    <a class="btn btn-primary btn-new-chat"
+
+       href=""
+
+       hx-get="panel/new"
+
+       hx-target="#chat-main"
+
+       hx-swap="innerHTML"
+
+       hx-push-url="">
+
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+
+        Новый чат
+
+    </a>
+
+    <div class="chat-list">
+
+        {% for chat in chats %}
+
+        <div class="chat-item-wrap">
+
+            <a class="chat-item {% if active_chat and chat.id == active_chat.id %}active{% endif %}"
+
+               href="chats/{{ chat.id }}"
+
+               title="{{ chat.title or chat.job.url }}"
+
+               hx-get="chats/{{ chat.id }}/panel"
+
+               hx-target="#chat-main"
+
+               hx-swap="innerHTML"
+
+               hx-push-url="/chats/{{ chat.id }}"
+
+               {% if active_chat and chat.id == active_chat.id %}aria-current="page"{% endif %}>
+
+                <div class="chat-thumb-wrap">
+
+                    {% if youtube_thumbnail(chat.job.url) %}
+
+                    <img class="chat-thumb" src="{{ youtube_thumbnail(chat.job.url) }}" alt="" loading="lazy">
+
+                    {% else %}
+
+                    <div class="chat-thumb chat-thumb-fallback" aria-hidden="true">
+
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="6" width="18" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M10 10v4l3.5-2L10 10z" fill="currentColor"/></svg>
+
+                    </div>
+
+                    {% endif %}
+
+                    <span class="status-dot status-{{ chat.job.status }}" title="{% if chat.job.status == 'done' %}Готово{% elif chat.job.status == 'error' %}Ошибка{% elif chat.job.status == 'processing' %}Обработка{% else %}В очереди{% endif %}"></span>
+
+                </div>
+
+                <div class="chat-item-body">
+
+                    <span class="chat-item-title">{{ chat.title or "Видео" }}</span>
+
+                    <span class="chat-item-meta">
+
+                        {% if chat.job.duration_sec %}{{ fmt_duration(chat.job.duration_sec) }} · {% endif %}
+
+                        {{ fmt_date(chat.created_at) }}
+
+                    </span>
+
+                </div>
+
+            </a>
+
+            <button type="button"
+
+                    class="btn-delete-chat"
+
+                    data-chat-id="{{ chat.id }}"
+
+                    aria-label="Удалить чат"
+
+                    title="Удалить">
+
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+
+            </button>
+
+        </div>
+
+        {% else %}
+
+        <p class="muted small chat-list-empty">Пока нет чатов. Создай первый.</p>
+
+        {% endfor %}
+
+    </div>
+

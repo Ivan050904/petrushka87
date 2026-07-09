@@ -12,7 +12,7 @@ from app.services.demo_seed import run_demo_seed  # noqa: E402
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Create or refresh the LetsCore demo user.")
+    parser = argparse.ArgumentParser(description="Create or refresh the Folio-One demo user.")
     parser.add_argument(
         "--reset",
         action="store_true",

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { Inter } from "next/font/google";
 
 import { AuthProvider } from "@/hooks/use-auth";
+import { BRAND_NAME, BRAND_TAGLINE } from "@/lib/brand";
 import "./globals.css";
 
 const inter = Inter({
@@ -12,12 +13,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "LetsCore",
-  description: "Personal life information system",
-  icons: {
-    icon: [{ url: "/brand/logo-mark.png", type: "image/png" }],
-    apple: [{ url: "/brand/logo-mark.png", type: "image/png" }],
-  },
+  title: BRAND_NAME,
+  description: BRAND_TAGLINE,
 };
 
 export const viewport: Viewport = {

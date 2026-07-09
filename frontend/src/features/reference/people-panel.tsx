@@ -33,7 +33,7 @@ const emptyPersonForm: PersonForm = {
   notes: "",
 };
 
-const PERSON_DRAFT_STORAGE_KEY = "letscore_person_draft";
+const PERSON_DRAFT_STORAGE_KEY = "folio_one_person_draft";
 
 export function PeoplePanel({ embedded = false }: { embedded?: boolean }) {
   const { token, user } = useRequireAuth();

@@ -156,6 +156,349 @@
   .nutrition-arc-progress {
     transition: stroke-dasharray 780ms cubic-bezier(0.22, 1, 0.36, 1);
   }
+
+  .kanban-surface {
+    --kanban-bg: #f6f8fa;
+    --kanban-panel: #ffffff;
+    --kanban-border: #d0d7de;
+    --kanban-muted: #656d76;
+    --kanban-accent: #0969da;
+    --kanban-empty: #ddf4ff;
+    background-color: var(--kanban-bg);
+    color: #1f2328;
+  }
+
+  .kanban-panel {
+    background-color: var(--kanban-panel);
+    border-color: var(--kanban-border);
+  }
+
+  .kanban-filter-active {
+    background-color: var(--kanban-accent);
+    border-color: var(--kanban-accent);
+    color: #ffffff;
+  }
+
+  .kanban-filter-inactive {
+    background-color: var(--kanban-panel);
+    border-color: var(--kanban-border);
+    color: var(--kanban-muted);
+  }
+
+  .kanban-filter-inactive:hover {
+    background-color: #f6f8fa;
+    color: #1f2328;
+  }
+
+  .kanban-empty-state {
+    background-color: var(--kanban-empty);
+    border: 1px solid #b6e3ff;
+    border-radius: 12px;
+  }
+
+  .kanban-detail-shell {
+    --kanban-detail-bg: #161b22;
+    --kanban-detail-surface: #0d1117;
+    --kanban-detail-border: #30363d;
+    --kanban-detail-muted: #8b949e;
+    --kanban-detail-text: #f0f6fc;
+    --kanban-detail-accent: #388bfd;
+    --kanban-detail-danger: #f85149;
+    background: var(--kanban-detail-bg);
+    border: 1px solid var(--kanban-detail-border);
+    border-radius: 16px;
+    color: var(--kanban-detail-text);
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+  }
+
+  .kanban-detail-header,
+  .kanban-detail-footer {
+    border-color: var(--kanban-detail-border);
+  }
+
+  .kanban-detail-footer {
+    border-top: 1px solid var(--kanban-detail-border);
+  }
+
+  .kanban-detail-title-input {
+    color: var(--kanban-detail-text);
+  }
+
+  .kanban-detail-title-input::placeholder {
+    color: var(--kanban-detail-muted);
+  }
+
+  .kanban-detail-tab-active {
+    color: var(--kanban-detail-text);
+    border-bottom: 2px solid var(--kanban-detail-text);
+  }
+
+  .kanban-detail-tab-inactive {
+    color: var(--kanban-detail-muted);
+  }
+
+  .kanban-detail-section-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--kanban-detail-muted);
+  }
+
+  .kanban-detail-section-icon {
+    display: inline-flex;
+    color: var(--kanban-detail-muted);
+  }
+
+  .kanban-detail-textarea,
+  .kanban-detail-date,
+  .kanban-detail-subtask-add,
+  .kanban-detail-comment-compose,
+  .kanban-detail-attachment,
+  .kanban-detail-subtask,
+  .kanban-detail-comment,
+  .kanban-detail-history-item {
+    background: var(--kanban-detail-surface);
+    border: 1px solid var(--kanban-detail-border);
+    border-radius: 10px;
+    color: var(--kanban-detail-text);
+  }
+
+  .kanban-detail-textarea {
+    width: 100%;
+    padding: 0.875rem 1rem;
+    resize: vertical;
+    outline: none;
+  }
+
+  .kanban-detail-textarea::placeholder {
+    color: var(--kanban-detail-muted);
+  }
+
+  .kanban-detail-upload {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border: 1px dashed var(--kanban-detail-border);
+    border-radius: 10px;
+    background: var(--kanban-detail-surface);
+    padding: 1.25rem 1rem;
+    color: var(--kanban-detail-muted);
+    transition: border-color 150ms ease, color 150ms ease;
+  }
+
+  .kanban-detail-upload:hover:not(:disabled) {
+    border-color: var(--kanban-detail-accent);
+    color: var(--kanban-detail-text);
+  }
+
+  .kanban-detail-upload:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  .kanban-detail-priority-btn {
+    display: inline-flex;
+    width: 2rem;
+    height: 2rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    border: 1px solid var(--kanban-detail-border);
+    background: var(--kanban-detail-surface);
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--kanban-detail-muted);
+    transition: transform 120ms ease, background-color 120ms ease, color 120ms ease;
+  }
+
+  .kanban-detail-priority-btn-active {
+    color: #ffffff;
+    border-color: transparent;
+    background: #7f1d1d;
+  }
+
+  .kanban-detail-priority-btn-active.bg-rose-500 {
+    background: #be123c;
+  }
+
+  .kanban-detail-date {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    outline: none;
+  }
+
+  .kanban-detail-subtask,
+  .kanban-detail-attachment {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 0.75rem;
+  }
+
+  .kanban-detail-subtask-add,
+  .kanban-detail-comment-compose {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 0.75rem;
+  }
+
+  .kanban-detail-comment-compose {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 0.875rem 1rem;
+  }
+
+  .kanban-detail-checkbox {
+    display: inline-flex;
+    width: 1.125rem;
+    height: 1.125rem;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.25rem;
+    border: 1px solid var(--kanban-detail-accent);
+    background: transparent;
+    color: var(--kanban-detail-accent);
+  }
+
+  .kanban-detail-checkbox-checked {
+    background: rgba(56, 139, 253, 0.15);
+  }
+
+  .kanban-detail-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.5rem;
+    padding: 0.375rem;
+    color: var(--kanban-detail-muted);
+    transition: background-color 120ms ease, color 120ms ease;
+  }
+
+  .kanban-detail-icon-btn:hover {
+    background: rgba(240, 246, 252, 0.06);
+    color: var(--kanban-detail-text);
+  }
+
+  .kanban-detail-comment,
+  .kanban-detail-history-item {
+    padding: 0.875rem 1rem;
+  }
+
+  .kanban-detail-send-btn {
+    align-self: flex-end;
+    border-radius: 0.5rem;
+    background: var(--kanban-detail-accent);
+    padding: 0.5rem 0.875rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #ffffff;
+  }
+
+  .kanban-detail-send-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .kanban-card-priority {
+    display: inline-flex;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 9999px;
+  }
+
+  .notes-surface {
+    --notes-bg: #000000;
+    --notes-card: #1c1c1e;
+    --notes-card-hover: #2c2c2e;
+    --notes-text: #ffffff;
+    --notes-muted: #8e8e93;
+    --notes-fab: #ffcc00;
+    --notes-pill: #2c2c2e;
+    --notes-pill-active: #3a3a3c;
+    --notes-border: #2c2c2e;
+    --notes-mark: #ffd60a33;
+    background-color: var(--notes-bg);
+    color: var(--notes-text);
+  }
+
+  .notes-card {
+    background-color: var(--notes-card);
+    border: 1px solid transparent;
+    border-radius: 14px;
+    transition: background-color 150ms ease;
+  }
+
+  .notes-card:hover {
+    background-color: var(--notes-card-hover);
+  }
+
+  .notes-pill {
+    border-radius: 999px;
+    background-color: var(--notes-pill);
+    color: var(--notes-text);
+    padding: 0.45rem 0.9rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    white-space: nowrap;
+    transition: background-color 150ms ease;
+  }
+
+  .notes-pill-active {
+    background-color: var(--notes-pill-active);
+  }
+
+  .notes-search {
+    background-color: var(--notes-card);
+    border: 1px solid var(--notes-border);
+    border-radius: 12px;
+    color: var(--notes-text);
+  }
+
+  .notes-search::placeholder {
+    color: var(--notes-muted);
+  }
+
+  .notes-fab {
+    background-color: var(--notes-fab);
+    color: #000000;
+    box-shadow: 0 8px 24px rgba(255, 204, 0, 0.35);
+  }
+
+  .notes-editor {
+    background-color: var(--notes-bg);
+    color: var(--notes-text);
+  }
+
+  .notes-editor textarea {
+    background: transparent;
+    color: var(--notes-text);
+    border: none;
+    resize: none;
+  }
+
+  .notes-editor textarea::placeholder {
+    color: var(--notes-muted);
+  }
+
+  .notes-ai-panel {
+    background-color: var(--notes-card);
+    border: 1px solid var(--notes-border);
+    border-radius: 14px;
+  }
+
+  .notes-mark {
+    background-color: var(--notes-mark);
+    border-radius: 4px;
+    padding: 0 2px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,10 +1,14 @@
 from __future__ import annotations
 
-from typing import Any, Literal, Protocol
+from collections.abc import AsyncIterator
+from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 from pydantic import BaseModel, Field, field_validator
 
 from app.schemas.entry import EntryType
+
+if TYPE_CHECKING:
+    from app.services.ai.life_notes import LifeNoteAnalyzeResult
 
 CLASSIFIABLE_ENTRY_TYPES = {
     EntryType.task,
@@ -83,3 +87,21 @@ class AIClient(Protocol):
 
     def parse_tasks(self, content: str) -> TaskParseResult:
         """Return task candidates extracted from free-form text."""
+
+    def analyze_text(
+        self,
+        content: str,
+        *,
+        entry_date: str | None = None,
+        context: Any | None = None,
+    ) -> "LifeNoteAnalyzeResult":
+        """Analyze note text with optional user context."""
+
+    def answer(
+        self,
+        query: str,
+        *,
+        history: list[dict[str, str]],
+        context: Any,
+    ) -> AsyncIterator[str]:
+        """Stream an assistant answer."""

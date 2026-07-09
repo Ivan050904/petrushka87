@@ -17,8 +17,42 @@ from app.models.user import User
 from app.schemas.entry import EntryCreate, EntryList, EntryRead, EntryType, EntryUpdate
 from app.schemas.metadata import normalize_metadata
 from app.services.ai.factory import get_ai_client
+from app.services.embeddings.indexer import index_entry
 
 router = APIRouter()
+
+LIFE_NOTES_MAX_LIMIT = 200
+
+
+def _metadata_text(field: str):
+    return func.json_extract(Entry.metadata_, f"$.{field}")
+
+
+def _apply_metadata_filters(
+    statement,
+    *,
+    collection: str | None,
+    exclude_collection: str | None,
+    category: str | None,
+    entry_date_from: str | None,
+    entry_date_to: str | None,
+):
+    if collection:
+        statement = statement.where(_metadata_text("collection") == collection)
+    if exclude_collection:
+        statement = statement.where(
+            or_(
+                _metadata_text("collection").is_(None),
+                _metadata_text("collection") != exclude_collection,
+            )
+        )
+    if category:
+        statement = statement.where(_metadata_text("category") == category)
+    if entry_date_from:
+        statement = statement.where(_metadata_text("entry_date") >= entry_date_from)
+    if entry_date_to:
+        statement = statement.where(_metadata_text("entry_date") <= entry_date_to)
+    return statement
 
 
 def _entry_title(title: str | None, content: str) -> str:
@@ -168,13 +202,30 @@ def list_entries(
     current_user: User = Depends(get_current_user),
     entry_type: EntryType | None = Query(default=None, alias="type"),
     q: str | None = Query(default=None, min_length=1),
-    limit: int = Query(default=50, ge=1, le=100),
+    collection: str | None = Query(default=None, min_length=1, max_length=64),
+    exclude_collection: str | None = Query(default=None, min_length=1, max_length=64),
+    category: str | None = Query(default=None, min_length=1, max_length=64),
+    entry_date_from: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    entry_date_to: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    sort: str | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
 ) -> EntryList:
+    effective_limit = min(limit, LIFE_NOTES_MAX_LIMIT) if collection else limit
+
     statement = select(Entry).where(Entry.user_id == current_user.id)
 
     if entry_type is not None:
         statement = statement.where(Entry.type == entry_type.value)
+
+    statement = _apply_metadata_filters(
+        statement,
+        collection=collection,
+        exclude_collection=exclude_collection,
+        category=category,
+        entry_date_from=entry_date_from,
+        entry_date_to=entry_date_to,
+    )
 
     if q:
         pattern = f"%{q.strip()}%"
@@ -187,8 +238,24 @@ def list_entries(
         )
 
     total = db.scalar(select(func.count()).select_from(statement.subquery())) or 0
+
+    if sort == "entry_date_desc":
+        order_clause = (
+            _metadata_text("entry_date").desc(),
+            Entry.updated_at.desc(),
+            Entry.created_at.desc(),
+        )
+    elif sort == "entry_date_asc" or collection == "life_notes":
+        order_clause = (
+            _metadata_text("entry_date").asc(),
+            Entry.created_at.asc(),
+            Entry.updated_at.asc(),
+        )
+    else:
+        order_clause = (Entry.updated_at.desc(), Entry.created_at.desc())
+
     entries = db.scalars(
-        statement.order_by(Entry.updated_at.desc(), Entry.created_at.desc()).offset(offset).limit(limit)
+        statement.order_by(*order_clause).offset(offset).limit(effective_limit)
     ).all()
 
     return EntryList(items=[serialize_entry(entry) for entry in entries], total=total)
@@ -251,6 +318,8 @@ def create_entry(
     db.add(entry)
     db.commit()
     db.refresh(entry)
+    index_entry(db, entry)
+    db.commit()
     return serialize_entry(entry)
 
 
@@ -312,6 +381,8 @@ def update_entry(
     if previous_resource_key is not None and previous_resource_key != current_resource_key:
         _delete_resource_file_key(previous_resource_key)
     db.refresh(entry)
+    index_entry(db, entry)
+    db.commit()
     return serialize_entry(entry)
 
 

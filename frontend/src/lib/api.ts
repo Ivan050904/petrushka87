@@ -6,6 +6,14 @@ import type {
   TokenResponse,
   User,
 } from "@/lib/types";
+import type {
+  FinanceAIStatus,
+  FinanceBankCode,
+  FinanceImportPreview,
+  FinanceImportRow,
+  FinanceSettings,
+  FinanceSummary,
+} from "@/lib/finance-import";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
@@ -72,6 +80,9 @@ function formatValidationIssue(item: unknown): string | null {
     : "";
 
   if (message && location) {
+    if (location === "content" && message.toLowerCase().includes("at least 1")) {
+      return "Текст заметки не может быть пустым.";
+    }
     return `${location}: ${message}`;
   }
   return message;
@@ -157,13 +168,28 @@ export function getCurrentUser(token: string): Promise<User> {
   return request<User>("/auth/me", { token });
 }
 
+export function getEntry(token: string, id: string): Promise<Entry> {
+  return request<Entry>(`/entries/${id}`, { token });
+}
+
 export function getDashboard(token: string): Promise<DashboardSummary> {
   return request<DashboardSummary>("/dashboard", { token });
 }
 
 export function listEntries(
   token: string,
-  params: { q?: string; type?: EntryType; limit?: number; offset?: number } = {},
+  params: {
+    q?: string;
+    type?: EntryType;
+    limit?: number;
+    offset?: number;
+    collection?: string;
+    exclude_collection?: string;
+    category?: string;
+    entry_date_from?: string;
+    entry_date_to?: string;
+    sort?: string;
+  } = {},
 ): Promise<EntryList> {
   const searchParams = new URLSearchParams();
   if (params.q) {
@@ -177,6 +203,24 @@ export function listEntries(
   }
   if (params.offset) {
     searchParams.set("offset", String(params.offset));
+  }
+  if (params.collection) {
+    searchParams.set("collection", params.collection);
+  }
+  if (params.exclude_collection) {
+    searchParams.set("exclude_collection", params.exclude_collection);
+  }
+  if (params.category) {
+    searchParams.set("category", params.category);
+  }
+  if (params.entry_date_from) {
+    searchParams.set("entry_date_from", params.entry_date_from);
+  }
+  if (params.entry_date_to) {
+    searchParams.set("entry_date_to", params.entry_date_to);
+  }
+  if (params.sort) {
+    searchParams.set("sort", params.sort);
   }
 
   const query = searchParams.toString();
@@ -277,4 +321,184 @@ export async function uploadResource(
 
 export async function downloadResourceFile(token: string, entryId: string) {
   return requestBlob(`/resources/${entryId}/file`, { token });
+}
+
+export type LifeNoteDrySpot = {
+  quote: string;
+  issue: string;
+  suggestion: string;
+};
+
+export type LifeNoteAnalyzeResponse = {
+  tone: string;
+  dry_spots: LifeNoteDrySpot[];
+  summary: string;
+  usage?: Record<string, unknown> | null;
+};
+
+export function analyzeLifeNote(
+  token: string,
+  payload: { content: string; entry_date?: string },
+): Promise<LifeNoteAnalyzeResponse> {
+  return request<LifeNoteAnalyzeResponse>("/notes/analyze", {
+    method: "POST",
+    token,
+    body: JSON.stringify(payload),
+  });
+}
+
+
+export function getFinanceAIStatus(token: string): Promise<FinanceAIStatus> {
+  return request<FinanceAIStatus>("/finance/ai-status", { token });
+}
+
+export function previewFinanceImport(
+  token: string,
+  payload: { bank: FinanceBankCode; accountId: string; file: File },
+): Promise<FinanceImportPreview> {
+  const formData = new FormData();
+  formData.set("bank", payload.bank);
+  formData.set("account_id", payload.accountId);
+  formData.set("file", payload.file);
+  return request<FinanceImportPreview>("/finance/import/preview", {
+    method: "POST",
+    token,
+    body: formData,
+  });
+}
+
+export function confirmFinanceImport(
+  token: string,
+  payload: { bank: FinanceBankCode; account_id: string; rows: FinanceImportRow[] },
+): Promise<{ created: number; skipped_duplicates: number }> {
+  return request("/finance/import/confirm", {
+    method: "POST",
+    token,
+    body: JSON.stringify(payload),
+  });
+}
+
+export function categorizeFinanceImport(
+  token: string,
+  payload: { rows: FinanceImportRow[]; categories: string[]; accounts: FinanceSettings["accounts"] },
+): Promise<{ rows: FinanceImportRow[] }> {
+  return request("/finance/categorize", {
+    method: "POST",
+    token,
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getFinanceSummary(
+  token: string,
+  params: { from?: string; to?: string } = {},
+): Promise<FinanceSummary> {
+  const searchParams = new URLSearchParams();
+  if (params.from) {
+    searchParams.set("from", params.from);
+  }
+  if (params.to) {
+    searchParams.set("to", params.to);
+  }
+  const suffix = searchParams.toString() ? `?${searchParams.toString()}` : "";
+  return request<FinanceSummary>(`/finance/summary${suffix}`, { token });
+}
+
+export type AssistantConversation = {
+  id: string;
+  title: string;
+  scope: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AssistantMessage = {
+  id: string;
+  role: string;
+  content: string;
+  created_at: string;
+};
+
+export function listAssistantConversations(token: string): Promise<AssistantConversation[]> {
+  return request<AssistantConversation[]>("/assistant/conversations", { token });
+}
+
+export function createAssistantConversation(token: string, title = "Новый диалог"): Promise<AssistantConversation> {
+  return request<AssistantConversation>("/assistant/conversations", {
+    method: "POST",
+    token,
+    body: JSON.stringify({ title, scope: "all" }),
+  });
+}
+
+export function getAssistantConversation(
+  token: string,
+  conversationId: string,
+): Promise<AssistantConversation & { messages: AssistantMessage[] }> {
+  return request(`/assistant/conversations/${conversationId}`, { token });
+}
+
+export async function streamAssistantChat(
+  token: string,
+  conversationId: string,
+  message: string,
+  handlers: {
+    onToken: (text: string) => void;
+    onError?: (message: string) => void;
+  },
+): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/assistant/conversations/${conversationId}/chat`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
+    },
+    body: JSON.stringify({ message }),
+  });
+
+  if (!response.ok) {
+    throw new ApiError(await errorMessageFromResponse(response), response.status);
+  }
+  if (!response.body) {
+    throw new ApiError("Пустой ответ ассистента", response.status);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    buffer += decoder.decode(value, { stream: true });
+    const chunks = buffer.split("\n\n");
+    buffer = chunks.pop() ?? "";
+
+    for (const chunk of chunks) {
+      const lines = chunk.split("\n");
+      let eventName = "message";
+      let data = "";
+      for (const line of lines) {
+        if (line.startsWith("event: ")) {
+          eventName = line.slice(7).trim();
+        } else if (line.startsWith("data: ")) {
+          data += line.slice(6);
+        }
+      }
+      if (!data) {
+        continue;
+      }
+      const payload = JSON.parse(data) as { text?: string; message?: string };
+      if (eventName === "token" && payload.text) {
+        handlers.onToken(payload.text);
+      }
+      if (eventName === "error" && payload.message) {
+        handlers.onError?.(payload.message);
+        throw new ApiError(payload.message, 502);
+      }
+    }
+  }
 }

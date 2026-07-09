@@ -47,14 +47,14 @@ def _env_list(values: dict[str, str], name: str, default: list[str]) -> list[str
 
 
 DEFAULT_DATABASE_URL = (
-    f"sqlite:///{(Path(__file__).resolve().parents[2] / 'storage' / 'letscore.db').as_posix()}"
+    f"sqlite:///{(Path(__file__).resolve().parents[2] / 'storage' / 'folio_one.db').as_posix()}"
 )
 DEFAULT_LOCAL_STORAGE_PATH = str(Path(__file__).resolve().parents[2] / "storage" / "files")
 
 
 @dataclass(frozen=True)
 class Settings:
-    app_name: str = "LetsCore"
+    app_name: str = "Folio-One"
     environment: str = "local"
     api_v1_prefix: str = "/api/v1"
 
@@ -84,6 +84,17 @@ class Settings:
     yandex_cloud_api_key: str = ""
     yandex_cloud_model: str = "aliceai-llm-flash/latest"
 
+    notes_ai_enabled: bool = True
+    notes_ai_provider: str = "auto"
+    notes_ai_base_url: str = ""
+    notes_ai_api_key: str = ""
+    notes_ai_model: str = ""
+
+    finance_ai_enabled: bool = True
+    finance_ai_base_url: str = ""
+    finance_ai_api_key: str = ""
+    finance_ai_model: str = ""
+
     file_storage_provider: str = "local"
     local_storage_path: str = DEFAULT_LOCAL_STORAGE_PATH
     s3_bucket_name: str = ""
@@ -98,7 +109,7 @@ class Settings:
 def get_settings() -> Settings:
     dotenv = _read_dotenv()
     return Settings(
-        app_name=_env(dotenv, "APP_NAME", "LetsCore"),
+        app_name=_env(dotenv, "APP_NAME", "Folio-One"),
         environment=_env(dotenv, "ENVIRONMENT", "local"),
         api_v1_prefix=_env(dotenv, "API_V1_PREFIX", "/api/v1"),
         database_url=_env(
@@ -139,6 +150,15 @@ def get_settings() -> Settings:
         yandex_cloud_folder_id=_env(dotenv, "YANDEX_CLOUD_FOLDER_ID", ""),
         yandex_cloud_api_key=_env(dotenv, "YANDEX_CLOUD_API_KEY", ""),
         yandex_cloud_model=_env(dotenv, "YANDEX_CLOUD_MODEL", "aliceai-llm-flash/latest"),
+        notes_ai_enabled=_env_bool(dotenv, "NOTES_AI_ENABLED", True),
+        notes_ai_provider=_env(dotenv, "NOTES_AI_PROVIDER", "auto"),
+        notes_ai_base_url=_env(dotenv, "NOTES_AI_BASE_URL", ""),
+        notes_ai_api_key=_env(dotenv, "NOTES_AI_API_KEY", ""),
+        notes_ai_model=_env(dotenv, "NOTES_AI_MODEL", ""),
+        finance_ai_enabled=_env_bool(dotenv, "FINANCE_AI_ENABLED", True),
+        finance_ai_base_url=_env(dotenv, "FINANCE_AI_BASE_URL", ""),
+        finance_ai_api_key=_env(dotenv, "FINANCE_AI_API_KEY", ""),
+        finance_ai_model=_env(dotenv, "FINANCE_AI_MODEL", ""),
         file_storage_provider=_env(dotenv, "FILE_STORAGE_PROVIDER", "local"),
         local_storage_path=_env(dotenv, "LOCAL_STORAGE_PATH", DEFAULT_LOCAL_STORAGE_PATH),
         s3_bucket_name=_env(dotenv, "S3_BUCKET_NAME", ""),

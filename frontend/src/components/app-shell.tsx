@@ -3,23 +3,29 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FocusEvent, ReactNode } from "react";
 import {
-  Activity,
   Bell,
+  Bot,
   BookOpen,
   CalendarDays,
   CalendarRange,
   ChevronsLeft,
   ChevronsRight,
-  Columns3,
+  Kanban,
   Ellipsis,
+  Flame,
   Home,
   Inbox,
   Library,
   LogOut,
+  Mic,
+  Repeat,
   Search,
   Settings,
+  StickyNote,
+  Wallet,
   X,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -32,34 +38,60 @@ import { useAuth } from "@/hooks/use-auth";
 import { getErrorMessage, listEntries } from "@/lib/api";
 import { entryModuleHref, formatDate, getString } from "@/lib/entry-helpers";
 import { formatEntryType } from "@/lib/labels";
-import { NOTIFICATION_VISIBLE_ROUTES, ROUTES } from "@/lib/navigation";
+import { NOTIFICATION_VISIBLE_ROUTES, ROUTES, parseTrackingTab, trackingTabHref, type TrackingTab } from "@/lib/navigation";
 import type { Entry } from "@/lib/types";
+import { BRAND_NAME } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 
-const navigation = [
+type NavItem = {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  showInboxCount?: boolean;
+  trackingTab?: TrackingTab;
+};
+
+const navigation: NavItem[] = [
   { href: ROUTES.dashboard, label: "Сегодня", icon: Home },
   { href: ROUTES.inbox, label: "Входящие", icon: Inbox, showInboxCount: true },
-  { href: ROUTES.board, label: "Доска мыслей", icon: Columns3 },
+  { href: ROUTES.board, label: "Канбан", icon: Kanban },
+  { href: ROUTES.notes, label: "Заметки", icon: StickyNote },
   { href: ROUTES.journal, label: "Журнал", icon: BookOpen },
   { href: ROUTES.plans, label: "Планы", icon: CalendarRange },
-  { href: ROUTES.tracking, label: "Трекинг", icon: Activity },
+  { href: trackingTabHref("habits"), label: "Привычки", icon: Repeat, trackingTab: "habits" },
+  { href: trackingTabHref("finance"), label: "Финансы", icon: Wallet, trackingTab: "finance" },
+  { href: trackingTabHref("food"), label: "Питание", icon: Flame, trackingTab: "food" },
+  { href: ROUTES.transcription, label: "Транскрибация", icon: Mic },
+  { href: ROUTES.assistant, label: "Ассистент", icon: Bot },
   { href: ROUTES.reference, label: "Справочник", icon: Library },
-] as const;
+];
 
-const mobileTabNavigation = [
+const mobileTabNavigation: NavItem[] = [
   { href: ROUTES.dashboard, label: "Сегодня", icon: Home },
   { href: ROUTES.inbox, label: "Входящие", icon: Inbox, showInboxCount: true },
   { href: ROUTES.plans, label: "Планы", icon: CalendarRange },
-  { href: ROUTES.tracking, label: "Трекинг", icon: Activity },
-] as const;
+  { href: trackingTabHref("habits"), label: "Привычки", icon: Repeat, trackingTab: "habits" },
+];
 
-const mobileMoreNavigation = [
-  { href: ROUTES.board, label: "Доска мыслей", icon: Columns3 },
+const mobileMoreNavigation: NavItem[] = [
+  { href: ROUTES.board, label: "Канбан", icon: Kanban },
+  { href: ROUTES.notes, label: "Заметки", icon: StickyNote },
   { href: ROUTES.journal, label: "Журнал", icon: BookOpen },
+  { href: trackingTabHref("finance"), label: "Финансы", icon: Wallet, trackingTab: "finance" },
+  { href: trackingTabHref("food"), label: "Питание", icon: Flame, trackingTab: "food" },
+  { href: ROUTES.transcription, label: "Транскрибация", icon: Mic },
+  { href: ROUTES.assistant, label: "Ассистент", icon: Bot },
   { href: ROUTES.reference, label: "Справочник", icon: Library },
-] as const;
+];
 
-function isNavItemActive(pathname: string, href: string) {
+function isNavItemActive(
+  pathname: string,
+  href: string,
+  options?: { trackingTab?: TrackingTab; currentTrackingTab?: TrackingTab },
+) {
+  if (options?.trackingTab) {
+    return pathname === ROUTES.tracking && options.currentTrackingTab === options.trackingTab;
+  }
   return pathname === href || (href !== ROUTES.dashboard && pathname.startsWith(`${href}`));
 }
 
@@ -179,6 +211,7 @@ export function AppShell({
   const [notificationsError, setNotificationsError] = useState<string | null>(null);
   const [isNotificationsLoading, setIsNotificationsLoading] = useState(false);
   const [isDesktopSidebar, setIsDesktopSidebar] = useState<boolean | null>(null);
+  const [currentTrackingTab, setCurrentTrackingTab] = useState<TrackingTab>("habits");
   const bellButtonRef = useRef<HTMLButtonElement>(null);
   const moreButtonRef = useRef<HTMLButtonElement>(null);
   const closeNotificationsRef = useRef<HTMLButtonElement>(null);
@@ -200,11 +233,27 @@ export function AppShell({
 
   const isSidebarOpen = isSidebarExpanded;
   const displayName = user?.full_name || user?.email || "Пользователь";
-  const notificationStorageKey = user?.id ? `letscore_seen_notifications:${user.id}` : null;
+  const notificationStorageKey = user?.id ? `folio_one_seen_notifications:${user.id}` : null;
   const unreadNotificationCount = NOTIFICATION_VISIBLE_ROUTES.has(pathname)
     ? 0
     : notifications.filter((entry) => !seenNotificationIds.includes(notificationSeenId(entry))).length;
-  const isMobileMoreActive = mobileMoreNavigation.some((item) => isNavItemActive(pathname, item.href));
+  const isBoardRoute = pathname === ROUTES.board;
+  const isNotesRoute = pathname === ROUTES.notes;
+  const isImmersiveRoute = isBoardRoute || isNotesRoute;
+  const isMobileMoreActive = mobileMoreNavigation.some((item) =>
+    isNavItemActive(pathname, item.href, {
+      trackingTab: item.trackingTab,
+      currentTrackingTab,
+    }),
+  );
+
+  useEffect(() => {
+    if (pathname !== ROUTES.tracking) {
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    setCurrentTrackingTab(parseTrackingTab(params.get("tab")));
+  }, [pathname]);
 
   useEffect(() => {
     setIsNotificationsOpen(false);
@@ -508,11 +557,11 @@ export function AppShell({
                 "focus-ring relative mb-4 flex min-h-12 items-center rounded-md",
                 isSidebarOpen ? "gap-3 px-1" : "gap-3 px-1 lg:justify-center lg:px-0",
               )}
-              aria-label="LetsCore"
+              aria-label={BRAND_NAME}
             >
               <BrandMark size={40} />
-              <span className={cn("truncate text-xl font-semibold tracking-normal text-primary", !isSidebarOpen && "lg:sr-only")}>
-                LetsCore
+              <span className={cn("truncate text-xl font-semibold tracking-tight text-foreground", !isSidebarOpen && "lg:sr-only")}>
+                Folio<span className="text-primary">-One</span>
               </span>
             </Link>
 
@@ -522,7 +571,10 @@ export function AppShell({
               onMouseLeave={() => setHoveredNavIndex(null)}
             >
               {navigation.map((item, index) => {
-                const isActive = isNavItemActive(pathname, item.href);
+                const isActive = isNavItemActive(pathname, item.href, {
+                  trackingTab: item.trackingTab,
+                  currentTrackingTab,
+                });
                 const peekTone = getPeekTone(index);
                 const navInboxCount = "showInboxCount" in item && item.showInboxCount ? inboxCount : 0;
                 return (
@@ -626,9 +678,10 @@ export function AppShell({
         </aside>
 
         <div className="flex h-dvh max-h-dvh min-w-0 flex-col overflow-hidden">
+          {!isImmersiveRoute ? (
           <header className="sticky top-0 z-30 border-b border-border bg-card/95 backdrop-blur">
             <div className="flex min-h-16 items-center justify-between gap-3 px-4 md:grid md:min-h-[72px] md:grid-cols-[minmax(190px,1fr)_minmax(280px,700px)_auto] md:gap-5 md:px-6">
-              <Link href={ROUTES.dashboard} className="focus-ring flex shrink-0 items-center rounded-md lg:hidden" aria-label="LetsCore">
+              <Link href={ROUTES.dashboard} className="focus-ring flex shrink-0 items-center rounded-md lg:hidden" aria-label={BRAND_NAME}>
                 <BrandMark size={36} />
               </Link>
 
@@ -742,12 +795,16 @@ export function AppShell({
               </div>
             </div>
           </header>
+          ) : null}
 
           <main
             id="main-content"
             tabIndex={-1}
             className={cn(
-              "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-5 pb-[calc(var(--shell-mobile-tab)+env(safe-area-inset-bottom))] outline-none lg:p-6 lg:pb-6",
+              "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden outline-none",
+              isImmersiveRoute
+                ? "p-0 pb-[calc(var(--shell-mobile-tab)+env(safe-area-inset-bottom))] lg:pb-0"
+                : "p-5 pb-[calc(var(--shell-mobile-tab)+env(safe-area-inset-bottom))] lg:p-6 lg:pb-6",
               contentClassName,
             )}
           >
@@ -760,7 +817,10 @@ export function AppShell({
           >
             <div className="grid min-h-[var(--shell-mobile-tab)] grid-cols-5 px-1 pt-1">
               {mobileTabNavigation.map((item) => {
-                const isActive = isNavItemActive(pathname, item.href);
+                const isActive = isNavItemActive(pathname, item.href, {
+                  trackingTab: item.trackingTab,
+                  currentTrackingTab,
+                });
                 const navInboxCount = "showInboxCount" in item && item.showInboxCount ? inboxCount : 0;
                 const inboxAriaLabel =
                   navInboxCount > 0 && pathname !== ROUTES.inbox
@@ -842,7 +902,10 @@ export function AppShell({
                 <div className="min-h-0 flex-1 overflow-y-auto">
                 <div className="flex flex-col gap-1 p-3">
                   {mobileMoreNavigation.map((item) => {
-                    const isActive = isNavItemActive(pathname, item.href);
+                    const isActive = isNavItemActive(pathname, item.href, {
+                      trackingTab: item.trackingTab,
+                      currentTrackingTab,
+                    });
                     return (
                       <Link
                         key={item.href}

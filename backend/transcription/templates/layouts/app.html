@@ -1,0 +1,14 @@
+﻿{% extends "base.html" %}
+{% block body_class %}chat-app{% endblock %}
+{% block main_class %}chat-shell{% endblock %}
+{% block content %}
+{% block sidebar %}{% endblock %}
+<div id="chat-main" class="chat-main">
+    {% block main %}{% endblock %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="https://unpkg.com/htmx.org@2.0.4"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="static/chat.js"></script>
+{% endblock %}

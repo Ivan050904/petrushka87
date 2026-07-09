@@ -1,1 +1,1 @@
-"""LetsCore backend package."""
+"""Folio-One backend package."""

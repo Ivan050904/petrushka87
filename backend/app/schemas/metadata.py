@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import UTC, date, datetime, time
 from typing import Any, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -9,6 +10,26 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from app.core.config import settings
 from app.schemas.entry import EntryType
 
+_TIME_PATTERN = re.compile(r"^\d{2}:\d{2}$")
+
+
+class TaskRecurrenceRule(BaseModel):
+    kind: Literal["weekly"] = "weekly"
+    weekdays: list[int] = Field(default_factory=list)
+    time: str = "09:00"
+
+    @model_validator(mode="after")
+    def validate_weekly_rule(self) -> "TaskRecurrenceRule":
+        unique_days = sorted(set(self.weekdays))
+        if not unique_days:
+            raise ValueError("weekdays must include at least one day")
+        if any(day < 1 or day > 7 for day in unique_days):
+            raise ValueError("weekdays must use 1..7")
+        self.weekdays = unique_days
+        if not _TIME_PATTERN.fullmatch(self.time):
+            raise ValueError("time must use HH:MM format")
+        return self
+
 
 class TaskMetadata(BaseModel):
     model_config = ConfigDict(extra="allow")
@@ -17,11 +38,21 @@ class TaskMetadata(BaseModel):
     deadline: str | None = None
     project: str | None = None
     parent_id: str | None = None
+    recurrence: TaskRecurrenceRule | None = None
+    recurrence_exceptions: dict[str, Literal["skipped"]] = Field(default_factory=dict)
+    skipped_weeks: list[str] = Field(default_factory=list)
 
     @field_validator("deadline")
     @classmethod
     def validate_deadline(cls, value: str | None) -> str | None:
         return _validate_iso_date_or_datetime(value, field_name="deadline")
+
+    @field_validator("skipped_weeks")
+    @classmethod
+    def validate_skipped_weeks(cls, value: list[str]) -> list[str]:
+        for item in value:
+            _validate_iso_date(item, field_name="skipped_weeks")
+        return sorted(set(value))
 
 
 class ReminderMetadata(BaseModel):
@@ -84,11 +115,25 @@ class FinanceMetadata(BaseModel):
     direction: Literal["income", "expense"]
     currency: str = Field(default="RUB", min_length=3, max_length=3)
     description: str | None = None
+    kind: Literal["expense", "income", "transfer"] | None = None
+    category: str | None = None
+    account_id: str | None = None
+    bank: str | None = None
+    transaction_date: str | None = None
+    counterparty: str | None = None
+    external_id: str | None = None
+    import_batch_id: str | None = None
+    ai_confidence: float | None = Field(default=None, ge=0, le=1)
 
     @field_validator("currency")
     @classmethod
     def normalize_currency(cls, value: str) -> str:
         return value.upper()
+
+    @field_validator("transaction_date")
+    @classmethod
+    def validate_transaction_date(cls, value: str | None) -> str | None:
+        return _validate_iso_date_or_datetime(value, field_name="transaction_date")
 
 
 class HabitRegularity(BaseModel):

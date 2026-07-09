@@ -24,3 +24,18 @@ class User(Base):
     )
 
     entries = relationship("Entry", back_populates="user", cascade="all, delete-orphan")
+    transcription_jobs = relationship(
+        "TranscriptionJob",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    transcription_chats = relationship(
+        "TranscriptionChat",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    assistant_conversations = relationship(
+        "AssistantConversation",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )

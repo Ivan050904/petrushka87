@@ -12,6 +12,7 @@ import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/use-auth";
 import { getErrorMessage } from "@/lib/api";
+import { BRAND_NAME } from "@/lib/brand";
 import { DEMO_ACCOUNT } from "@/lib/demo-account";
 
 type AuthMode = "login" | "register";
@@ -82,10 +83,10 @@ export default function LoginPage() {
 
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center gap-8 bg-background px-4 py-8">
-      <BrandWordmark width={220} className="rounded-xl shadow-panel" />
+      <BrandWordmark showTagline className="rounded-xl px-2" />
       <Card className="w-full max-w-md border-primary/15 shadow-panel">
         <CardHeader>
-          <h1 className="sr-only">LetsCore</h1>
+          <h1 className="sr-only">{BRAND_NAME}</h1>
           <p className="text-sm text-muted-foreground">Вход в личный пульт</p>
         </CardHeader>
         <CardContent>
