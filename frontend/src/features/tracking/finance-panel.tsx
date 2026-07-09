@@ -1,0 +1,650 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
+import { FilePenLine, Plus, Search, Trash2, TrendingDown, TrendingUp, WalletCards, X } from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Empty } from "@/components/ui/empty";
+import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Notice } from "@/components/ui/notice";
+import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { useRequireAuth } from "@/hooks/use-auth";
+import { createEntry, deleteEntry, getErrorMessage, listEntries, updateEntry } from "@/lib/api";
+import { entryDescription, formatCurrency, formatDate, getNumber, getString } from "@/lib/entry-helpers";
+import { formatFinanceDirection } from "@/lib/labels";
+import type { Entry } from "@/lib/types";
+import { cn } from "@/lib/utils";
+import { TRACKING_GRID, TRACKING_SCROLL_COL } from "@/features/tracking/tracking-layout";
+
+type FinanceDirection = "income" | "expense";
+type FinanceDirectionFilter = "all" | FinanceDirection;
+
+type FinanceForm = {
+  amount: string;
+  direction: FinanceDirection;
+  currency: string;
+  description: string;
+};
+
+const emptyFinanceForm: FinanceForm = {
+  amount: "",
+  direction: "expense",
+  currency: "RUB",
+  description: "",
+};
+
+const FINANCE_DRAFT_STORAGE_KEY = "letscore_finance_draft";
+
+type FinanceTotal = {
+  currency: string;
+  income: number;
+  expense: number;
+};
+
+export function FinancePanel({
+  embedded = false,
+  compact = false,
+  selectedId: selectedIdFromUrl = null,
+  onSelectedChange,
+}: {
+  embedded?: boolean;
+  compact?: boolean;
+  selectedId?: string | null;
+  onSelectedChange?: (id: string | null) => void;
+}) {
+  const { token, user } = useRequireAuth();
+  const [entries, setEntries] = useState<Entry[]>([]);
+  const [internalSelectedId, setInternalSelectedId] = useState<string | null>(null);
+  const selectedId = onSelectedChange ? selectedIdFromUrl : internalSelectedId;
+  const [financeQuery, setFinanceQuery] = useState("");
+  const [directionFilter, setDirectionFilter] = useState<FinanceDirectionFilter>("all");
+  const [form, setForm] = useState<FinanceForm>(emptyFinanceForm);
+  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDraftLoaded, setIsDraftLoaded] = useState(false);
+  const draftKey = user?.id ? `${FINANCE_DRAFT_STORAGE_KEY}:${user.id}` : null;
+
+  function setSelectedId(id: string | null) {
+    if (onSelectedChange) {
+      onSelectedChange(id);
+      return;
+    }
+    setInternalSelectedId(id);
+  }
+
+  const loadEntries = useCallback(async () => {
+    if (!token) {
+      return;
+    }
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const result = await listEntries(token, { type: "finance", limit: 100 });
+      setEntries(result.items);
+    } catch (requestError) {
+      setLoadError(getErrorMessage(requestError, "Не удалось загрузить операции."));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    void loadEntries();
+  }, [loadEntries]);
+
+  useEffect(() => {
+    setIsDraftLoaded(false);
+    if (!draftKey) {
+      return;
+    }
+
+    try {
+      const draft = parseFinanceDraft(window.localStorage.getItem(draftKey));
+      if (!selectedIdFromUrl) {
+        setForm(draft ?? emptyFinanceForm);
+      }
+    } catch {
+      return;
+    } finally {
+      setIsDraftLoaded(true);
+    }
+  }, [draftKey, selectedIdFromUrl]);
+
+  useEffect(() => {
+    if (!selectedIdFromUrl || isLoading) {
+      return;
+    }
+    const entry = entries.find((item) => item.id === selectedIdFromUrl);
+    if (entry) {
+      setForm({
+        amount: String(getNumber(entry.metadata.amount) || ""),
+        direction: getString(entry.metadata.direction, "expense") === "income" ? "income" : "expense",
+        currency: getString(entry.metadata.currency, "RUB"),
+        description: getString(entry.metadata.description, entryDescription(entry)),
+      });
+      return;
+    }
+    if (entries.length > 0 && onSelectedChange) {
+      onSelectedChange(null);
+      setError("Операция не найдена или была удалена.");
+    }
+  }, [selectedIdFromUrl, entries, isLoading, onSelectedChange]);
+
+  useEffect(() => {
+    if (!draftKey || !isDraftLoaded || selectedId) {
+      return;
+    }
+
+    try {
+      if (hasFinanceDraft(form)) {
+        window.localStorage.setItem(draftKey, JSON.stringify(form));
+      } else {
+        window.localStorage.removeItem(draftKey);
+      }
+    } catch {
+      return;
+    }
+  }, [draftKey, form, isDraftLoaded, selectedId]);
+
+  const totals = useMemo<FinanceTotal[]>(() => {
+    const totalsByCurrency = new Map<string, Omit<FinanceTotal, "currency">>();
+    for (const entry of entries) {
+      const amount = getNumber(entry.metadata.amount);
+      const direction = getString(entry.metadata.direction);
+      const currency = normalizeCurrency(getString(entry.metadata.currency, "RUB"));
+      const current = totalsByCurrency.get(currency) ?? { income: 0, expense: 0 };
+      if (direction === "income") {
+        current.income += amount;
+      }
+      if (direction === "expense") {
+        current.expense += amount;
+      }
+      totalsByCurrency.set(currency, current);
+    }
+
+    const rows = [...totalsByCurrency.entries()]
+      .map(([currency, total]) => ({ currency, ...total }))
+      .sort((left, right) => left.currency.localeCompare(right.currency));
+    return rows.length > 0 ? rows : [{ currency: "RUB", income: 0, expense: 0 }];
+  }, [entries]);
+
+  const selectedEntry = useMemo(
+    () => entries.find((entry) => entry.id === selectedId) ?? null,
+    [entries, selectedId],
+  );
+  const filteredEntries = useMemo(() => {
+    const query = financeQuery.trim().toLowerCase();
+    return entries.filter((entry) => {
+      const amount = getNumber(entry.metadata.amount);
+      const direction = getString(entry.metadata.direction, "expense");
+      const currency = normalizeCurrency(getString(entry.metadata.currency, "RUB"));
+      const matchesDirection = directionFilter === "all" || direction === directionFilter;
+      const searchableText = [
+        entry.title,
+        entry.content,
+        entryDescription(entry),
+        String(amount),
+        formatCurrency(amount, currency),
+        currency,
+        direction,
+        formatFinanceDirection(direction),
+      ]
+        .join("\n")
+        .toLowerCase();
+      const matchesQuery = !query || searchableText.includes(query);
+      return matchesDirection && matchesQuery;
+    });
+  }, [directionFilter, entries, financeQuery]);
+  const hasActiveFilters = Boolean(financeQuery.trim()) || directionFilter !== "all";
+
+  function resetFinanceFilters() {
+    setFinanceQuery("");
+    setDirectionFilter("all");
+  }
+
+  function selectFinanceEntry(entry: Entry) {
+    setSelectedId(entry.id);
+    setForm({
+      amount: String(getNumber(entry.metadata.amount) || ""),
+      direction: getString(entry.metadata.direction, "expense") === "income" ? "income" : "expense",
+      currency: getString(entry.metadata.currency, "RUB"),
+      description: getString(entry.metadata.description, entryDescription(entry)),
+    });
+    setError(null);
+  }
+
+  function startNewFinanceEntry() {
+    clearFinanceDraft();
+    setSelectedId(null);
+    setForm(emptyFinanceForm);
+    setError(null);
+  }
+
+  function clearFinanceDraft() {
+    if (!draftKey) {
+      return;
+    }
+
+    try {
+      window.localStorage.removeItem(draftKey);
+    } catch {
+      return;
+    }
+  }
+
+  async function saveFinanceEntry() {
+    if (!token || isSaving) {
+      return;
+    }
+
+    const amount = Number(form.amount.replace(",", "."));
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setError("Сумма должна быть положительным числом.");
+      return;
+    }
+
+    if (!form.description.trim()) {
+      setError("Добавь описание операции.");
+      return;
+    }
+
+    const currency = normalizeCurrency(form.currency || "RUB");
+    if (!/^[A-Z]{3}$/.test(currency)) {
+      setError("Валюта должна быть трехбуквенным кодом, например RUB или USD.");
+      return;
+    }
+
+    setIsSaving(true);
+    setError(null);
+    try {
+      const payload = {
+        type: "finance",
+        title: form.description,
+        content: form.description,
+        metadata: {
+          amount,
+          direction: form.direction,
+          currency,
+          description: form.description,
+        },
+      } as const;
+      const saved = selectedId
+        ? await updateEntry(token, selectedId, payload)
+        : await createEntry(token, payload);
+      await loadEntries();
+      if (selectedId) {
+        selectFinanceEntry(saved);
+      } else {
+        startNewFinanceEntry();
+      }
+    } catch (requestError) {
+      setError(getErrorMessage(requestError, "Не удалось сохранить операцию."));
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function removeFinanceEntry() {
+    if (!token || !selectedEntry) {
+      return;
+    }
+
+    const confirmed = window.confirm(`Удалить операцию "${selectedEntry.title}"?`);
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await deleteEntry(token, selectedEntry.id);
+      setEntries((current) => current.filter((entry) => entry.id !== selectedEntry.id));
+      startNewFinanceEntry();
+    } catch (requestError) {
+      setError(getErrorMessage(requestError, "Не удалось удалить операцию."));
+    }
+  }
+
+  return (
+    <>
+      <div className={cn("flex flex-col", compact ? "min-h-0 flex-1 gap-3" : "gap-4")}>
+        {!embedded ? (
+          <header className="flex flex-col gap-1">
+            <h1 className="text-2xl font-semibold leading-8">Финансы</h1>
+            <p className="text-sm text-muted-foreground">Расходы, доходы и баланс по валютам.</p>
+          </header>
+        ) : null}
+
+        {compact ? (
+          <FinanceSummaryStrip totals={totals} />
+        ) : (
+          <section className="grid gap-3 sm:grid-cols-3">
+            <FinanceMetric
+              label="Доходы"
+              value={<FinanceTotalLines rows={totals} valueFor={(row) => row.income} />}
+              icon={TrendingUp}
+            />
+            <FinanceMetric
+              label="Расходы"
+              value={<FinanceTotalLines rows={totals} valueFor={(row) => row.expense} />}
+              icon={TrendingDown}
+            />
+            <FinanceMetric
+              label="Баланс"
+              value={<FinanceTotalLines rows={totals} valueFor={(row) => row.income - row.expense} />}
+              icon={WalletCards}
+            />
+          </section>
+        )}
+
+        {loadError ? (
+          <Notice variant="error">
+            <div className="flex flex-col gap-2">
+              <span>{loadError}</span>
+              <Button type="button" variant="outline" size="sm" className="self-start" onClick={() => void loadEntries()}>
+                Повторить
+              </Button>
+            </div>
+          </Notice>
+        ) : null}
+
+        <section className={cn(compact ? TRACKING_GRID : "grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]")}>
+          <Card className={cn(compact && TRACKING_SCROLL_COL, compact && "xl:self-stretch")}>
+            <CardHeader className={cn("flex-row items-center justify-between", compact && "px-3 py-3 xl:px-4")}>
+              <CardTitle className={compact ? "text-base xl:text-lg" : undefined}>{selectedEntry ? "Операция" : "Новая операция"}</CardTitle>
+              {selectedEntry ? (
+                <Button variant="destructive" size="sm" onClick={removeFinanceEntry}>
+                  <Trash2 data-icon="inline-start" />
+                  Удалить
+                </Button>
+              ) : null}
+            </CardHeader>
+            <CardContent>
+              <FieldGroup className={compact ? "gap-3" : undefined}>
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
+                  <Field>
+                    <FieldLabel htmlFor="finance-amount">Сумма</FieldLabel>
+                    <Input
+                      id="finance-amount"
+                      inputMode="decimal"
+                      value={form.amount}
+                      onChange={(event) => setForm((current) => ({ ...current, amount: event.target.value }))}
+                    />
+                  </Field>
+
+                  <Field>
+                    <FieldLabel htmlFor="finance-direction">Направление</FieldLabel>
+                    <Select
+                      id="finance-direction"
+                      value={form.direction}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, direction: event.target.value as FinanceDirection }))
+                      }
+                    >
+                      <option value="expense">{formatFinanceDirection("expense")}</option>
+                      <option value="income">{formatFinanceDirection("income")}</option>
+                    </Select>
+                  </Field>
+
+                  <Field>
+                    <FieldLabel htmlFor="finance-currency">Валюта</FieldLabel>
+                    <Input
+                      id="finance-currency"
+                      value={form.currency}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, currency: normalizeCurrency(event.target.value) }))
+                      }
+                      maxLength={3}
+                    />
+                  </Field>
+                </div>
+
+                <Field>
+                  <FieldLabel htmlFor="finance-description">Описание</FieldLabel>
+                  <Textarea
+                    id="finance-description"
+                    value={form.description}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, description: event.target.value }))
+                    }
+                    className={compact ? "min-h-20" : "min-h-24"}
+                  />
+                </Field>
+
+                {error ? <FieldError>{error}</FieldError> : null}
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button onClick={saveFinanceEntry} disabled={isSaving}>
+                    {selectedEntry ? <FilePenLine data-icon="inline-start" /> : <Plus data-icon="inline-start" />}
+                    {isSaving ? "Сохранение" : selectedEntry ? "Сохранить" : "Добавить"}
+                  </Button>
+                  {selectedEntry ? (
+                    <Button variant="outline" onClick={startNewFinanceEntry}>
+                      Новая операция
+                    </Button>
+                  ) : null}
+                </div>
+              </FieldGroup>
+            </CardContent>
+          </Card>
+
+          <Card className={cn(compact && "flex min-h-0 flex-col", compact && TRACKING_SCROLL_COL)}>
+            <CardHeader className={cn("flex-row items-center justify-between", compact && "shrink-0 py-3")}>
+              <CardTitle className={compact ? "text-base" : undefined}>Последние операции</CardTitle>
+              <div className="flex items-center gap-2">
+                {hasActiveFilters ? (
+                  <Button variant="ghost" size="sm" onClick={resetFinanceFilters}>
+                    <X data-icon="inline-start" />
+                    Сбросить
+                  </Button>
+                ) : null}
+                <Badge variant="secondary">{filteredEntries.length}</Badge>
+              </div>
+            </CardHeader>
+            <CardContent className={cn("flex flex-col gap-3", compact && "min-h-0 flex-1 overflow-hidden pt-0")}>
+              <div className="grid shrink-0 gap-3 md:grid-cols-[1fr_180px]">
+                <Field>
+                  <FieldLabel htmlFor="finance-search">Поиск</FieldLabel>
+                  <div className="relative">
+                    <Search
+                      aria-hidden="true"
+                      className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+                    />
+                    <Input
+                      id="finance-search"
+                      value={financeQuery}
+                      onChange={(event) => setFinanceQuery(event.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                </Field>
+
+                <Field>
+                  <FieldLabel htmlFor="finance-direction-filter">Направление</FieldLabel>
+                  <Select
+                    id="finance-direction-filter"
+                    value={directionFilter}
+                    onChange={(event) => setDirectionFilter(event.target.value as FinanceDirectionFilter)}
+                  >
+                    <option value="all">Все</option>
+                    <option value="expense">{formatFinanceDirection("expense")}</option>
+                    <option value="income">{formatFinanceDirection("income")}</option>
+                  </Select>
+                </Field>
+              </div>
+
+              {isLoading ? (
+                Array.from({ length: 5 }).map((_, index) => (
+                  <div key={index} className="h-14 rounded-md bg-muted" />
+                ))
+              ) : filteredEntries.length === 0 ? (
+                <Empty
+                  title={entries.length === 0 ? "Операций пока нет" : "Операции не найдены"}
+                  actionLabel={entries.length === 0 ? "Добавить операцию" : hasActiveFilters ? "Сбросить фильтры" : undefined}
+                  onAction={
+                    entries.length === 0
+                      ? startNewFinanceEntry
+                      : hasActiveFilters
+                        ? resetFinanceFilters
+                        : undefined
+                  }
+                />
+              ) : (
+                <div className={cn("flex flex-col gap-2", compact && "min-h-0 flex-1 overflow-y-auto")}>
+                {filteredEntries.map((entry) => {
+                  const amount = getNumber(entry.metadata.amount);
+                  const currency = getString(entry.metadata.currency, "RUB");
+                  const direction = getString(entry.metadata.direction, "expense");
+                  return (
+                    <button
+                      key={entry.id}
+                      type="button"
+                      onClick={() => selectFinanceEntry(entry)}
+                      className={cn(
+                        "focus-ring flex min-h-14 w-full cursor-pointer items-center justify-between gap-3 rounded-md border px-3 py-2 text-left transition",
+                        selectedId === entry.id
+                          ? "border-primary bg-primary/10"
+                          : "border-border bg-muted/40 hover:bg-muted",
+                      )}
+                    >
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium">{entryDescription(entry)}</div>
+                        <div className="text-sm text-muted-foreground">
+                          {formatDate(entry.updated_at)}
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-3">
+                        <span className="font-mono text-sm font-semibold">
+                          {formatCurrency(amount, currency)}
+                        </span>
+                        <Badge variant={direction === "income" ? "default" : "secondary"}>
+                          {formatFinanceDirection(direction)}
+                        </Badge>
+                      </div>
+                    </button>
+                  );
+                })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </section>
+      </div>
+    </>
+  );
+}
+
+function FinanceSummaryStrip({ totals }: { totals: FinanceTotal[] }) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-md border border-border bg-card px-3 py-2 shadow-panel xl:px-4 xl:py-3">
+      <WalletCards aria-hidden="true" className="size-4 shrink-0 text-primary" />
+      <FinanceSummaryItem label="Доходы" rows={totals} valueFor={(row) => row.income} />
+      <FinanceSummaryItem label="Расходы" rows={totals} valueFor={(row) => row.expense} />
+      <FinanceSummaryItem label="Баланс" rows={totals} valueFor={(row) => row.income - row.expense} />
+    </div>
+  );
+}
+
+function FinanceSummaryItem({
+  label,
+  rows,
+  valueFor,
+}: {
+  label: string;
+  rows: FinanceTotal[];
+  valueFor: (row: FinanceTotal) => number;
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="font-mono text-sm font-semibold xl:text-base">
+        <FinanceTotalLines rows={rows} valueFor={valueFor} />
+      </div>
+    </div>
+  );
+}
+
+function FinanceMetric({
+  label,
+  value,
+  icon: Icon,
+}: {
+  label: string;
+  value: ReactNode;
+  icon: typeof TrendingUp;
+}) {
+  return (
+    <Card>
+      <CardContent className="flex items-center justify-between gap-3 p-4">
+        <div className="min-w-0">
+          <div className="text-sm text-muted-foreground">{label}</div>
+          <div className="font-mono text-xl font-semibold">{value}</div>
+        </div>
+        <span className="flex size-11 items-center justify-center rounded-md bg-muted text-primary">
+          <Icon aria-hidden="true" className="size-5" />
+        </span>
+      </CardContent>
+    </Card>
+  );
+}
+
+function FinanceTotalLines({
+  rows,
+  valueFor,
+}: {
+  rows: FinanceTotal[];
+  valueFor: (row: FinanceTotal) => number;
+}) {
+  const visibleRows = rows.slice(0, 3);
+  const hiddenCount = rows.length - visibleRows.length;
+
+  return (
+    <div className="flex flex-col gap-1">
+      {visibleRows.map((row) => (
+        <span key={row.currency} className="truncate">
+          {formatCurrency(valueFor(row), row.currency)}
+        </span>
+      ))}
+      {hiddenCount > 0 ? (
+        <span className="text-sm font-medium text-muted-foreground">+{hiddenCount} валют</span>
+      ) : null}
+    </div>
+  );
+}
+
+function parseFinanceDraft(value: string | null): FinanceForm | null {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = JSON.parse(value) as Partial<FinanceForm>;
+  const currency = typeof parsed.currency === "string" ? normalizeCurrency(parsed.currency) : "RUB";
+  return {
+    amount: typeof parsed.amount === "string" ? parsed.amount : "",
+    direction: normalizeFinanceDirection(parsed.direction),
+    currency: currency || "RUB",
+    description: typeof parsed.description === "string" ? parsed.description : "",
+  };
+}
+
+function normalizeFinanceDirection(value: unknown): FinanceDirection {
+  return value === "income" ? "income" : "expense";
+}
+
+function hasFinanceDraft(form: FinanceForm) {
+  return (
+    Boolean(form.amount.trim()) ||
+    form.direction !== "expense" ||
+    normalizeCurrency(form.currency) !== "RUB" ||
+    Boolean(form.description.trim())
+  );
+}
+
+function normalizeCurrency(value: string) {
+  return value.trim().toUpperCase().replace(/[^A-Z]/g, "").slice(0, 3);
+}

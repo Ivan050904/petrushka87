@@ -1,0 +1,3040 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Актуальность и ожидаемый эффект автоматизации</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=PT+Sans:ital,wght@0,400;0,700;1,400&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --ink: #0f172a;
+      --ink-muted: #475569;
+      --paper: #ffffff;
+      --paper-soft: #ffffff;
+      --paper-muted: #ffffff;
+      --track: #e2e8f0;
+      --accent: #1d4ed8;
+      --accent-dark: #1e3a8a;
+      --accent-light: #3b82f6;
+      --accent-pale: #dbeafe;
+      --accent-muted: #93c5fd;
+      --border: #bfdbfe;
+      --shadow: rgba(29, 78, 216, 0.08);
+      --problem: #1e40af;
+      --effect: #2563eb;
+      --cell-yes: #dbeafe;
+      --cell-partial: #eff6ff;
+      --cell-no: #f1f5f9;
+      --cell-highlight: #2563eb;
+      --slide-pad-x: 2.5vw;
+      --slide-pad-y: 1.25rem;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-snap-type: y mandatory;
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: 'PT Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+      background: #ffffff;
+      color: var(--ink);
+      line-height: 1.55;
+      font-size: 17px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Full-screen slides ── */
+    .slide {
+      width: 100vw;
+      height: 100vh;
+      min-height: 100vh;
+      max-height: 100vh;
+      padding: var(--slide-pad-y) var(--slide-pad-x);
+      background: #ffffff;
+      scroll-snap-align: start;
+      scroll-snap-stop: always;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .slide-head {
+      flex-shrink: 0;
+      margin-bottom: 0.85rem;
+    }
+
+    .slide-doc-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent-light);
+      margin-bottom: 0.35rem;
+    }
+
+    .slide-head-row {
+      display: flex;
+      align-items: baseline;
+      gap: 1rem;
+      flex-wrap: wrap;
+      padding-bottom: 0.5rem;
+      border-bottom: 2px solid var(--border);
+    }
+
+    .section-num {
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent-light);
+      white-space: nowrap;
+    }
+
+    .slide-head h2 {
+      font-size: clamp(1.25rem, 2vw, 1.65rem);
+      font-weight: 700;
+      color: var(--accent-dark);
+      line-height: 1.2;
+    }
+
+    .slide-body {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .page {
+      max-width: 1140px;
+      margin: 0 auto;
+      padding: 2.5rem 2rem 4rem;
+      background: #ffffff;
+    }
+
+    .doc-header {
+      text-align: center;
+      padding: 2rem 0 2.25rem;
+      border-bottom: 2px solid var(--accent-dark);
+      margin-bottom: 3rem;
+    }
+
+    .doc-header h1 {
+      font-size: clamp(2rem, 4vw, 2.75rem);
+      font-weight: 700;
+      color: var(--accent-dark);
+      line-height: 1.25;
+    }
+
+    .doc-header .subtitle {
+      margin-top: 0.75rem;
+      font-size: 1.15rem;
+      color: var(--ink-muted);
+    }
+
+    .section {
+      margin-bottom: 3.5rem;
+    }
+
+    .section h2 {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--accent-dark);
+      margin-bottom: 1.5rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 2px solid var(--border);
+    }
+
+    /* ── Subject area ── */
+    .domain-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: auto auto;
+      gap: 1rem;
+    }
+
+    @media (max-width: 768px) {
+      .domain-grid {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto;
+      }
+      .domain-card--object,
+      .domain-card--subject,
+      .domain-card--tasks {
+        grid-column: 1;
+        grid-row: auto;
+      }
+    }
+
+    .domain-card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 4px 16px var(--shadow);
+      padding: 1.25rem 1.35rem 1.35rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+    }
+
+    .domain-card--subject {
+      grid-column: 2;
+      grid-row: 1;
+      align-self: stretch;
+    }
+
+    .domain-card--object {
+      grid-column: 1;
+      grid-row: 1;
+    }
+
+    .domain-card--tasks {
+      grid-column: 1;
+      grid-row: 2;
+    }
+
+    .domain-tag {
+      display: inline-block;
+      align-self: flex-start;
+      padding: 0.35rem 0.85rem;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #fff;
+    }
+
+    .domain-tag--blue { background: var(--accent); }
+    .domain-tag--grey { background: #475569; }
+
+    .domain-text {
+      font-size: 1.1rem;
+      line-height: 1.65;
+      color: var(--ink);
+      font-weight: 600;
+    }
+
+    .domain-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+    }
+
+    .domain-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.65rem;
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--ink);
+      line-height: 1.45;
+    }
+
+    .domain-list li::before {
+      content: '';
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      margin-top: 0.5rem;
+      flex-shrink: 0;
+    }
+
+    /* ── Input / Output diagram ── */
+    .io-flow {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 1.25rem;
+      align-items: stretch;
+    }
+
+    @media (max-width: 900px) {
+      .io-flow {
+        grid-template-columns: 1fr;
+      }
+
+      .io-hub {
+        order: -1;
+      }
+
+      .io-arrow-h {
+        display: none;
+      }
+    }
+
+    .io-column {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 4px 16px var(--shadow);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .io-column-head {
+      padding: 1rem 1.25rem;
+      font-size: 1.1rem;
+      font-weight: 700;
+      text-align: center;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #fff;
+    }
+
+    .io-column--in .io-column-head {
+      background: var(--accent-dark);
+    }
+
+    .io-column--out .io-column-head {
+      background: var(--accent);
+    }
+
+    .io-items {
+      list-style: none;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      flex: 1;
+    }
+
+    .io-item {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+      padding: 0.85rem 1rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #ffffff;
+      font-size: 1.05rem;
+      font-weight: 600;
+      line-height: 1.35;
+    }
+
+    .io-item-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      background: var(--accent-pale);
+      color: var(--accent-dark);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .io-item-icon svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .io-hub {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0 0.5rem;
+      min-width: 120px;
+    }
+
+    .io-hub-box {
+      width: 88px;
+      height: 88px;
+      border-radius: 50%;
+      background: var(--accent-dark);
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      text-align: center;
+      line-height: 1.2;
+      box-shadow: 0 0 0 6px var(--accent-pale);
+    }
+
+    .io-hub-box svg {
+      width: 28px;
+      height: 28px;
+      margin-bottom: 0.25rem;
+    }
+
+    .io-arrow-h {
+      color: var(--accent-light);
+      font-size: 1.75rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .io-caption {
+      margin-top: 1.25rem;
+      text-align: center;
+      font-size: 1.05rem;
+      color: var(--ink-muted);
+      font-weight: 600;
+    }
+
+    /* ── Tech stack ── */
+    .tech-groups {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.25rem;
+    }
+
+    @media (max-width: 960px) {
+      .tech-groups {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .tech-group {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 4px 16px var(--shadow);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .tech-group-title {
+      padding: 0.9rem 1.1rem;
+      font-size: 1rem;
+      font-weight: 700;
+      text-align: center;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #fff;
+      background: var(--accent-dark);
+    }
+
+    .tech-group:nth-child(2) .tech-group-title {
+      background: var(--accent);
+    }
+
+    .tech-group:nth-child(3) .tech-group-title {
+      background: var(--accent-light);
+    }
+
+    .tech-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.75rem;
+      padding: 1rem;
+      flex: 1;
+    }
+
+    .tech-group--tools .tech-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .tech-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.55rem;
+      padding: 1.1rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #ffffff;
+      text-align: center;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    .tech-card:hover {
+      border-color: var(--accent-light);
+      box-shadow: 0 2px 12px var(--shadow);
+    }
+
+    .tech-icon-wrap {
+      width: 56px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .tech-icon {
+      width: 48px;
+      height: 48px;
+      object-fit: contain;
+    }
+
+    .tech-icon--svg {
+      width: 48px;
+      height: 48px;
+      color: var(--accent-dark);
+    }
+
+    .tech-icon--vscode {
+      width: 52px;
+      height: 52px;
+    }
+
+    .tech-name {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--ink);
+      line-height: 1.2;
+    }
+
+    .tech-role {
+      font-size: 0.85rem;
+      color: var(--ink-muted);
+      line-height: 1.3;
+    }
+
+    .tech-card--wide {
+      grid-column: 1 / -1;
+    }
+
+    /* ── Economic efficiency infographic ── */
+    .econ-infographic {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .econ-kpi-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+    }
+
+    @media (max-width: 900px) {
+      .econ-kpi-row {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .econ-kpi {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 4px 16px var(--shadow);
+      padding: 1.25rem 1rem;
+      text-align: center;
+    }
+
+    .econ-kpi-label {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--ink-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.75rem;
+    }
+
+    .econ-kpi-compare {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.65rem;
+      flex-wrap: wrap;
+    }
+
+    .econ-kpi-val {
+      font-size: 1.75rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .econ-kpi-val--asis {
+      color: #94a3b8;
+    }
+
+    .econ-kpi-val--tobe {
+      color: var(--accent-dark);
+    }
+
+    .econ-kpi-arrow {
+      color: var(--accent-light);
+      font-size: 1.25rem;
+      font-weight: 700;
+    }
+
+    .econ-kpi-badge {
+      display: inline-block;
+      margin-top: 0.65rem;
+      padding: 0.3rem 0.75rem;
+      border-radius: 999px;
+      background: var(--accent-pale);
+      color: var(--accent-dark);
+      font-size: 0.9rem;
+      font-weight: 700;
+    }
+
+    .econ-kpi--hero {
+      border-color: var(--accent);
+      border-width: 2px;
+      background: var(--accent-dark);
+      color: #fff;
+    }
+
+    .econ-kpi--hero .econ-kpi-label {
+      color: #bfdbfe;
+    }
+
+    .econ-kpi--hero .econ-kpi-val {
+      font-size: 2.25rem;
+      color: #fff;
+    }
+
+    .econ-kpi--hero .econ-kpi-sub {
+      font-size: 0.95rem;
+      color: #93c5fd;
+      margin-top: 0.35rem;
+      font-weight: 600;
+    }
+
+    .econ-panels {
+      display: grid;
+      grid-template-columns: 1.15fr 1fr;
+      gap: 1.25rem;
+    }
+
+    @media (max-width: 960px) {
+      .econ-panels {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .econ-panel {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 4px 16px var(--shadow);
+      overflow: hidden;
+    }
+
+    .econ-panel-head {
+      padding: 0.85rem 1.1rem;
+      font-size: 1rem;
+      font-weight: 700;
+      text-align: center;
+      color: #fff;
+      background: var(--accent-dark);
+    }
+
+    .econ-panel-body {
+      padding: 1.15rem 1.25rem;
+    }
+
+    .econ-legend {
+      display: flex;
+      gap: 1.25rem;
+      justify-content: center;
+      margin-bottom: 1rem;
+      font-size: 0.9rem;
+      font-weight: 700;
+    }
+
+    .econ-legend span {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .econ-legend i {
+      display: inline-block;
+      width: 14px;
+      height: 10px;
+      border-radius: 2px;
+    }
+
+    .econ-legend i.l-asis {
+      background: #cbd5e1;
+    }
+
+    .econ-legend i.l-tobe {
+      background: var(--accent);
+    }
+
+    .econ-time-row {
+      margin-bottom: 1rem;
+    }
+
+    .econ-time-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .econ-time-label {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--ink);
+      margin-bottom: 0.4rem;
+      line-height: 1.3;
+    }
+
+    .econ-time-bars {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .econ-time-bar-line {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .econ-time-track {
+      height: 14px;
+      background: #f1f5f9;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .econ-time-fill {
+      height: 100%;
+      border-radius: 4px;
+    }
+
+    .econ-time-fill--asis {
+      background: #cbd5e1;
+    }
+
+    .econ-time-fill--tobe {
+      background: var(--accent);
+    }
+
+    .econ-time-num {
+      font-size: 0.9rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      min-width: 3.5rem;
+      text-align: right;
+      color: var(--ink-muted);
+    }
+
+    .econ-time-row--total {
+      margin-top: 0.5rem;
+      padding-top: 0.85rem;
+      border-top: 2px solid var(--border);
+    }
+
+    .econ-time-row--total .econ-time-label {
+      color: var(--accent-dark);
+      font-size: 1.05rem;
+    }
+
+    .econ-time-row--total .econ-time-track {
+      height: 18px;
+    }
+
+    /* Cost waterfall */
+    .econ-cost-compare {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 0.75rem;
+      align-items: stretch;
+    }
+
+    @media (max-width: 600px) {
+      .econ-cost-compare {
+        grid-template-columns: 1fr;
+      }
+
+      .econ-cost-mid {
+        display: none;
+      }
+    }
+
+    .econ-cost-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .econ-cost-col-label {
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--ink-muted);
+    }
+
+    .econ-cost-col-label--tobe {
+      color: var(--accent-dark);
+    }
+
+    .econ-cost-stack {
+      width: 100%;
+      max-width: 160px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      height: 200px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      background: #ffffff;
+    }
+
+    .econ-cost-seg {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #fff;
+      text-align: center;
+      line-height: 1.2;
+      padding: 0.35rem;
+    }
+
+    .econ-cost-seg--user-asis {
+      background: #94a3b8;
+      flex: 1;
+    }
+
+    .econ-cost-seg--user-tobe {
+      background: var(--accent-light);
+    }
+
+    .econ-cost-seg--sys-tobe {
+      background: var(--accent-dark);
+    }
+
+    .econ-cost-total {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: var(--ink);
+    }
+
+    .econ-cost-col--asis .econ-cost-total {
+      color: #94a3b8;
+    }
+
+    .econ-cost-col--tobe .econ-cost-total {
+      color: var(--accent-dark);
+    }
+
+    .econ-cost-mid {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding-top: 2rem;
+    }
+
+    .econ-cost-mid-arrow {
+      font-size: 2rem;
+      color: var(--accent-light);
+      font-weight: 700;
+    }
+
+    .econ-cost-mid-pct {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--accent-dark);
+      text-align: center;
+      line-height: 1.3;
+    }
+
+    .econ-cost-details {
+      margin-top: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .econ-cost-detail {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.55rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.95rem;
+    }
+
+    .econ-cost-detail span:first-child {
+      font-weight: 600;
+      color: var(--ink-muted);
+    }
+
+    .econ-cost-detail span:last-child {
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .econ-result {
+      display: grid;
+      grid-template-columns: 1fr auto 1.4fr auto 1fr;
+      gap: 0.75rem;
+      align-items: center;
+      border: 2px solid var(--accent);
+      border-radius: 8px;
+      padding: 1.5rem;
+      background: #ffffff;
+    }
+
+    @media (max-width: 768px) {
+      .econ-result {
+        grid-template-columns: 1fr;
+        text-align: center;
+      }
+
+      .econ-result-arrow {
+        display: none;
+      }
+    }
+
+    .econ-result-side {
+      text-align: center;
+    }
+
+    .econ-result-side-label {
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--ink-muted);
+      margin-bottom: 0.35rem;
+    }
+
+    .econ-result-side-val {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: #94a3b8;
+    }
+
+    .econ-result-side-val--tobe {
+      color: var(--accent-dark);
+    }
+
+    .econ-result-arrow {
+      font-size: 2rem;
+      color: var(--accent-light);
+      font-weight: 700;
+    }
+
+    .econ-result-center {
+      text-align: center;
+      padding: 1rem 1.25rem;
+      border-radius: 8px;
+      background: var(--accent-dark);
+      color: #fff;
+    }
+
+    .econ-result-center-label {
+      font-size: 0.9rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #93c5fd;
+      margin-bottom: 0.35rem;
+    }
+
+    .econ-result-center-val {
+      font-size: 2.5rem;
+      font-weight: 700;
+      line-height: 1.1;
+    }
+
+    .econ-result-center-sub {
+      font-size: 0.95rem;
+      color: #bfdbfe;
+      margin-top: 0.35rem;
+      font-weight: 600;
+    }
+
+    /* ── Sitemap tree ── */
+    .sitemap {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 4px 16px var(--shadow);
+      padding: 2rem 1.5rem;
+      overflow-x: auto;
+    }
+
+    .sitemap-tree {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 720px;
+    }
+
+    .smap-node {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .smap-box {
+      padding: 0.65rem 1.1rem;
+      border: 2px solid var(--accent-dark);
+      border-radius: 6px;
+      background: #ffffff;
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--accent-dark);
+      text-align: center;
+      white-space: nowrap;
+      line-height: 1.3;
+    }
+
+    .smap-box--root {
+      background: var(--accent-dark);
+      color: #fff;
+      border-color: var(--accent-dark);
+    }
+
+    .smap-box--hub {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+      font-size: 1.1rem;
+      padding: 0.75rem 1.5rem;
+    }
+
+    .smap-box--child {
+      border-color: var(--accent-light);
+      color: var(--ink);
+      font-weight: 600;
+      font-size: 0.95rem;
+      padding: 0.5rem 0.85rem;
+      white-space: normal;
+      max-width: 160px;
+    }
+
+    .smap-badge {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--ink-muted);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .smap-arrow {
+      width: 2px;
+      height: 28px;
+      background: var(--accent-muted);
+      position: relative;
+    }
+
+    .smap-arrow::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 50%;
+      transform: translateX(-50%);
+      border-left: 6px solid transparent;
+      border-right: 6px solid transparent;
+      border-top: 8px solid var(--accent-muted);
+    }
+
+    .smap-branches {
+      display: flex;
+      justify-content: center;
+      gap: 0.75rem;
+      position: relative;
+      padding-top: 28px;
+      width: 100%;
+    }
+
+    .smap-branches::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 8%;
+      right: 8%;
+      height: 2px;
+      background: var(--accent-muted);
+    }
+
+    .smap-branch {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex: 1;
+      min-width: 0;
+      position: relative;
+    }
+
+    .smap-branch::before {
+      content: '';
+      position: absolute;
+      top: -28px;
+      left: 50%;
+      width: 2px;
+      height: 28px;
+      background: var(--accent-muted);
+      transform: translateX(-50%);
+    }
+
+    .smap-extra {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 1rem;
+      margin-top: 2rem;
+      padding-top: 1.5rem;
+      border-top: 2px dashed var(--border);
+      width: 100%;
+    }
+
+    .smap-extra .smap-node {
+      min-width: 180px;
+    }
+
+    .smap-extra .smap-box {
+      width: 100%;
+    }
+
+    /* ── Results ── */
+    .results-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .results-intro {
+      display: flex;
+      align-items: flex-start;
+      gap: 1.25rem;
+      padding: 1.5rem 1.75rem;
+      border: 2px solid var(--accent-dark);
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 4px 16px var(--shadow);
+    }
+
+    .results-intro-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: var(--accent-dark);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .results-intro-icon svg {
+      width: 28px;
+      height: 28px;
+    }
+
+    .results-intro p {
+      font-size: 1.15rem;
+      line-height: 1.65;
+      color: var(--ink);
+      font-weight: 600;
+    }
+
+    .results-intro strong {
+      color: var(--accent-dark);
+      font-weight: 700;
+    }
+
+    .results-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 1rem;
+    }
+
+    .result-card {
+      grid-column: span 2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 1.35rem 1rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #ffffff;
+      box-shadow: 0 4px 16px var(--shadow);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .result-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: var(--accent);
+    }
+
+    .result-card:nth-child(4),
+    .result-card:nth-child(5) {
+      grid-column: span 3;
+    }
+
+    @media (max-width: 900px) {
+      .results-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .result-card,
+      .result-card:nth-child(4),
+      .result-card:nth-child(5) {
+        grid-column: span 1;
+      }
+
+      .results-intro {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+      }
+    }
+
+    .result-card-num {
+      position: absolute;
+      top: 0.65rem;
+      right: 0.75rem;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--accent-muted);
+    }
+
+    .result-card-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 12px;
+      background: var(--accent-pale);
+      color: var(--accent-dark);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 0.85rem;
+    }
+
+    .result-card-icon svg {
+      width: 26px;
+      height: 26px;
+    }
+
+    .result-card-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--accent-dark);
+      line-height: 1.35;
+      margin-bottom: 0.4rem;
+    }
+
+    .result-card-text {
+      font-size: 0.95rem;
+      color: var(--ink-muted);
+      line-height: 1.45;
+      font-weight: 600;
+    }
+
+    .results-footer {
+      text-align: center;
+      padding: 1rem 1.5rem;
+      border-radius: 8px;
+      background: var(--accent-dark);
+      color: #fff;
+    }
+
+    .results-footer p {
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    /* ── Problem / Effect dual panel ── */
+    .dual-panel {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      align-items: stretch;
+    }
+
+    @media (max-width: 768px) {
+      .dual-panel {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .panel {
+      border: 1px solid var(--border);
+      background: #fff;
+      padding: 2rem;
+      position: relative;
+      box-shadow: 0 4px 16px var(--shadow);
+      border-radius: 8px;
+    }
+
+    .panel::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 4px;
+      height: 100%;
+    }
+
+    .panel--problem::before {
+      background: var(--problem);
+    }
+
+    .panel--effect::before {
+      background: var(--effect);
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .panel-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .panel--problem .panel-icon {
+      background: var(--accent-pale);
+      color: var(--problem);
+    }
+
+    .panel--effect .panel-icon {
+      background: var(--paper-muted);
+      color: var(--effect);
+    }
+
+    .panel-icon svg {
+      width: 26px;
+      height: 26px;
+    }
+
+    .panel h3 {
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+
+    .panel--problem h3 {
+      color: var(--problem);
+    }
+
+    .panel--effect h3 {
+      color: var(--effect);
+    }
+
+    .item-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+    }
+
+    .item-list li {
+      display: flex;
+      gap: 0.85rem;
+      align-items: flex-start;
+      font-size: 1.1rem;
+    }
+
+    .item-list .bullet {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-top: 0.6rem;
+      flex-shrink: 0;
+    }
+
+    .panel--problem .bullet {
+      background: var(--accent-light);
+    }
+
+    .panel--effect .bullet {
+      background: var(--accent);
+    }
+
+    /* ── AS-IS / TO-BE flow ── */
+    .process-flow {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .process-row {
+      display: grid;
+      grid-template-columns: 200px 1fr 48px 1fr;
+      gap: 0;
+      align-items: stretch;
+      min-height: 80px;
+    }
+
+    @media (max-width: 900px) {
+      .process-row {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+        padding-bottom: 1.5rem;
+        border-bottom: 1px dashed var(--border);
+      }
+
+      .process-arrow {
+        display: none !important;
+      }
+    }
+
+    .process-label {
+      background: var(--accent-dark);
+      color: #fff;
+      padding: 1.1rem 1.25rem;
+      font-weight: 700;
+      font-size: 1.05rem;
+      display: flex;
+      align-items: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    .process-row:first-child .process-label {
+      border-radius: 4px 0 0 0;
+    }
+
+    .process-row:last-child .process-label {
+      border-radius: 0 0 0 4px;
+      border-bottom: none;
+    }
+
+    .state-box {
+      padding: 1.15rem 1.35rem;
+      font-size: 1.05rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+    }
+
+    .state-box--as-is {
+      background: #ffffff;
+      color: var(--ink-muted);
+      border-left: 4px solid #94a3b8;
+    }
+
+    .state-box--to-be {
+      background: #ffffff;
+      color: var(--ink);
+      border-left: 4px solid var(--accent-light);
+    }
+
+    .process-arrow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #ffffff;
+      border-bottom: 1px solid var(--border);
+      color: var(--accent);
+    }
+
+    .process-arrow svg {
+      width: 24px;
+      height: 24px;
+    }
+
+    .flow-legend {
+      display: grid;
+      grid-template-columns: 200px 1fr 48px 1fr;
+      gap: 0;
+      margin-bottom: 0.5rem;
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--ink-muted);
+    }
+
+    @media (max-width: 900px) {
+      .flow-legend {
+        display: none;
+      }
+    }
+
+    .flow-legend span:nth-child(2) {
+      text-align: center;
+      color: #64748b;
+    }
+
+    .flow-legend span:nth-child(4) {
+      text-align: center;
+      color: var(--accent);
+    }
+
+    /* ── Comparison matrix ── */
+    .matrix-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      background: #fff;
+      box-shadow: 0 4px 16px var(--shadow);
+      border-radius: 8px;
+    }
+
+    .matrix {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 1.05rem;
+      min-width: 720px;
+    }
+
+    .matrix th,
+    .matrix td {
+      padding: 0.85rem 1rem;
+      text-align: center;
+      border: 1px solid var(--border);
+    }
+
+    .matrix th {
+      background: var(--accent-dark);
+      color: #fff;
+      font-weight: 700;
+      font-size: 1rem;
+      letter-spacing: 0.02em;
+    }
+
+    .matrix th:first-child,
+    .matrix td:first-child {
+      text-align: left;
+      font-weight: 700;
+      background: #ffffff;
+      color: var(--ink);
+      min-width: 240px;
+    }
+
+    .matrix th:last-child {
+      background: var(--accent);
+    }
+
+    .matrix tr:last-child td:first-child {
+      font-style: italic;
+    }
+
+    .cell {
+      display: inline-block;
+      padding: 0.3rem 0.7rem;
+      border-radius: 4px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+    }
+
+    .cell--yes {
+      background: var(--cell-yes);
+      color: var(--accent-dark);
+    }
+
+    .cell--partial {
+      background: var(--cell-partial);
+      color: #1e40af;
+      border: 1px solid var(--border);
+    }
+
+    .cell--no {
+      background: var(--cell-no);
+      color: #64748b;
+      border: 1px solid #e2e8f0;
+    }
+
+    .cell--low {
+      background: var(--cell-no);
+      color: #64748b;
+      border: 1px solid #e2e8f0;
+    }
+
+    .cell--med {
+      background: var(--cell-partial);
+      color: #1e40af;
+      border: 1px solid var(--border);
+    }
+
+    .cell--high {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .cell--highlight {
+      background: var(--cell-highlight);
+      color: #fff;
+    }
+
+    /* ── Quality index ── */
+    .quality-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      align-items: start;
+    }
+
+    @media (max-width: 900px) {
+      .quality-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .bar-chart {
+      background: #fff;
+      border: 1px solid var(--border);
+      padding: 1.75rem;
+      box-shadow: 0 4px 16px var(--shadow);
+      border-radius: 8px;
+    }
+
+    .bar-chart h3 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: var(--accent-dark);
+      margin-bottom: 1.5rem;
+      text-align: center;
+    }
+
+    .bar-row {
+      display: grid;
+      grid-template-columns: 1fr 60px;
+      gap: 0.5rem;
+      align-items: center;
+      margin-bottom: 0.65rem;
+      font-size: 0.82rem;
+    }
+
+    .bar-label {
+      color: var(--ink-muted);
+      line-height: 1.3;
+      padding-right: 0.5rem;
+    }
+
+    .bar-track {
+      grid-column: 1 / -1;
+      height: 12px;
+      background: var(--track);
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width 0.6s ease;
+    }
+
+    .bar-fill--project {
+      background: var(--accent);
+    }
+
+    .bar-fill--analog {
+      background: var(--accent-muted);
+    }
+
+    .bar-value {
+      text-align: right;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .bar-row--dual {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.25rem;
+      margin-bottom: 1rem;
+    }
+
+    .bar-row--dual .bar-label {
+      font-weight: 700;
+      color: var(--ink);
+      font-size: 1.05rem;
+    }
+
+    .bar-dual-tracks {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .bar-dual-tracks .bar-track {
+      height: 10px;
+    }
+
+    .bar-legend {
+      display: flex;
+      gap: 1.5rem;
+      justify-content: center;
+      margin-top: 1.25rem;
+      font-size: 1rem;
+      font-weight: 700;
+    }
+
+    .bar-legend span {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .legend-swatch {
+      width: 14px;
+      height: 8px;
+      border-radius: 2px;
+    }
+
+    /* Score cards */
+    .score-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    .score-card {
+      background: #fff;
+      border: 1px solid var(--border);
+      padding: 1.75rem;
+      text-align: center;
+      box-shadow: 0 4px 16px var(--shadow);
+      border-radius: 8px;
+    }
+
+    .score-card--winner {
+      border-color: var(--accent);
+      border-width: 2px;
+      background: #ffffff;
+    }
+
+    .score-card .label {
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--ink-muted);
+      margin-bottom: 0.6rem;
+    }
+
+    .score-card .value {
+      font-size: 3.5rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .score-card--project .value {
+      color: var(--accent);
+    }
+
+    .score-card--analog .value {
+      color: var(--accent-light);
+    }
+
+    .score-card .unit {
+      font-size: 1.05rem;
+      color: var(--ink-muted);
+      margin-top: 0.5rem;
+    }
+
+    /* Formula block */
+    .formula-block {
+      background: var(--accent-dark);
+      color: #fff;
+      padding: 2rem;
+      margin-top: 1.5rem;
+      text-align: center;
+      border-radius: 8px;
+    }
+
+    .formula-block .formula-title {
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent-muted);
+      margin-bottom: 1rem;
+    }
+
+    .formula {
+      font-size: 1.6rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    .formula .result {
+      color: #93c5fd;
+      font-size: 2.25rem;
+    }
+
+    .formula-note {
+      margin-top: 1rem;
+      font-size: 1rem;
+      color: #bfdbfe;
+      line-height: 1.6;
+    }
+
+    /* Quality table */
+    .quality-table-wrap {
+      margin-top: 2rem;
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 4px 16px var(--shadow);
+    }
+
+    .quality-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 1.05rem;
+      min-width: 640px;
+    }
+
+    .quality-table th,
+    .quality-table td {
+      padding: 0.85rem 1rem;
+      border: 1px solid var(--border);
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .quality-table th {
+      background: var(--accent-dark);
+      color: #fff;
+      font-weight: 700;
+      font-size: 1rem;
+    }
+
+    .quality-table td:first-child {
+      text-align: left;
+      font-weight: 600;
+    }
+
+    .quality-table tr.total td {
+      background: var(--accent-dark);
+      color: #fff;
+      font-weight: 700;
+      font-size: 1.15rem;
+    }
+
+    .quality-table .col-project {
+      background: #ffffff;
+    }
+
+    .quality-table .col-analog {
+      background: #ffffff;
+    }
+
+    /* Connector visual between problem and effect */
+    .bridge {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.75rem 0;
+      gap: 1rem;
+      color: var(--accent);
+    }
+
+    .bridge-line {
+      flex: 1;
+      height: 2px;
+      background: linear-gradient(90deg, var(--accent-muted), var(--accent), var(--accent-muted));
+      max-width: 220px;
+      border-radius: 1px;
+    }
+
+    .bridge-label {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--accent-dark);
+      white-space: nowrap;
+    }
+
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 2px solid var(--border);
+      text-align: center;
+      font-size: 1rem;
+      color: var(--ink-muted);
+    }
+  </style>
+</head>
+
+<body>
+  <div class="page">
+
+    <header class="doc-header">
+      <h1>Актуальность и ожидаемый эффект автоматизации</h1>
+      <p class="subtitle">Обоснование проектных решений и сравнительный анализ</p>
+    </header>
+
+    <!-- Subject area -->
+    <section class="section">
+      <h2>Характеристика предметной области</h2>
+
+      <div class="domain-grid">
+        <div class="domain-card domain-card--object">
+          <span class="domain-tag domain-tag--blue">Объект</span>
+          <p class="domain-text">Процесс управления жизненными событиями человека</p>
+        </div>
+
+        <div class="domain-card domain-card--subject">
+          <span class="domain-tag domain-tag--grey">Предмет</span>
+          <p class="domain-text">Процессы фиксации, структурирования, хранения, поиска и анализа жизненных событий с использованием информационных технологий</p>
+        </div>
+
+        <div class="domain-card domain-card--tasks">
+          <span class="domain-tag domain-tag--blue">Основные задачи</span>
+          <ul class="domain-list">
+            <li>фиксация информации;</li>
+            <li>структурирование данных;</li>
+            <li>хранение информации;</li>
+            <li>поиск и использование сохранённых сведений;</li>
+            <li>анализ накопленных данных.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- §1 Problems & Effects -->
+    <section class="section">
+      <div class="section-num">Раздел I</div>
+      <h2>Проблематика и ожидаемые результаты</h2>
+
+      <div class="dual-panel">
+        <div class="panel panel--problem">
+          <div class="panel-header">
+            <div class="panel-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+            </div>
+            <h3>Основные недостатки</h3>
+          </div>
+          <ul class="item-list">
+            <li><span class="bullet"></span>высокие временные затраты пользователя на ручной ввод и структурирование
+              данных</li>
+            <li><span class="bullet"></span>потеря информации</li>
+            <li><span class="bullet"></span>пропуск значимых атрибутов и ошибки</li>
+            <li><span class="bullet"></span>нестабильность качества работы и потери данных</li>
+            <li><span class="bullet"></span>низкая оперативность поиска и анализа</li>
+          </ul>
+        </div>
+
+        <div class="panel panel--effect">
+          <div class="panel-header">
+            <div class="panel-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </div>
+            <h3>Ожидаемый эффект</h3>
+          </div>
+          <ul class="item-list">
+            <li><span class="bullet"></span>сокращение времени обработки пользовательской информации</li>
+            <li><span class="bullet"></span>уменьшение количества ручных операций</li>
+            <li><span class="bullet"></span>повышение полноты и достоверности сохраняемых данных</li>
+            <li><span class="bullet"></span>обеспечение единого формата хранения записей</li>
+            <li><span class="bullet"></span>повышение оперативности поиска информации</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="bridge">
+        <span class="bridge-line"></span>
+        <span class="bridge-label">автоматизация как ответ на выявленные ограничения</span>
+        <span class="bridge-line"></span>
+      </div>
+    </section>
+
+    <!-- §2 AS-IS / TO-BE -->
+    <section class="section">
+      <div class="section-num">Раздел II</div>
+      <h2>Сравнение моделей AS-IS и TO-BE</h2>
+
+      <div class="flow-legend">
+        <span>Процесс</span>
+        <span>AS-IS</span>
+        <span></span>
+        <span>TO-BE</span>
+      </div>
+
+      <div class="process-flow">
+        <div class="process-row">
+          <div class="process-label">Фиксация информации</div>
+          <div class="state-box state-box--as-is">Использование различных независимых инструментов</div>
+          <div class="process-arrow">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
+          </div>
+          <div class="state-box state-box--to-be">Ввод информации через единую систему</div>
+        </div>
+        <div class="process-row">
+          <div class="process-label">Структурирование записей</div>
+          <div class="state-box state-box--as-is">Выполняется пользователем вручную</div>
+          <div class="process-arrow">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
+          </div>
+          <div class="state-box state-box--to-be">Выполняется системой с возможностью контроля пользователем</div>
+        </div>
+        <div class="process-row">
+          <div class="process-label">Сопровождение записей</div>
+          <div class="state-box state-box--as-is">Ручное обновление данных</div>
+          <div class="process-arrow">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
+          </div>
+          <div class="state-box state-box--to-be">Централизованное хранение и сопровождение</div>
+        </div>
+        <div class="process-row">
+          <div class="process-label">Поиск информации</div>
+          <div class="state-box state-box--as-is">Поиск в различных источниках</div>
+          <div class="process-arrow">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
+          </div>
+          <div class="state-box state-box--to-be">Поиск в едином информационном пространстве</div>
+        </div>
+        <div class="process-row">
+          <div class="process-label">Анализ и отчётность</div>
+          <div class="state-box state-box--as-is">Выполняется пользователем самостоятельно</div>
+          <div class="process-arrow">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
+          </div>
+          <div class="state-box state-box--to-be">Поддерживается средствами автоматизированной обработки</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- §3 Competitor matrix -->
+    <section class="section">
+      <div class="section-num">Раздел III</div>
+      <h2>Сравнительный анализ существующих решений</h2>
+
+      <div class="matrix-wrap">
+        <table class="matrix">
+          <thead>
+            <tr>
+              <th>Критерий</th>
+              <th>Todoist</th>
+              <th>Notion AI</th>
+              <th>Mem.ai</th>
+              <th>Saner.ai</th>
+              <th>Проектируемая система</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Управление задачами</td>
+              <td><span class="cell cell--yes">Да</span></td>
+              <td><span class="cell cell--yes">Да</span></td>
+              <td><span class="cell cell--partial">Частично</span></td>
+              <td><span class="cell cell--yes">Да</span></td>
+              <td><span class="cell cell--highlight">Да</span></td>
+            </tr>
+            <tr>
+              <td>Работа с заметками</td>
+              <td><span class="cell cell--partial">Частично</span></td>
+              <td><span class="cell cell--yes">Да</span></td>
+              <td><span class="cell cell--yes">Да</span></td>
+              <td><span class="cell cell--yes">Да</span></td>
+              <td><span class="cell cell--highlight">Да</span></td>
+            </tr>
+            <tr>
+              <td>Поддержка различных типов жизненных событий</td>
+              <td><span class="cell cell--no">Нет</span></td>
+              <td><span class="cell cell--partial">Частично</span></td>
+              <td><span class="cell cell--partial">Частично</span></td>
+              <td><span class="cell cell--partial">Частично</span></td>
+              <td><span class="cell cell--highlight">Да</span></td>
+            </tr>
+            <tr>
+              <td>Интеллектуальная обработка данных</td>
+              <td><span class="cell cell--partial">Частично</span></td>
+              <td><span class="cell cell--yes">Да</span></td>
+              <td><span class="cell cell--yes">Да</span></td>
+              <td><span class="cell cell--yes">Да</span></td>
+              <td><span class="cell cell--highlight">Да</span></td>
+            </tr>
+            <tr>
+              <td>Автоматическое структурирование информации</td>
+              <td><span class="cell cell--partial">Частично</span></td>
+              <td><span class="cell cell--partial">Частично</span></td>
+              <td><span class="cell cell--yes">Да</span></td>
+              <td><span class="cell cell--yes">Да</span></td>
+              <td><span class="cell cell--highlight">Да</span></td>
+            </tr>
+            <tr>
+              <td>Выявление связей между событиями</td>
+              <td><span class="cell cell--no">Нет</span></td>
+              <td><span class="cell cell--partial">Частично</span></td>
+              <td><span class="cell cell--partial">Частично</span></td>
+              <td><span class="cell cell--partial">Частично</span></td>
+              <td><span class="cell cell--highlight">Да</span></td>
+            </tr>
+            <tr>
+              <td>Единое информационное пространство</td>
+              <td><span class="cell cell--no">Нет</span></td>
+              <td><span class="cell cell--yes">Да</span></td>
+              <td><span class="cell cell--yes">Да</span></td>
+              <td><span class="cell cell--yes">Да</span></td>
+              <td><span class="cell cell--highlight">Да</span></td>
+            </tr>
+            <tr>
+              <td>Адаптация под русскоязычные сценарии</td>
+              <td><span class="cell cell--partial">Частично</span></td>
+              <td><span class="cell cell--partial">Частично</span></td>
+              <td><span class="cell cell--partial">Частично</span></td>
+              <td><span class="cell cell--partial">Частично</span></td>
+              <td><span class="cell cell--highlight">Да</span></td>
+            </tr>
+            <tr>
+              <td>Возможность доработки под требования проекта</td>
+              <td><span class="cell cell--low">Низкая</span></td>
+              <td><span class="cell cell--med">Средняя</span></td>
+              <td><span class="cell cell--med">Средняя</span></td>
+              <td><span class="cell cell--med">Средняя</span></td>
+              <td><span class="cell cell--high">Высокая</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- §4 Quality index -->
+    <section class="section">
+      <div class="section-num">Раздел IV</div>
+      <h2>Расчёт показателей качества балльно-индексным методом</h2>
+
+      <div class="quality-grid">
+        <div class="bar-chart">
+          <h3>Сравнение взвешенных показателей B<sub>j</sub>×X<sub>j</sub></h3>
+
+          <div class="bar-row--dual">
+            <div class="bar-label">Удобство фиксации информации <span
+                style="color:var(--ink-muted);font-weight:400">(B=0,12)</span></div>
+            <div class="bar-dual-tracks">
+              <div class="bar-track">
+                <div class="bar-fill bar-fill--project" style="width:100%"></div>
+              </div>
+              <div class="bar-track">
+                <div class="bar-fill bar-fill--analog" style="width:80%"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bar-row--dual">
+            <div class="bar-label">Работа с неструктурированным вводом <span
+                style="color:var(--ink-muted);font-weight:400">(B=0,14)</span></div>
+            <div class="bar-dual-tracks">
+              <div class="bar-track">
+                <div class="bar-fill bar-fill--project" style="width:100%"></div>
+              </div>
+              <div class="bar-track">
+                <div class="bar-fill bar-fill--analog" style="width:80%"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bar-row--dual">
+            <div class="bar-label">Интеллектуальная обработка данных <span
+                style="color:var(--ink-muted);font-weight:400">(B=0,14)</span></div>
+            <div class="bar-dual-tracks">
+              <div class="bar-track">
+                <div class="bar-fill bar-fill--project" style="width:100%"></div>
+              </div>
+              <div class="bar-track">
+                <div class="bar-fill bar-fill--analog" style="width:100%"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bar-row--dual">
+            <div class="bar-label">Поддержка типов жизненных событий <span
+                style="color:var(--ink-muted);font-weight:400">(B=0,13)</span></div>
+            <div class="bar-dual-tracks">
+              <div class="bar-track">
+                <div class="bar-fill bar-fill--project" style="width:100%"></div>
+              </div>
+              <div class="bar-track">
+                <div class="bar-fill bar-fill--analog" style="width:60%"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bar-row--dual">
+            <div class="bar-label">Единая модель пользовательских данных <span
+                style="color:var(--ink-muted);font-weight:400">(B=0,13)</span></div>
+            <div class="bar-dual-tracks">
+              <div class="bar-track">
+                <div class="bar-fill bar-fill--project" style="width:100%"></div>
+              </div>
+              <div class="bar-track">
+                <div class="bar-fill bar-fill--analog" style="width:80%"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bar-row--dual">
+            <div class="bar-label">Выявление связей между событиями <span
+                style="color:var(--ink-muted);font-weight:400">(B=0,12)</span></div>
+            <div class="bar-dual-tracks">
+              <div class="bar-track">
+                <div class="bar-fill bar-fill--project" style="width:100%"></div>
+              </div>
+              <div class="bar-track">
+                <div class="bar-fill bar-fill--analog" style="width:80%"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bar-row--dual">
+            <div class="bar-label">Адаптация под русскоязычные сценарии <span
+                style="color:var(--ink-muted);font-weight:400">(B=0,10)</span></div>
+            <div class="bar-dual-tracks">
+              <div class="bar-track">
+                <div class="bar-fill bar-fill--project" style="width:100%"></div>
+              </div>
+              <div class="bar-track">
+                <div class="bar-fill bar-fill--analog" style="width:40%"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bar-row--dual">
+            <div class="bar-label">Гибкость развития системы <span
+                style="color:var(--ink-muted);font-weight:400">(B=0,08)</span></div>
+            <div class="bar-dual-tracks">
+              <div class="bar-track">
+                <div class="bar-fill bar-fill--project" style="width:100%"></div>
+              </div>
+              <div class="bar-track">
+                <div class="bar-fill bar-fill--analog" style="width:60%"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bar-row--dual">
+            <div class="bar-label">Стоимость использования <span
+                style="color:var(--ink-muted);font-weight:400">(B=0,07)</span></div>
+            <div class="bar-dual-tracks">
+              <div class="bar-track">
+                <div class="bar-fill bar-fill--project" style="width:80%"></div>
+              </div>
+              <div class="bar-track">
+                <div class="bar-fill bar-fill--analog" style="width:60%"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bar-row--dual">
+            <div class="bar-label">Надёжность решения <span
+                style="color:var(--ink-muted);font-weight:400">(B=0,07)</span></div>
+            <div class="bar-dual-tracks">
+              <div class="bar-track">
+                <div class="bar-fill bar-fill--project" style="width:60%"></div>
+              </div>
+              <div class="bar-track">
+                <div class="bar-fill bar-fill--analog" style="width:100%"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bar-legend">
+            <span><span class="legend-swatch" style="background:var(--accent)"></span> Проектируемая система</span>
+            <span><span class="legend-swatch" style="background:var(--accent-muted)"></span> Saner.ai (аналог)</span>
+          </div>
+        </div>
+
+        <div class="score-cards">
+          <div class="score-card score-card--project score-card--winner">
+            <div class="label">J<sub>ЭТУ1</sub> — проектируемая система</div>
+            <div class="value">5,29</div>
+            <div class="unit">суммарный индекс качества</div>
+          </div>
+          <div class="score-card score-card--analog">
+            <div class="label">J<sub>ЭТУ2</sub> — аналог (Saner.ai)</div>
+            <div class="value">4,13</div>
+            <div class="unit">суммарный индекс качества</div>
+          </div>
+
+          <div class="formula-block">
+            <div class="formula-title">Коэффициент превосходства</div>
+            <div class="formula">
+              A<sub>k</sub> = J<sub>ЭТУ1</sub> / J<sub>ЭТУ2</sub> = 5,29 / 4,13 = <span class="result">1,28</span>
+            </div>
+            <p class="formula-note">
+              где J<sub>ЭТУ1</sub> — показатель качества проектируемой системы;<br>
+              J<sub>ЭТУ2</sub> — показатель качества аналога.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="quality-table-wrap">
+        <table class="quality-table">
+          <thead>
+            <tr>
+              <th>Показатель качества</th>
+              <th>B<sub>j</sub></th>
+              <th class="col-project">X<sub>j</sub> (проект)</th>
+              <th class="col-project">B<sub>j</sub>×X<sub>j</sub></th>
+              <th class="col-analog">X<sub>j</sub> (Saner.ai)</th>
+              <th class="col-analog">B<sub>j</sub>×X<sub>j</sub></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Удобство фиксации информации</td>
+              <td>0,12</td>
+              <td class="col-project">5</td>
+              <td class="col-project">0,60</td>
+              <td class="col-analog">4</td>
+              <td class="col-analog">0,48</td>
+            </tr>
+            <tr>
+              <td>Работа с неструктурированным вводом</td>
+              <td>0,14</td>
+              <td class="col-project">5</td>
+              <td class="col-project">0,70</td>
+              <td class="col-analog">4</td>
+              <td class="col-analog">0,56</td>
+            </tr>
+            <tr>
+              <td>Интеллектуальная обработка данных</td>
+              <td>0,14</td>
+              <td class="col-project">5</td>
+              <td class="col-project">0,70</td>
+              <td class="col-analog">5</td>
+              <td class="col-analog">0,70</td>
+            </tr>
+            <tr>
+              <td>Поддержка различных типов жизненных событий</td>
+              <td>0,13</td>
+              <td class="col-project">5</td>
+              <td class="col-project">0,65</td>
+              <td class="col-analog">3</td>
+              <td class="col-analog">0,39</td>
+            </tr>
+            <tr>
+              <td>Единая модель пользовательских данных</td>
+              <td>0,13</td>
+              <td class="col-project">5</td>
+              <td class="col-project">0,65</td>
+              <td class="col-analog">4</td>
+              <td class="col-analog">0,52</td>
+            </tr>
+            <tr>
+              <td>Выявление связей между событиями</td>
+              <td>0,12</td>
+              <td class="col-project">5</td>
+              <td class="col-project">0,60</td>
+              <td class="col-analog">4</td>
+              <td class="col-analog">0,48</td>
+            </tr>
+            <tr>
+              <td>Адаптация под русскоязычные сценарии</td>
+              <td>0,10</td>
+              <td class="col-project">5</td>
+              <td class="col-project">0,50</td>
+              <td class="col-analog">2</td>
+              <td class="col-analog">0,20</td>
+            </tr>
+            <tr>
+              <td>Гибкость развития системы</td>
+              <td>0,08</td>
+              <td class="col-project">5</td>
+              <td class="col-project">0,40</td>
+              <td class="col-analog">3</td>
+              <td class="col-analog">0,24</td>
+            </tr>
+            <tr>
+              <td>Стоимость использования</td>
+              <td>0,07</td>
+              <td class="col-project">4</td>
+              <td class="col-project">0,28</td>
+              <td class="col-analog">3</td>
+              <td class="col-analog">0,21</td>
+            </tr>
+            <tr>
+              <td>Надёжность решения</td>
+              <td>0,07</td>
+              <td class="col-project">3</td>
+              <td class="col-project">0,21</td>
+              <td class="col-analog">5</td>
+              <td class="col-analog">0,35</td>
+            </tr>
+            <tr class="total">
+              <td>Итого</td>
+              <td>1,00</td>
+              <td></td>
+              <td>5,29</td>
+              <td></td>
+              <td>4,13</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- §5 Input / Output -->
+    <section class="section">
+      <div class="section-num">Раздел V</div>
+      <h2>Входные и выходные данные системы</h2>
+
+      <div class="io-flow">
+        <div class="io-column io-column--in">
+          <div class="io-column-head">Входные данные</div>
+          <ul class="io-items">
+            <li class="io-item">
+              <span class="io-item-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="16" y1="13" x2="8" y2="13" />
+                  <line x1="16" y1="17" x2="8" y2="17" />
+                </svg>
+              </span>
+              текстовое описание события
+            </li>
+            <li class="io-item">
+              <span class="io-item-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                  <line x1="12" y1="19" x2="12" y2="23" />
+                  <line x1="8" y1="23" x2="16" y2="23" />
+                </svg>
+              </span>
+              голосовые сообщения
+            </li>
+            <li class="io-item">
+              <span class="io-item-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+              </span>
+              данные поиска информации
+            </li>
+            <li class="io-item">
+              <span class="io-item-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <circle cx="8.5" cy="8.5" r="1.5" />
+                  <polyline points="21 15 16 10 5 21" />
+                </svg>
+              </span>
+              изображения и документы
+            </li>
+            <li class="io-item">
+              <span class="io-item-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="3" />
+                  <path
+                    d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                </svg>
+              </span>
+              пользовательские параметры
+            </li>
+          </ul>
+        </div>
+
+        <div class="io-hub">
+          <span class="io-arrow-h">→</span>
+          <div class="io-hub-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="3" width="20" height="14" rx="2" />
+              <line x1="8" y1="21" x2="16" y2="21" />
+              <line x1="12" y1="17" x2="12" y2="21" />
+            </svg>
+            Система
+          </div>
+          <span class="io-arrow-h">→</span>
+        </div>
+
+        <div class="io-column io-column--out">
+          <div class="io-column-head">Выходные данные</div>
+          <ul class="io-items">
+            <li class="io-item">
+              <span class="io-item-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                  <line x1="8" y1="7" x2="16" y2="7" />
+                  <line x1="8" y1="11" x2="14" y2="11" />
+                </svg>
+              </span>
+              структурированная запись события
+            </li>
+            <li class="io-item">
+              <span class="io-item-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="8" y1="6" x2="21" y2="6" />
+                  <line x1="8" y1="12" x2="21" y2="12" />
+                  <line x1="8" y1="18" x2="21" y2="18" />
+                  <line x1="3" y1="6" x2="3.01" y2="6" />
+                  <line x1="3" y1="12" x2="3.01" y2="12" />
+                  <line x1="3" y1="18" x2="3.01" y2="18" />
+                </svg>
+              </span>
+              список жизненных событий
+            </li>
+            <li class="io-item">
+              <span class="io-item-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+              </span>
+              результаты поиска информации
+            </li>
+            <li class="io-item">
+              <span class="io-item-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="18" cy="5" r="3" />
+                  <circle cx="6" cy="12" r="3" />
+                  <circle cx="18" cy="19" r="3" />
+                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                  <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                </svg>
+              </span>
+              сведения о связанных событиях
+            </li>
+            <li class="io-item">
+              <span class="io-item-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                </svg>
+              </span>
+              уведомления и напоминания
+            </li>
+            <li class="io-item">
+              <span class="io-item-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="20" x2="18" y2="10" />
+                  <line x1="12" y1="20" x2="12" y2="4" />
+                  <line x1="6" y1="20" x2="6" y2="14" />
+                </svg>
+              </span>
+              аналитические сведения
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <p class="io-caption">Преобразование неструктурированных пользовательских данных в структурированное
+        информационное пространство</p>
+    </section>
+
+    <!-- §6 Tech stack -->
+    <section class="section">
+      <div class="section-num">Раздел VI</div>
+      <h2>Средства разработки</h2>
+
+      <div class="tech-groups">
+        <div class="tech-group">
+          <h3 class="tech-group-title">Языки программирования</h3>
+          <div class="tech-grid">
+            <div class="tech-card">
+              <div class="tech-icon-wrap">
+                <img class="tech-icon" src="https://cdn.simpleicons.org/python/3776A9" alt="Python" width="48"
+                  height="48">
+              </div>
+              <span class="tech-name">Python</span>
+              <span class="tech-role">серверная логика, API</span>
+            </div>
+            <div class="tech-card">
+              <div class="tech-icon-wrap">
+                <img class="tech-icon" src="https://cdn.simpleicons.org/typescript/3178C6" alt="TypeScript" width="48"
+                  height="48">
+              </div>
+              <span class="tech-name">TypeScript</span>
+              <span class="tech-role">клиентская часть</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="tech-group">
+          <h3 class="tech-group-title">Фреймворки и библиотеки</h3>
+          <div class="tech-grid">
+            <div class="tech-card">
+              <div class="tech-icon-wrap">
+                <img class="tech-icon" src="https://cdn.simpleicons.org/react/087EA4" alt="React" width="48"
+                  height="48">
+              </div>
+              <span class="tech-name">React</span>
+              <span class="tech-role">UI-компоненты</span>
+            </div>
+            <div class="tech-card">
+              <div class="tech-icon-wrap">
+                <img class="tech-icon" src="https://cdn.simpleicons.org/nextdotjs/000000" alt="Next.js" width="48"
+                  height="48">
+              </div>
+              <span class="tech-name">Next.js</span>
+              <span class="tech-role">веб-приложение</span>
+            </div>
+            <div class="tech-card">
+              <div class="tech-icon-wrap">
+                <img class="tech-icon" src="https://cdn.simpleicons.org/fastapi/009688" alt="FastAPI" width="48"
+                  height="48">
+              </div>
+              <span class="tech-name">FastAPI</span>
+              <span class="tech-role">REST API</span>
+            </div>
+            <div class="tech-card">
+              <div class="tech-icon-wrap">
+                <img class="tech-icon" src="https://cdn.simpleicons.org/tailwindcss/06B6D4" alt="Tailwind CSS"
+                  width="48" height="48">
+              </div>
+              <span class="tech-name">Tailwind CSS</span>
+              <span class="tech-role">оформление интерфейса</span>
+            </div>
+            <div class="tech-card">
+              <div class="tech-icon-wrap">
+                <svg class="tech-icon--svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"
+                  aria-hidden="true">
+                  <ellipse cx="12" cy="5" rx="9" ry="3" />
+                  <path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5" />
+                  <path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3" />
+                </svg>
+              </div>
+              <span class="tech-name">SQLAlchemy</span>
+              <span class="tech-role">работа с БД</span>
+            </div>
+            <div class="tech-card">
+              <div class="tech-icon-wrap">
+                <img class="tech-icon" src="https://cdn.simpleicons.org/postgresql/4169E1" alt="PostgreSQL" width="48"
+                  height="48">
+              </div>
+              <span class="tech-name">PostgreSQL</span>
+              <span class="tech-role">хранение данных</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="tech-group tech-group--tools">
+          <h3 class="tech-group-title">Среда разработки</h3>
+          <div class="tech-grid">
+            <div class="tech-card tech-card--wide">
+              <div class="tech-icon-wrap">
+                <svg class="tech-icon--svg tech-icon--vscode" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"
+                  aria-hidden="true">
+                  <path fill="#007ACC"
+                    d="M23.15 2.587L18.21.21a1.494 1.494 0 0 0-1.705.29l-9.46 8.63-4.12-3.128a.999.999 0 0 0-1.276.057L.327 7.261A1 1 0 0 0 .326 8.74L3.899 12 .326 15.26a1 1 0 0 0 .001 1.479L1.65 17.94a.999.999 0 0 0 1.276.057l4.12-3.128 9.46 8.63a1.492 1.492 0 0 0 1.704.29l4.942-2.377A1.5 1.5 0 0 0 24 20.06V3.939a1.5 1.5 0 0 0-.85-1.352zm-3.746 14.861L10.826 12l8.574-6.438v12.876z" />
+                </svg>
+              </div>
+              <span class="tech-name">Visual Studio Code</span>
+              <span class="tech-role">основная IDE проекта</span>
+            </div>
+            <div class="tech-card">
+              <div class="tech-icon-wrap">
+                <img class="tech-icon" src="https://cdn.simpleicons.org/git/F05032" alt="Git" width="48" height="48">
+              </div>
+              <span class="tech-name">Git</span>
+              <span class="tech-role">контроль версий</span>
+            </div>
+            <div class="tech-card">
+              <div class="tech-icon-wrap">
+                <img class="tech-icon" src="https://cdn.simpleicons.org/eslint/4B32C3" alt="ESLint" width="48"
+                  height="48">
+              </div>
+              <span class="tech-name">ESLint</span>
+              <span class="tech-role">проверка кода (frontend)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- §7 Economic efficiency -->
+    <section class="section">
+      <div class="section-num">Раздел VII</div>
+      <h2>Расчёт экономической эффективности проекта</h2>
+
+      <div class="econ-infographic">
+
+        <div class="econ-kpi-row">
+          <div class="econ-kpi">
+            <div class="econ-kpi-label">Время на событие</div>
+            <div class="econ-kpi-compare">
+              <span class="econ-kpi-val econ-kpi-val--asis">2,0</span>
+              <span class="econ-kpi-arrow">→</span>
+              <span class="econ-kpi-val econ-kpi-val--tobe">0,5</span>
+              <span style="font-size:1rem;font-weight:700;color:var(--ink-muted)">мин</span>
+            </div>
+            <span class="econ-kpi-badge">−75% времени</span>
+          </div>
+          <div class="econ-kpi">
+            <div class="econ-kpi-label">Годовые затраты</div>
+            <div class="econ-kpi-compare">
+              <span class="econ-kpi-val econ-kpi-val--asis">60&nbsp;850</span>
+              <span class="econ-kpi-arrow">→</span>
+              <span class="econ-kpi-val econ-kpi-val--tobe">21&nbsp;200</span>
+              <span style="font-size:1rem;font-weight:700;color:var(--ink-muted)">₽</span>
+            </div>
+            <span class="econ-kpi-badge">−65% затрат</span>
+          </div>
+          <div class="econ-kpi econ-kpi--hero">
+            <div class="econ-kpi-label">Годовая экономия</div>
+            <div class="econ-kpi-val">39&nbsp;650 ₽</div>
+            <div class="econ-kpi-sub">при внедрении проектируемой системы</div>
+          </div>
+        </div>
+
+        <div class="econ-panels">
+          <div class="econ-panel">
+            <div class="econ-panel-head">Временные затраты на выполнение процессов</div>
+            <div class="econ-panel-body">
+              <div class="econ-legend">
+                <span><i class="l-asis"></i> AS-IS</span>
+                <span><i class="l-tobe"></i> TO-BE</span>
+              </div>
+
+              <div class="econ-time-row">
+                <div class="econ-time-label">Фиксация событий</div>
+                <div class="econ-time-bars">
+                  <div class="econ-time-bar-line">
+                    <div class="econ-time-track">
+                      <div class="econ-time-fill econ-time-fill--asis" style="width:100%"></div>
+                    </div>
+                    <span class="econ-time-num">1,0</span>
+                  </div>
+                  <div class="econ-time-bar-line">
+                    <div class="econ-time-track">
+                      <div class="econ-time-fill econ-time-fill--tobe" style="width:25%"></div>
+                    </div>
+                    <span class="econ-time-num">0,25</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="econ-time-row">
+                <div class="econ-time-label">Интеллектуальная обработка и структурирование</div>
+                <div class="econ-time-bars">
+                  <div class="econ-time-bar-line">
+                    <div class="econ-time-track">
+                      <div class="econ-time-fill econ-time-fill--asis" style="width:50%"></div>
+                    </div>
+                    <span class="econ-time-num">0,5</span>
+                  </div>
+                  <div class="econ-time-bar-line">
+                    <div class="econ-time-track">
+                      <div class="econ-time-fill econ-time-fill--tobe" style="width:10%"></div>
+                    </div>
+                    <span class="econ-time-num">0,1</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="econ-time-row">
+                <div class="econ-time-label">Управление данными и уведомлениями</div>
+                <div class="econ-time-bars">
+                  <div class="econ-time-bar-line">
+                    <div class="econ-time-track">
+                      <div class="econ-time-fill econ-time-fill--asis" style="width:25%"></div>
+                    </div>
+                    <span class="econ-time-num">0,25</span>
+                  </div>
+                  <div class="econ-time-bar-line">
+                    <div class="econ-time-track">
+                      <div class="econ-time-fill econ-time-fill--tobe" style="width:10%"></div>
+                    </div>
+                    <span class="econ-time-num">0,1</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="econ-time-row">
+                <div class="econ-time-label">Поиск и аналитика</div>
+                <div class="econ-time-bars">
+                  <div class="econ-time-bar-line">
+                    <div class="econ-time-track">
+                      <div class="econ-time-fill econ-time-fill--asis" style="width:25%"></div>
+                    </div>
+                    <span class="econ-time-num">0,25</span>
+                  </div>
+                  <div class="econ-time-bar-line">
+                    <div class="econ-time-track">
+                      <div class="econ-time-fill econ-time-fill--tobe" style="width:5%"></div>
+                    </div>
+                    <span class="econ-time-num">0,05</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="econ-time-row econ-time-row--total">
+                <div class="econ-time-label">Итого на одно событие</div>
+                <div class="econ-time-bars">
+                  <div class="econ-time-bar-line">
+                    <div class="econ-time-track">
+                      <div class="econ-time-fill econ-time-fill--asis" style="width:100%"></div>
+                    </div>
+                    <span class="econ-time-num">2,0</span>
+                  </div>
+                  <div class="econ-time-bar-line">
+                    <div class="econ-time-track">
+                      <div class="econ-time-fill econ-time-fill--tobe" style="width:25%"></div>
+                    </div>
+                    <span class="econ-time-num">0,5</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="econ-panel">
+            <div class="econ-panel-head">Стоимостная оценка затрат</div>
+            <div class="econ-panel-body">
+              <div class="econ-cost-compare">
+                <div class="econ-cost-col econ-cost-col--asis">
+                  <div class="econ-cost-col-label">AS-IS</div>
+                  <div class="econ-cost-stack">
+                    <div class="econ-cost-seg econ-cost-seg--user-asis">60&nbsp;850 ₽<br><small
+                        style="font-weight:600;opacity:.9">время пользователя</small></div>
+                  </div>
+                  <div class="econ-cost-total">60&nbsp;850 ₽</div>
+                </div>
+                <div class="econ-cost-mid">
+                  <div class="econ-cost-mid-arrow">→</div>
+                  <div class="econ-cost-mid-pct">экономия<br>39&nbsp;650 ₽</div>
+                </div>
+                <div class="econ-cost-col econ-cost-col--tobe">
+                  <div class="econ-cost-col-label econ-cost-col-label--tobe">TO-BE</div>
+                  <div class="econ-cost-stack">
+                    <div class="econ-cost-seg econ-cost-seg--sys-tobe" style="flex:6000">6&nbsp;000 ₽<br><small
+                        style="font-weight:600;opacity:.9">система</small></div>
+                    <div class="econ-cost-seg econ-cost-seg--user-tobe" style="flex:15200">15&nbsp;200 ₽<br><small
+                        style="font-weight:600;opacity:.9">время пользователя</small></div>
+                  </div>
+                  <div class="econ-cost-total">21&nbsp;200 ₽</div>
+                </div>
+              </div>
+
+              <div class="econ-cost-details">
+                <div class="econ-cost-detail">
+                  <span>Годовые трудозатраты</span>
+                  <span>121,7 ч → 30,4 ч</span>
+                </div>
+                <div class="econ-cost-detail">
+                  <span>Стоимость времени пользователя</span>
+                  <span>60&nbsp;850 → 15&nbsp;200 ₽</span>
+                </div>
+                <div class="econ-cost-detail">
+                  <span>Стоимость использования системы</span>
+                  <span>0 → 6&nbsp;000 ₽</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="econ-result">
+          <div class="econ-result-side">
+            <div class="econ-result-side-label">AS-IS — годовые затраты</div>
+            <div class="econ-result-side-val">60&nbsp;850 ₽</div>
+          </div>
+          <div class="econ-result-arrow">→</div>
+          <div class="econ-result-center">
+            <div class="econ-result-center-label">Годовая экономия</div>
+            <div class="econ-result-center-val">39&nbsp;650 ₽</div>
+            <div class="econ-result-center-sub">снижение совокупных затрат на 65%</div>
+          </div>
+          <div class="econ-result-arrow">→</div>
+          <div class="econ-result-side">
+            <div class="econ-result-side-label">TO-BE — годовые затраты</div>
+            <div class="econ-result-side-val econ-result-side-val--tobe">21&nbsp;200 ₽</div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- §8 Sitemap -->
+    <section class="section">
+      <div class="section-num">Раздел VIII</div>
+      <h2>Карта сайта</h2>
+
+      <div class="sitemap">
+        <div class="sitemap-tree">
+          <div class="smap-node">
+            <div class="smap-box smap-box--root">Авторизация / Регистрация</div>
+          </div>
+          <div class="smap-arrow"></div>
+          <div class="smap-node">
+            <div class="smap-box smap-box--hub">Сегодня</div>
+          </div>
+          <div class="smap-branches">
+            <div class="smap-branch">
+              <div class="smap-box">Входящие</div>
+              <div class="smap-arrow"></div>
+              <div class="smap-box smap-box--child">Карточка записи</div>
+            </div>
+            <div class="smap-branch">
+              <div class="smap-box">Журнал</div>
+              <div class="smap-arrow"></div>
+              <div class="smap-box smap-box--child">Дневник / Заметка</div>
+            </div>
+            <div class="smap-branch">
+              <div class="smap-box">Планы</div>
+              <div class="smap-arrow"></div>
+              <div class="smap-box smap-box--child">Задачи / События / Напоминания</div>
+            </div>
+            <div class="smap-branch">
+              <div class="smap-box">Трекинг</div>
+              <div class="smap-arrow"></div>
+              <div class="smap-box smap-box--child">Привычки / Финансы / Питание</div>
+            </div>
+            <div class="smap-branch">
+              <div class="smap-box">Справочник</div>
+              <div class="smap-arrow"></div>
+              <div class="smap-box smap-box--child">Люди / Ресурсы</div>
+            </div>
+          </div>
+
+          <div class="smap-extra">
+            <div class="smap-node">
+              <div class="smap-box smap-box--child">Глобальный поиск</div>
+              <span class="smap-badge">шапка</span>
+            </div>
+            <div class="smap-node">
+              <div class="smap-box smap-box--child">Панель уведомлений</div>
+              <span class="smap-badge">шапка</span>
+            </div>
+            <div class="smap-node">
+              <div class="smap-box smap-box--child">Учётная запись</div>
+              <span class="smap-badge">боковое меню</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- §9 Results -->
+    <section class="section">
+      <div class="section-num">Раздел IX</div>
+      <h2>Результаты</h2>
+
+      <div class="results-wrap">
+        <div class="results-intro">
+          <div class="results-intro-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+          </div>
+          <p>
+            В результате работы разработано <strong>веб-приложение</strong> для фиксации
+            и интеллектуальной обработки жизненных событий человека, которое позволит:
+          </p>
+        </div>
+
+        <div class="results-grid">
+          <div class="result-card">
+            <span class="result-card-num">01</span>
+            <div class="result-card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+            </div>
+            <div class="result-card-title">Сокращение времени обработки</div>
+            <div class="result-card-text">уменьшить затраты времени на работу с пользовательской информацией</div>
+          </div>
+
+          <div class="result-card">
+            <span class="result-card-num">02</span>
+            <div class="result-card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M18 11V6a2 2 0 0 0-2-2 2 2 0 0 0-2 2" />
+                <path d="M14 10V4a2 2 0 0 0-2-2 2 2 0 0 0-2 2v2" />
+                <path d="M10 10.5V6a2 2 0 0 0-2-2 2 2 0 0 0-2 2v8" />
+                <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34" />
+              </svg>
+            </div>
+            <div class="result-card-title">Снижение ручного труда</div>
+            <div class="result-card-text">уменьшить количество ручных операций при вводе и сопровождении данных</div>
+          </div>
+
+          <div class="result-card">
+            <span class="result-card-num">03</span>
+            <div class="result-card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                <polyline points="9 12 11 14 15 10" />
+              </svg>
+            </div>
+            <div class="result-card-title">Полнота и достоверность</div>
+            <div class="result-card-text">повысить полноту и достоверность сохраняемых данных</div>
+          </div>
+
+          <div class="result-card">
+            <span class="result-card-num">04</span>
+            <div class="result-card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                <line x1="8" y1="7" x2="16" y2="7" />
+                <line x1="8" y1="11" x2="14" y2="11" />
+              </svg>
+            </div>
+            <div class="result-card-title">Единый формат хранения</div>
+            <div class="result-card-text">обеспечить единый формат хранения записей в информационном пространстве</div>
+          </div>
+
+          <div class="result-card">
+            <span class="result-card-num">05</span>
+            <div class="result-card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+            </div>
+            <div class="result-card-title">Оперативный поиск</div>
+            <div class="result-card-text">повысить оперативность поиска и анализа информации</div>
+          </div>
+        </div>
+
+        <div class="results-footer">
+          <p>Достигнутые результаты подтверждают практическую значимость и эффективность проектируемого решения</p>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      Материал подготовлен в рамках обоснования проектных решений по автоматизации обработки пользовательской информации
+    </footer>
+
+  </div>
+</body>
+
+</html>
