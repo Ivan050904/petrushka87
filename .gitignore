@@ -19,8 +19,10 @@ coverage/
 *.tsbuildinfo
 
 /storage/
-backend/storage/
+backend/storage/*
+!backend/storage/folio_one.db
 !backend/storage/transcription/
+!backend/storage/transcription/**
 !backend/storage/files/
 !backend/storage/files/**
 *.log
