@@ -29,12 +29,11 @@ import {
   createKanbanId,
   formatKanbanDeadline,
   getDevKanbanPriority,
-  getDevKanbanStage,
   getKanbanAttachmentIds,
-  getKanbanBoardConfig,
   getKanbanComments,
   getKanbanDeadline,
   getKanbanHistory,
+  getKanbanStage,
   getKanbanSubtaskProgress,
   getKanbanSubtasks,
   KANBAN_MAX_ATTACHMENTS,
@@ -42,7 +41,7 @@ import {
   kanbanMetadata,
   priorityAccent,
   toDateInputValue,
-  type KanbanBoardMode,
+  type KanbanBoardConfig,
   type KanbanComment,
   type KanbanHistoryEvent,
   type KanbanSubtask,
@@ -66,7 +65,7 @@ type KanbanCardDraft = {
 
 type KanbanCardDetailProps = {
   entry: Entry;
-  boardMode: KanbanBoardMode;
+  boardConfig: KanbanBoardConfig;
   onClose: () => void;
   onUpdate: (entry: Entry) => void;
   onDelete: () => void;
@@ -130,10 +129,9 @@ function SectionLabel({ icon, children }: { icon: ReactNode; children: ReactNode
   );
 }
 
-export function KanbanCardDetail({ entry, boardMode, onClose, onUpdate, onDelete }: KanbanCardDetailProps) {
+export function KanbanCardDetail({ entry, boardConfig, onClose, onUpdate, onDelete }: KanbanCardDetailProps) {
   const { token } = useRequireAuth();
-  const boardConfig = getKanbanBoardConfig(boardMode);
-  const stage = getDevKanbanStage(entry);
+  const stage = getKanbanStage(entry, boardConfig);
   const stageLabel = boardConfig.columns.find((column) => column.id === stage)?.label ?? stage;
 
   const [activeTab, setActiveTab] = useState<DetailTab>("details");
@@ -209,7 +207,7 @@ export function KanbanCardDetail({ entry, boardMode, onClose, onUpdate, onDelete
         content: currentDraft.content.trim(),
         metadata: {
           ...currentEntry.metadata,
-          ...kanbanMetadata(boardMode, getDevKanbanStage(currentEntry), {
+          ...kanbanMetadata(boardConfig.id, getKanbanStage(currentEntry, boardConfig), boardConfig, {
             priority: currentDraft.priority,
           }),
           deadline: currentDraft.deadline || null,
@@ -227,7 +225,7 @@ export function KanbanCardDetail({ entry, boardMode, onClose, onUpdate, onDelete
     } finally {
       setIsSaving(false);
     }
-  }, [boardMode, onUpdate, token]);
+  }, [boardConfig, onUpdate, token]);
 
   useEffect(() => {
     const baseline = entryToDraft(entry);

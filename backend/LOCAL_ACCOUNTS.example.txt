@@ -1,10 +1,12 @@
 # Локальные аккаунты для синхронизации между машинами (не для продакшена).
 
 petr@petr.local / petr12345
-demo@letscore.local / demo12345
 demo@folio-one.local / demo12345
 
 # После git pull на новой машине:
 # 1. cd backend && python -m alembic upgrade head
-# 2. DATABASE_URL=sqlite:///./storage/letscore.db в .env
+# 2. DATABASE_URL=sqlite:///./storage/folio_one.db в .env
 # 3. start-dev.bat
+
+# Перенос данных со старой базы (если остался letscore.db):
+# python scripts/migrate_user_db.py --email petr@petr.local

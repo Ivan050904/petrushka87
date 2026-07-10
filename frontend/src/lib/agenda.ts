@@ -16,12 +16,16 @@ export type AgendaItem = {
   kind: AgendaKind;
   title: string;
   date: Date;
+  endDate?: Date;
   href: string;
   entry?: Entry;
   occurrenceDate?: string;
   recurring?: boolean;
   skipped?: boolean;
 };
+
+export const AGENDA_HOUR_HEIGHT = 56;
+export const AGENDA_MIN_BLOCK_HEIGHT = 42;
 
 export type AgendaBuildOptions = {
   rangeStart?: Date;
@@ -69,6 +73,125 @@ function padDatePart(value: number) {
   return String(value).padStart(2, "0");
 }
 
+function readPositiveInteger(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    return Math.round(value);
+  }
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number.parseInt(value, 10);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  return null;
+}
+
+export function addMinutes(value: Date, minutes: number) {
+  return new Date(value.getTime() + minutes * 60_000);
+}
+
+export function resolveTaskEndDate(startDate: Date, metadata: Record<string, unknown>) {
+  const explicitEnd = parseEntryDate(metadata.ends_at);
+  if (explicitEnd && explicitEnd.getTime() > startDate.getTime()) {
+    return explicitEnd;
+  }
+
+  const durationMinutes = readPositiveInteger(metadata.planned_duration_minutes);
+  if (durationMinutes) {
+    return addMinutes(startDate, durationMinutes);
+  }
+
+  return null;
+}
+
+export function resolveOccurrenceEndDate(occurrenceStart: Date, metadata: Record<string, unknown>) {
+  const durationMinutes = readPositiveInteger(metadata.planned_duration_minutes);
+  if (durationMinutes) {
+    return addMinutes(occurrenceStart, durationMinutes);
+  }
+
+  const scheduledAt = parseEntryDate(metadata.scheduled_at);
+  const templateEnd = parseEntryDate(metadata.ends_at);
+  if (scheduledAt && templateEnd && templateEnd.getTime() > scheduledAt.getTime()) {
+    return new Date(occurrenceStart.getTime() + (templateEnd.getTime() - scheduledAt.getTime()));
+  }
+
+  return null;
+}
+
+export function resolveEventEndDate(startDate: Date, metadata: Record<string, unknown>) {
+  const explicitEnd = parseEntryDate(metadata.ends_at);
+  if (explicitEnd && explicitEnd.getTime() > startDate.getTime()) {
+    return explicitEnd;
+  }
+  return null;
+}
+
+export function computeDurationMinutes(startValue: string, endValue: string) {
+  const start = parseEntryDate(startValue);
+  const end = parseEntryDate(endValue);
+  if (!start || !end || end.getTime() <= start.getTime()) {
+    return null;
+  }
+  return Math.round((end.getTime() - start.getTime()) / 60_000);
+}
+
+export function resolveTaskEndsAtInput(scheduledAt: string, metadata: Record<string, unknown>) {
+  const explicitEnd = getString(metadata.ends_at);
+  if (explicitEnd) {
+    return toDateTimeInputValue(explicitEnd);
+  }
+
+  const durationMinutes = readPositiveInteger(metadata.planned_duration_minutes);
+  if (scheduledAt && durationMinutes) {
+    const start = parseEntryDate(scheduledAt);
+    if (start) {
+      return toDateTimeInputValueFromDate(addMinutes(start, durationMinutes));
+    }
+  }
+
+  return "";
+}
+
+export function toDateTimeInputValue(value: string) {
+  if (!value) {
+    return "";
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return `${value}T09:00`;
+  }
+  const localDateTime = value.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2})/);
+  if (localDateTime) {
+    return localDateTime[1];
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return toDateTimeInputValueFromDate(date);
+}
+
+export function toDateTimeInputValueFromDate(date: Date) {
+  return `${date.getFullYear()}-${padDatePart(date.getMonth() + 1)}-${padDatePart(date.getDate())}T${padDatePart(date.getHours())}:${padDatePart(date.getMinutes())}`;
+}
+
+export function agendaTimeOffset(date: Date, trackPaddingTop = 0, hourHeight = AGENDA_HOUR_HEIGHT) {
+  return trackPaddingTop + (date.getHours() + date.getMinutes() / 60) * hourHeight;
+}
+
+export function durationToAgendaHeight(
+  start: Date,
+  end: Date,
+  hourHeight = AGENDA_HOUR_HEIGHT,
+  minHeight = AGENDA_MIN_BLOCK_HEIGHT,
+) {
+  const durationMinutes = Math.max(0, (end.getTime() - start.getTime()) / 60_000);
+  if (durationMinutes <= 0) {
+    return minHeight;
+  }
+  return Math.max(minHeight, (durationMinutes / 60) * hourHeight);
+}
+
 function isTaskClosed(task: Entry) {
   return ["done", "cancelled"].includes(getString(task.metadata.status, "inbox"));
 }
@@ -86,8 +209,22 @@ function birthdayNextOccurrence(value: string) {
   return birthday;
 }
 
-function entryAgendaItem(entry: Entry, kind: Exclude<AgendaKind, "birthday">, date: Date, href: string): AgendaItem {
-  return { id: `${kind}-${entry.id}`, kind, title: entry.title, date, href, entry };
+function entryAgendaItem(
+  entry: Entry,
+  kind: Exclude<AgendaKind, "birthday">,
+  date: Date,
+  href: string,
+  endDate?: Date | null,
+): AgendaItem {
+  return {
+    id: `${kind}-${entry.id}`,
+    kind,
+    title: entry.title,
+    date,
+    endDate: endDate ?? undefined,
+    href,
+    entry,
+  };
 }
 
 export function buildAgendaItems(entries: Entry[], options?: AgendaBuildOptions): AgendaItem[] {
@@ -105,6 +242,7 @@ export function buildAgendaItems(entries: Entry[], options?: AgendaBuildOptions)
           kind: "task" as const,
           title: entry.title,
           date: occurrence.date,
+          endDate: resolveOccurrenceEndDate(occurrence.date, entry.metadata) ?? undefined,
           href: entryModuleHref(entry),
           entry,
           occurrenceDate: occurrence.dateKey,
@@ -114,11 +252,19 @@ export function buildAgendaItems(entries: Entry[], options?: AgendaBuildOptions)
       }
 
       const date = parseEntryDate(entry.metadata.scheduled_at) ?? parseEntryDate(entry.metadata.deadline);
-      return date ? [entryAgendaItem(entry, "task", date, entryModuleHref(entry))] : [];
+      if (!date) {
+        return [];
+      }
+      const endDate = resolveTaskEndDate(date, entry.metadata);
+      return [entryAgendaItem(entry, "task", date, entryModuleHref(entry), endDate)];
     }
     if (entry.type === "event" && !["skipped", "cancelled"].includes(getString(entry.metadata.status))) {
       const date = parseEntryDate(entry.metadata.starts_at);
-      return date ? [entryAgendaItem(entry, "event", date, entryModuleHref(entry))] : [];
+      if (!date) {
+        return [];
+      }
+      const endDate = resolveEventEndDate(date, entry.metadata);
+      return [entryAgendaItem(entry, "event", date, entryModuleHref(entry), endDate)];
     }
     if (entry.type === "reminder" && !["done", "cancelled"].includes(getString(entry.metadata.status, "scheduled"))) {
       const date = parseEntryDate(entry.metadata.remind_at);
@@ -144,7 +290,18 @@ export function buildAgendaItems(entries: Entry[], options?: AgendaBuildOptions)
 }
 
 export function sortAgendaItems(left: AgendaItem, right: AgendaItem) {
-  return left.date.getTime() - right.date.getTime() || agendaRank(left.kind) - agendaRank(right.kind);
+  const startDiff = left.date.getTime() - right.date.getTime();
+  if (startDiff !== 0) {
+    return startDiff;
+  }
+
+  const leftEnd = left.endDate?.getTime() ?? 0;
+  const rightEnd = right.endDate?.getTime() ?? 0;
+  if (leftEnd !== rightEnd) {
+    return leftEnd - rightEnd;
+  }
+
+  return agendaRank(left.kind) - agendaRank(right.kind);
 }
 
 function agendaRank(kind: AgendaKind) {
@@ -267,6 +424,21 @@ export function formatAgendaDateTime(value: Date) {
     ? { hour: "2-digit", minute: "2-digit" }
     : { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" };
   return new Intl.DateTimeFormat("ru-RU", options).format(value);
+}
+
+const agendaTimeFormatter = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" });
+
+export function formatAgendaTimeRange(start: Date, end?: Date, reference = new Date()) {
+  if (!end || end.getTime() <= start.getTime()) {
+    return formatAgendaDateTime(start);
+  }
+
+  const sameDay = isSameDay(start, reference) && isSameDay(end, reference);
+  if (sameDay) {
+    return `${agendaTimeFormatter.format(start)} – ${agendaTimeFormatter.format(end)}`;
+  }
+
+  return `${formatAgendaDateTime(start)} – ${formatAgendaDateTime(end)}`;
 }
 
 export function formatWeekday(value: Date) {

@@ -96,7 +96,9 @@ Credentials:
 
 On the login screen, click **Войти в демо** for one-click access.
 
-The MVP uses `backend/storage/folio_one.db` and `backend/storage/files` by default, so Docker/PostgreSQL is not required for local daily use yet.
+The MVP uses a single SQLite database at `backend/storage/folio_one.db` and local files at `backend/storage/files`, so Docker/PostgreSQL is not required for local daily use yet.
+
+Set `DATABASE_URL=sqlite:///./storage/folio_one.db` in `backend/.env` (this is the default in `.env.example`).
 
 ## Quick checks
 

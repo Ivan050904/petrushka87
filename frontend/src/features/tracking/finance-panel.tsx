@@ -74,9 +74,11 @@ export function FinancePanel({
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDraftLoaded, setIsDraftLoaded] = useState(false);
-  const [panelTab, setPanelTab] = useState<FinancePanelTab>("import");
+  const [panelTab, setPanelTab] = useState<FinancePanelTab>("operations");
   const [summary, setSummary] = useState<FinanceSummary | null>(null);
+  const [entryTotal, setEntryTotal] = useState(0);
   const [isSummaryLoading, setIsSummaryLoading] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const draftKey = user?.id ? `${FINANCE_DRAFT_STORAGE_KEY}:${user.id}` : null;
 
   function setSelectedId(id: string | null) {
@@ -94,18 +96,35 @@ export function FinancePanel({
     setIsLoading(true);
     setLoadError(null);
     try {
-      const result = await listEntries(token, { type: "finance", limit: 100 });
-      setEntries(result.items);
+      const pageSize = 200;
+      const items: Entry[] = [];
+      let offset = 0;
+      let total = 0;
+
+      while (true) {
+        const result = await listEntries(token, { type: "finance", limit: pageSize, offset });
+        items.push(...result.items);
+        total = result.total;
+        offset += result.items.length;
+        if (offset >= total || result.items.length === 0) {
+          break;
+        }
+      }
+
+      items.sort((left, right) => {
+        const leftDate = getString(left.metadata.transaction_date, left.updated_at);
+        const rightDate = getString(right.metadata.transaction_date, right.updated_at);
+        return rightDate.localeCompare(leftDate);
+      });
+
+      setEntries(items);
+      setEntryTotal(total);
     } catch (requestError) {
       setLoadError(getErrorMessage(requestError, "Не удалось загрузить операции."));
     } finally {
       setIsLoading(false);
     }
   }, [token]);
-
-  useEffect(() => {
-    void loadEntries();
-  }, [loadEntries]);
 
   const loadSummary = useCallback(async () => {
     if (!token) {
@@ -121,6 +140,11 @@ export function FinancePanel({
       setIsSummaryLoading(false);
     }
   }, [token]);
+
+  useEffect(() => {
+    void loadEntries();
+    void loadSummary();
+  }, [loadEntries, loadSummary]);
 
   useEffect(() => {
     if (panelTab === "dashboard") {
@@ -188,7 +212,22 @@ export function FinancePanel({
     }
   }, [draftKey, form, isDraftLoaded, selectedId]);
 
+  const categoryOptions = useMemo(() => {
+    const categories = new Set<string>();
+    for (const entry of entries) {
+      const category = getString(entry.metadata.category);
+      if (category) {
+        categories.add(category);
+      }
+    }
+    return [...categories].sort((left, right) => left.localeCompare(right, "ru"));
+  }, [entries]);
+
   const totals = useMemo<FinanceTotal[]>(() => {
+    if (summary) {
+      return [{ currency: "RUB", income: summary.income, expense: summary.expense }];
+    }
+
     const totalsByCurrency = new Map<string, Omit<FinanceTotal, "currency">>();
     for (const entry of entries) {
       const amount = getNumber(entry.metadata.amount);
@@ -212,7 +251,7 @@ export function FinancePanel({
       .map(([currency, total]) => ({ currency, ...total }))
       .sort((left, right) => left.currency.localeCompare(right.currency));
     return rows.length > 0 ? rows : [{ currency: "RUB", income: 0, expense: 0 }];
-  }, [entries]);
+  }, [entries, summary]);
 
   const selectedEntry = useMemo(
     () => entries.find((entry) => entry.id === selectedId) ?? null,

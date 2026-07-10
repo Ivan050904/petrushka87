@@ -20,7 +20,6 @@ coverage/
 
 /storage/
 backend/storage/
-!backend/storage/letscore.db
 !backend/storage/transcription/
 !backend/storage/files/
 !backend/storage/files/**

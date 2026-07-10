@@ -9,6 +9,7 @@ export const DEV_KANBAN_BOARD_ID = "kanban_code" as const;
 
 export const devKanbanStages = ["inbox", "analysis", "in_progress", "done"] as const;
 export type DevKanbanStage = (typeof devKanbanStages)[number];
+export type KanbanStage = string;
 
 export type KanbanCardTypeOption = {
   value: string;
@@ -17,7 +18,7 @@ export type KanbanCardTypeOption = {
 };
 
 export type DevKanbanColumn = {
-  id: DevKanbanStage;
+  id: string;
   label: string;
   accent: string;
   dotColor: string;
@@ -26,13 +27,15 @@ export type DevKanbanColumn = {
 
 export type KanbanBoardConfig = {
   id: string;
-  mode: KanbanBoardMode;
+  mode: KanbanBoardMode | "custom";
   label: string;
   subtitle: string;
   emptyMessage: string;
   defaultCardType: string;
   cardTypes: KanbanCardTypeOption[];
   columns: DevKanbanColumn[];
+  isBuiltin?: boolean;
+  configEntryId?: string;
 };
 
 const LEGACY_STAGE_MAP: Record<string, DevKanbanStage> = {
@@ -181,22 +184,33 @@ export function getKanbanBoardId(mode: KanbanBoardMode): string {
   return kanbanBoards[mode].id;
 }
 
-export function resolveKanbanBoardMode(entry: Entry): KanbanBoardMode | null {
+export function resolveKanbanBoardId(entry: Entry): string | null {
   const board = getString(entry.metadata.board);
-  if (board === kanbanBoards.tasks.id) {
+  if (!board) {
+    return null;
+  }
+  if (board === "dev" || board === "thoughts") {
+    return kanbanBoards.code.id;
+  }
+  return board;
+}
+
+export function resolveKanbanBoardMode(entry: Entry): KanbanBoardMode | null {
+  const boardId = resolveKanbanBoardId(entry);
+  if (boardId === kanbanBoards.tasks.id) {
     return "tasks";
   }
-  if (board === kanbanBoards.psych.id) {
+  if (boardId === kanbanBoards.psych.id) {
     return "psych";
   }
-  if (board === kanbanBoards.code.id || board === "dev" || board === "thoughts") {
+  if (boardId === kanbanBoards.code.id) {
     return "code";
   }
   return null;
 }
 
-export function isKanbanEntry(entry: Entry, mode: KanbanBoardMode): boolean {
-  return entry.type === "note" && resolveKanbanBoardMode(entry) === mode;
+export function isKanbanEntry(entry: Entry, boardId: string): boolean {
+  return entry.type === "note" && resolveKanbanBoardId(entry) === boardId;
 }
 
 /** @deprecated use isKanbanEntry(entry, mode) */
@@ -208,8 +222,30 @@ export function isAnyKanbanEntry(entry: Entry) {
   return entry.type === "note" && resolveKanbanBoardMode(entry) !== null;
 }
 
-export function getDevKanbanStage(entry: Entry): DevKanbanStage {
+export function getKanbanStage(
+  entry: Entry,
+  config?: Pick<KanbanBoardConfig, "columns">,
+): KanbanStage {
   const stage = getString(entry.metadata.stage, "inbox");
+  if (config) {
+    const columnIds = config.columns.map((column) => column.id);
+    if (columnIds.includes(stage)) {
+      return stage;
+    }
+    const legacyStage = LEGACY_STAGE_MAP[stage];
+    if (legacyStage && columnIds.includes(legacyStage)) {
+      return legacyStage;
+    }
+    return columnIds[0] ?? "inbox";
+  }
+  if (devKanbanStages.includes(stage as DevKanbanStage)) {
+    return stage;
+  }
+  return LEGACY_STAGE_MAP[stage] ?? "inbox";
+}
+
+export function getDevKanbanStage(entry: Entry): DevKanbanStage {
+  const stage = getKanbanStage(entry);
   if (devKanbanStages.includes(stage as DevKanbanStage)) {
     return stage as DevKanbanStage;
   }
@@ -221,26 +257,26 @@ export function getDevKanbanPriority(entry: Entry) {
   return Math.min(5, Math.max(1, Math.round(priority)));
 }
 
-export function getKanbanCardType(entry: Entry, mode: KanbanBoardMode): string {
-  const config = getKanbanBoardConfig(mode);
+export function getKanbanCardType(entry: Entry, config: Pick<KanbanBoardConfig, "defaultCardType" | "cardTypes">): string {
   const cardType = getString(entry.metadata.card_type, config.defaultCardType);
   return config.cardTypes.some((option) => option.value === cardType) ? cardType : config.defaultCardType;
 }
 
 /** @deprecated use getKanbanCardType */
 export function getDevKanbanCardType(entry: Entry): DevKanbanCardType {
-  return getKanbanCardType(entry, resolveKanbanBoardMode(entry) ?? "code") as DevKanbanCardType;
+  const mode = resolveKanbanBoardMode(entry) ?? "code";
+  return getKanbanCardType(entry, getKanbanBoardConfig(mode)) as DevKanbanCardType;
 }
 
 export function kanbanMetadata(
-  mode: KanbanBoardMode,
-  stage: DevKanbanStage,
+  boardId: string,
+  stage: KanbanStage,
+  config: Pick<KanbanBoardConfig, "defaultCardType" | "cardTypes">,
   options?: { priority?: number; cardType?: string },
 ) {
-  const config = getKanbanBoardConfig(mode);
   const cardType = options?.cardType ?? config.defaultCardType;
   return {
-    board: config.id,
+    board: boardId,
     stage,
     priority: options?.priority ?? 3,
     card_type: config.cardTypes.some((option) => option.value === cardType) ? cardType : config.defaultCardType,
@@ -252,7 +288,7 @@ export function devKanbanMetadata(
   stage: DevKanbanStage,
   options?: { priority?: number; cardType?: DevKanbanCardType },
 ) {
-  return kanbanMetadata("code", stage, options);
+  return kanbanMetadata(kanbanBoards.code.id, stage, kanbanBoards.code, options);
 }
 
 export function priorityAccent(priority: number) {
@@ -281,8 +317,7 @@ export function priorityLabel(priority: number) {
   return "Минимальный";
 }
 
-export function cardTypeOption(mode: KanbanBoardMode, cardType: string) {
-  const config = getKanbanBoardConfig(mode);
+export function cardTypeOption(config: Pick<KanbanBoardConfig, "cardTypes">, cardType: string) {
   return config.cardTypes.find((option) => option.value === cardType) ?? config.cardTypes[0];
 }
 

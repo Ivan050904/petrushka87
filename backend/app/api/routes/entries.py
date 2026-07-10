@@ -272,37 +272,38 @@ def create_entry(
     entry_metadata = dict(payload.metadata)
 
     if payload.type == EntryType.note:
-        ai_client = get_ai_client()
-        if ai_client is not None:
-            ai_usage: dict[str, Any] | None = None
-            try:
-                classification = ai_client.classify_entry(payload.content)
-                if classification.usage is not None:
-                    ai_usage = classification.usage.model_dump(
-                        mode="json",
-                        exclude_none=True,
-                    )
-                classified_metadata = {**classification.metadata, **entry_metadata}
-                ai_metadata: dict[str, Any] = {
-                    "classification": {
-                        "type": classification.type.value,
-                        "confidence": classification.confidence,
+        if not entry_metadata.get("board"):
+            ai_client = get_ai_client()
+            if ai_client is not None:
+                ai_usage: dict[str, Any] | None = None
+                try:
+                    classification = ai_client.classify_entry(payload.content)
+                    if classification.usage is not None:
+                        ai_usage = classification.usage.model_dump(
+                            mode="json",
+                            exclude_none=True,
+                        )
+                    classified_metadata = {**classification.metadata, **entry_metadata}
+                    ai_metadata: dict[str, Any] = {
+                        "classification": {
+                            "type": classification.type.value,
+                            "confidence": classification.confidence,
+                        }
                     }
-                }
-                if ai_usage is not None:
-                    ai_metadata["usage"] = ai_usage
-                classified_metadata["ai"] = ai_metadata
-                classified_metadata = normalize_metadata(classification.type, classified_metadata)
-                if classification.type == EntryType.task:
-                    _validate_task_parent(db, user_id=current_user.id, metadata=classified_metadata)
-                entry_type = classification.type
-                entry_title = _entry_title(classification.title or payload.title, payload.content)
-                entry_metadata = classified_metadata
-            except Exception as exc:
-                error_metadata: dict[str, Any] = {"classification_error": exc.__class__.__name__}
-                if ai_usage is not None:
-                    error_metadata["usage"] = ai_usage
-                entry_metadata["ai"] = error_metadata
+                    if ai_usage is not None:
+                        ai_metadata["usage"] = ai_usage
+                    classified_metadata["ai"] = ai_metadata
+                    classified_metadata = normalize_metadata(classification.type, classified_metadata)
+                    if classification.type == EntryType.task:
+                        _validate_task_parent(db, user_id=current_user.id, metadata=classified_metadata)
+                    entry_type = classification.type
+                    entry_title = _entry_title(classification.title or payload.title, payload.content)
+                    entry_metadata = classified_metadata
+                except Exception as exc:
+                    error_metadata: dict[str, Any] = {"classification_error": exc.__class__.__name__}
+                    if ai_usage is not None:
+                        error_metadata["usage"] = ai_usage
+                    entry_metadata["ai"] = error_metadata
 
     entry_metadata = _validated_metadata(entry_type, entry_metadata)
     if entry_type == EntryType.task:

@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DragEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { CalendarDays, CheckSquare, Kanban, LayoutGrid, Plus, Search } from "lucide-react";
+import { CalendarDays, CheckSquare, Kanban, LayoutGrid, Plus, Search, Settings2 } from "lucide-react";
 
+import { KanbanBoardSettings } from "@/features/board/kanban-board-settings";
 import { KanbanCardDetail } from "@/features/board/kanban-card-detail";
 import { KanbanEmptyState } from "@/features/board/kanban-empty-state";
 import { Button } from "@/components/ui/button";
@@ -13,25 +14,26 @@ import { Input } from "@/components/ui/input";
 import { Notice } from "@/components/ui/notice";
 import { Textarea } from "@/components/ui/textarea";
 import { useRequireAuth } from "@/hooks/use-auth";
+import { useKanbanBoards } from "@/hooks/use-kanban-boards";
 import { createEntry, deleteEntry, getErrorMessage, listEntries, updateEntry } from "@/lib/api";
 import {
   appendKanbanHistory,
   createKanbanHistoryEvent,
   formatKanbanDeadline,
   getDevKanbanPriority,
-  getDevKanbanStage,
-  getKanbanBoardConfig,
   getKanbanDeadline,
   getKanbanHistory,
+  getKanbanStage,
   getKanbanSubtaskProgress,
   isAnyKanbanEntry,
   isKanbanEntry,
-  kanbanBoardList,
   kanbanMetadata,
   priorityAccent,
-  type DevKanbanStage,
-  type KanbanBoardMode,
-} from "@/lib/dev-kanban";import { boardHref, parseKanbanBoardMode } from "@/lib/navigation";
+  type KanbanBoardConfig,
+  type KanbanStage,
+} from "@/lib/dev-kanban";
+import { resolveBoardIdFromQuery } from "@/lib/kanban-boards";
+import { boardHref } from "@/lib/navigation";
 import type { Entry } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -39,7 +41,7 @@ const DRAG_MIME = "application/x-folio-one-dev-kanban";
 
 type DragPayload = {
   entryId: string;
-  fromStage: DevKanbanStage;
+  fromStage: KanbanStage;
 };
 
 function formatCardDate(value: string) {
@@ -68,23 +70,46 @@ function readDragPayload(event: DragEvent<HTMLElement>): DragPayload | null {
 export function DevKanbanView() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const boardMode = parseKanbanBoardMode(searchParams.get("mode"));
-  const boardConfig = getKanbanBoardConfig(boardMode);
-
   const { token } = useRequireAuth();
+  const { boards, isLoading: boardsLoading, error: boardsError, saveBoard, createBoard, deleteBoard } =
+    useKanbanBoards(token);
+
+  const boardId = useMemo(() => {
+    if (boards.length === 0) {
+      return resolveBoardIdFromQuery([], {
+        board: searchParams.get("board"),
+        mode: searchParams.get("mode"),
+      });
+    }
+    const resolved = resolveBoardIdFromQuery(boards, {
+      board: searchParams.get("board"),
+      mode: searchParams.get("mode"),
+    });
+    return boards.some((board) => board.id === resolved) ? resolved : boards[0].id;
+  }, [boards, searchParams]);
+
+  const boardConfig = useMemo(
+    () => boards.find((board) => board.id === boardId) ?? boards[0] ?? null,
+    [boardId, boards],
+  );
+
   const [allEntries, setAllEntries] = useState<Entry[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [dragOverStage, setDragOverStage] = useState<DevKanbanStage | null>(null);
+  const [dragOverStage, setDragOverStage] = useState<KanbanStage | null>(null);
   const [movingEntryId, setMovingEntryId] = useState<string | null>(null);
   const [selectedEntry, setSelectedEntry] = useState<Entry | null>(null);
-  const [addingStage, setAddingStage] = useState<DevKanbanStage | null>(null);  const [quickDraft, setQuickDraft] = useState("");
+  const [addingStage, setAddingStage] = useState<KanbanStage | null>(null);
+  const [quickDraft, setQuickDraft] = useState("");
+  const [showSettings, setShowSettings] = useState(false);
+  const [isCreatingBoard, setIsCreatingBoard] = useState(false);
+  const [newBoardName, setNewBoardName] = useState("");
 
   const entries = useMemo(
-    () => allEntries.filter((entry) => isKanbanEntry(entry, boardMode)),
-    [allEntries, boardMode],
+    () => (boardConfig ? allEntries.filter((entry) => isKanbanEntry(entry, boardConfig.id)) : []),
+    [allEntries, boardConfig],
   );
 
   const loadEntries = useCallback(async () => {
@@ -112,7 +137,9 @@ export function DevKanbanView() {
     setAddingStage(null);
     setQuickDraft("");
     setSelectedEntry(null);
-    setActionError(null);  }, [boardMode]);
+    setActionError(null);
+    setShowSettings(false);
+  }, [boardId]);
 
   const filteredEntries = useMemo(() => {
     const normalizedQuery = searchQuery.trim().toLowerCase();
@@ -127,31 +154,39 @@ export function DevKanbanView() {
   }, [entries, searchQuery]);
 
   const groupedEntries = useMemo(() => {
+    if (!boardConfig) {
+      return {} as Record<KanbanStage, Entry[]>;
+    }
     const groups = Object.fromEntries(boardConfig.columns.map((column) => [column.id, [] as Entry[]])) as Record<
-      DevKanbanStage,
+      KanbanStage,
       Entry[]
     >;
     for (const entry of filteredEntries) {
-      groups[getDevKanbanStage(entry)].push(entry);
+      const stage = getKanbanStage(entry, boardConfig);
+      if (!groups[stage]) {
+        groups[stage] = [];
+      }
+      groups[stage].push(entry);
     }
     for (const stage of boardConfig.columns.map((column) => column.id)) {
-      groups[stage].sort(
+      groups[stage]?.sort(
         (left, right) => new Date(right.updated_at).getTime() - new Date(left.updated_at).getTime(),
       );
     }
     return groups;
-  }, [boardConfig.columns, filteredEntries]);
+  }, [boardConfig, filteredEntries]);
 
   const hasActiveFilters = Boolean(searchQuery.trim());
-  const showBoardEmpty = !isLoading && entries.length === 0 && !hasActiveFilters;
+  const showBoardEmpty = !isLoading && !boardsLoading && entries.length === 0 && !hasActiveFilters;
   const showNoResults = !isLoading && entries.length > 0 && filteredEntries.length === 0;
-  const showColumns = !isLoading && entries.length > 0;
+  const showColumns = !isLoading && !boardsLoading && boardConfig && entries.length > 0;
+  const defaultStage = boardConfig?.columns[0]?.id ?? "inbox";
 
-  function changeBoardMode(nextMode: KanbanBoardMode) {
-    if (nextMode === boardMode) {
+  function changeBoard(nextBoard: KanbanBoardConfig) {
+    if (nextBoard.id === boardId) {
       return;
     }
-    router.replace(boardHref(nextMode));
+    router.replace(boardHref({ boardId: nextBoard.id, mode: nextBoard.mode === "custom" ? undefined : nextBoard.mode }));
   }
 
   function openEntry(entry: Entry) {
@@ -162,13 +197,14 @@ export function DevKanbanView() {
   function closeDetail() {
     setSelectedEntry(null);
   }
-  function startAdding(stage: DevKanbanStage = "inbox") {
+
+  function startAdding(stage: KanbanStage = defaultStage) {
     setAddingStage(stage);
     setQuickDraft("");
   }
 
-  async function moveEntry(entry: Entry, nextStage: DevKanbanStage) {
-    if (!token || getDevKanbanStage(entry) === nextStage) {
+  async function moveEntry(entry: Entry, nextStage: KanbanStage) {
+    if (!token || !boardConfig || getKanbanStage(entry, boardConfig) === nextStage) {
       return;
     }
 
@@ -176,7 +212,7 @@ export function DevKanbanView() {
     setActionError(null);
     const nextMetadata = {
       ...entry.metadata,
-      ...kanbanMetadata(boardMode, nextStage),
+      ...kanbanMetadata(boardConfig.id, nextStage, boardConfig),
       history: appendKanbanHistory(
         getKanbanHistory(entry),
         createKanbanHistoryEvent(
@@ -200,8 +236,8 @@ export function DevKanbanView() {
     }
   }
 
-  async function createCard(stage: DevKanbanStage, content: string, title?: string) {
-    if (!token) {
+  async function createCard(stage: KanbanStage, content: string, title?: string) {
+    if (!token || !boardConfig) {
       return;
     }
 
@@ -216,7 +252,7 @@ export function DevKanbanView() {
         type: "note",
         title: title?.trim() || normalizedContent.split("\n")[0].slice(0, 120),
         content: normalizedContent,
-        metadata: kanbanMetadata(boardMode, stage),
+        metadata: kanbanMetadata(boardConfig.id, stage, boardConfig),
       });
       setAllEntries((current) => [created, ...current]);
       setQuickDraft("");
@@ -240,16 +276,38 @@ export function DevKanbanView() {
       setActionError(getErrorMessage(requestError, "Не удалось удалить карточку."));
     }
   }
+
+  async function handleCreateBoard() {
+    const name = newBoardName.trim();
+    if (!name) {
+      return;
+    }
+    setActionError(null);
+    try {
+      const created = await createBoard(name);
+      setNewBoardName("");
+      setIsCreatingBoard(false);
+      if (created) {
+        router.replace(boardHref({ boardId: created.id }));
+      }
+    } catch (requestError) {
+      setActionError(getErrorMessage(requestError, "Не удалось создать доску."));
+    }
+  }
+
   function handleDragStart(event: DragEvent<HTMLElement>, entry: Entry) {
+    if (!boardConfig) {
+      return;
+    }
     const payload: DragPayload = {
       entryId: entry.id,
-      fromStage: getDevKanbanStage(entry),
+      fromStage: getKanbanStage(entry, boardConfig),
     };
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData(DRAG_MIME, JSON.stringify(payload));
   }
 
-  function handleDrop(event: DragEvent<HTMLElement>, stage: DevKanbanStage) {
+  function handleDrop(event: DragEvent<HTMLElement>, stage: KanbanStage) {
     event.preventDefault();
     const payload = readDragPayload(event);
     if (!payload) {
@@ -260,6 +318,14 @@ export function DevKanbanView() {
       return;
     }
     void moveEntry(entry, stage);
+  }
+
+  if (!boardConfig && !boardsLoading) {
+    return (
+      <div className="flex flex-1 items-center justify-center px-6 py-16 text-sm text-[var(--kanban-muted)]">
+        Не удалось загрузить доски канбана.
+      </div>
+    );
   }
 
   return (
@@ -276,8 +342,8 @@ export function DevKanbanView() {
                   <LayoutGrid className="size-3.5" aria-hidden="true" />
                   Канбан
                 </div>
-                <h1 className="text-2xl font-semibold tracking-tight text-[#1f2328]">{boardConfig.label}</h1>
-                <p className="mt-0.5 text-sm text-[var(--kanban-muted)]">{boardConfig.subtitle}</p>
+                <h1 className="text-2xl font-semibold tracking-tight text-[#1f2328]">{boardConfig?.label}</h1>
+                <p className="mt-0.5 text-sm text-[var(--kanban-muted)]">{boardConfig?.subtitle}</p>
                 <p className="mt-1 text-sm text-[var(--kanban-muted)]">
                   {entries.length}{" "}
                   {entries.length === 1 ? "карточка" : entries.length < 5 ? "карточки" : "карточек"} на доске
@@ -295,28 +361,82 @@ export function DevKanbanView() {
                   className="border-[var(--kanban-border)] bg-white pl-9"
                 />
               </label>
+              <Button type="button" variant="secondary" onClick={() => setShowSettings(true)}>
+                <Settings2 className="size-4" />
+                Настройки
+              </Button>
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2" role="tablist" aria-label="Режим канбана">
-            {kanbanBoardList.map((board) => (
+          <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Доски канбана">
+            {boards.map((board) => (
               <button
-                key={board.mode}
+                key={board.id}
                 type="button"
                 role="tab"
-                aria-selected={boardMode === board.mode}
-                onClick={() => changeBoardMode(board.mode)}
+                aria-selected={boardId === board.id}
+                onClick={() => changeBoard(board)}
                 className={cn(
                   "focus-ring rounded-md border px-3 py-1.5 text-sm font-medium transition",
-                  boardMode === board.mode ? "kanban-filter-active" : "kanban-filter-inactive",
+                  boardId === board.id ? "kanban-filter-active" : "kanban-filter-inactive",
                 )}
               >
                 {board.label}
               </button>
             ))}
+            {isCreatingBoard ? (
+              <div className="flex items-center gap-2">
+                <Input
+                  value={newBoardName}
+                  onChange={(event) => setNewBoardName(event.target.value)}
+                  placeholder="Название доски"
+                  className="h-9 w-44 border-[var(--kanban-border)] bg-white text-sm"
+                  autoFocus
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      void handleCreateBoard();
+                    }
+                    if (event.key === "Escape") {
+                      setIsCreatingBoard(false);
+                      setNewBoardName("");
+                    }
+                  }}
+                />
+                <Button type="button" size="sm" onClick={() => void handleCreateBoard()} disabled={!newBoardName.trim()}>
+                  Создать
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setIsCreatingBoard(false);
+                    setNewBoardName("");
+                  }}
+                >
+                  Отмена
+                </Button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsCreatingBoard(true)}
+                className="focus-ring kanban-filter-inactive inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium transition"
+              >
+                <Plus className="size-4" />
+                Доска
+              </button>
+            )}
           </div>
         </div>
       </header>
+
+      {boardsError ? (
+        <div className="px-4 py-2 lg:px-6">
+          <Notice variant="error">{boardsError}</Notice>
+        </div>
+      ) : null}
 
       {loadError ? (
         <div className="px-4 py-4 lg:px-6">
@@ -330,23 +450,23 @@ export function DevKanbanView() {
         </div>
       ) : null}
 
-      {isLoading ? (
+      {isLoading || boardsLoading ? (
         <div className="flex flex-1 items-center justify-center px-6 py-16 text-sm text-[var(--kanban-muted)]">
           Загружаем канбан...
         </div>
       ) : showBoardEmpty ? (
         <div className="flex flex-1 items-center justify-center px-6 py-10">
-          <KanbanEmptyState message={boardConfig.emptyMessage} onAdd={() => startAdding("inbox")} />
+          <KanbanEmptyState message={boardConfig?.emptyMessage ?? "Доска пуста."} onAdd={() => startAdding(defaultStage)} />
         </div>
       ) : showNoResults ? (
         <div className="flex flex-1 items-center justify-center px-6 py-10">
           <p className="text-sm text-[var(--kanban-muted)]">Ничего не найдено. Попробуй другой поиск.</p>
         </div>
-      ) : showColumns ? (
+      ) : showColumns && boardConfig ? (
         <div className="flex-1 overflow-x-auto px-4 py-4 lg:px-6">
           <div className="flex min-h-full gap-3 pb-4">
             {boardConfig.columns.map((column) => {
-              const columnEntries = groupedEntries[column.id];
+              const columnEntries = groupedEntries[column.id] ?? [];
               const isDropTarget = dragOverStage === column.id;
 
               return (
@@ -487,7 +607,7 @@ export function DevKanbanView() {
         </div>
       ) : null}
 
-      {showBoardEmpty && addingStage === "inbox" ? (
+      {showBoardEmpty && addingStage === defaultStage ? (
         <div className="kanban-panel border-t px-4 py-4 lg:px-6">
           <div className="mx-auto max-w-xl rounded-xl border border-[var(--kanban-border)] bg-white p-4 shadow-sm">
             <FieldGroup>
@@ -497,16 +617,13 @@ export function DevKanbanView() {
                   value={quickDraft}
                   onChange={(event) => setQuickDraft(event.target.value)}
                   rows={4}
-                  placeholder={boardConfig.mode === "psych" ? "О чём мысль..." : "Новая карточка..."}
+                  placeholder={boardConfig?.mode === "psych" ? "О чём мысль..." : "Новая карточка..."}
                   className="border-[var(--kanban-border)] bg-white"
                   autoFocus
                 />
               </Field>
               <div className="flex gap-2">
-                <Button
-                  onClick={() => void createCard("inbox", quickDraft)}
-                  disabled={!quickDraft.trim()}
-                >
+                <Button onClick={() => void createCard(defaultStage, quickDraft)} disabled={!quickDraft.trim()}>
                   Добавить на доску
                 </Button>
                 <Button
@@ -524,16 +641,35 @@ export function DevKanbanView() {
         </div>
       ) : null}
 
-      {selectedEntry ? (
+      {selectedEntry && boardConfig ? (
         <KanbanCardDetail
           entry={selectedEntry}
-          boardMode={boardMode}
+          boardConfig={boardConfig}
           onClose={closeDetail}
           onUpdate={(updated) => {
             setAllEntries((current) => current.map((item) => (item.id === updated.id ? updated : item)));
             setSelectedEntry(updated);
           }}
           onDelete={() => void removeSelected()}
+        />
+      ) : null}
+
+      {showSettings && boardConfig ? (
+        <KanbanBoardSettings
+          board={boardConfig}
+          entries={entries}
+          onSave={async (definition) => {
+            await saveBoard(definition);
+          }}
+          onDeleteBoard={
+            boardConfig.configEntryId && !boardConfig.isBuiltin
+              ? async () => {
+                  await deleteBoard(boardConfig.configEntryId!);
+                  router.replace(boardHref());
+                }
+              : undefined
+          }
+          onClose={() => setShowSettings(false)}
         />
       ) : null}
     </div>

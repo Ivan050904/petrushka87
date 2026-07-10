@@ -100,11 +100,14 @@ export function parseKanbanBoardMode(value: string | null): KanbanBoardMode {
   return "code";
 }
 
-export function boardHref(mode?: KanbanBoardMode) {
-  if (!mode || mode === "code") {
-    return ROUTES.board;
+export function boardHref(options?: { boardId?: string; mode?: KanbanBoardMode }) {
+  if (options?.boardId && options.boardId !== "kanban_code") {
+    return `${ROUTES.board}?board=${encodeURIComponent(options.boardId)}`;
   }
-  return `${ROUTES.board}?mode=${mode}`;
+  if (options?.mode && options.mode !== "code") {
+    return `${ROUTES.board}?mode=${options.mode}`;
+  }
+  return ROUTES.board;
 }
 
 export const NOTIFICATION_VISIBLE_ROUTES = new Set<string>([ROUTES.dashboard, ROUTES.plans]);

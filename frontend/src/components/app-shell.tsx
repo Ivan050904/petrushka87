@@ -1,31 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { FocusEvent, ReactNode } from "react";
+import type { DragEvent, FocusEvent, ReactNode } from "react";
 import {
   Bell,
-  Bot,
-  BookOpen,
   CalendarDays,
-  CalendarRange,
   ChevronsLeft,
   ChevronsRight,
-  Kanban,
   Ellipsis,
-  Flame,
-  Home,
-  Inbox,
-  Library,
+  GripVertical,
   LogOut,
-  Mic,
-  Repeat,
   Search,
   Settings,
-  StickyNote,
-  Wallet,
   X,
 } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -35,54 +23,23 @@ import { Button } from "@/components/ui/button";
 import { Empty } from "@/components/ui/empty";
 import { countInboxEntries } from "@/features/inbox/inbox-helpers";
 import { useAuth } from "@/hooks/use-auth";
+import { useNavOrder } from "@/hooks/use-nav-order";
 import { getErrorMessage, listEntries } from "@/lib/api";
 import { entryModuleHref, formatDate, getString } from "@/lib/entry-helpers";
 import { formatEntryType } from "@/lib/labels";
-import { NOTIFICATION_VISIBLE_ROUTES, ROUTES, parseTrackingTab, trackingTabHref, type TrackingTab } from "@/lib/navigation";
+import { NOTIFICATION_VISIBLE_ROUTES, ROUTES, parseTrackingTab, type TrackingTab } from "@/lib/navigation";
+import { MOBILE_TAB_NAV_IDS, type NavItemConfig, type NavItemId } from "@/lib/nav-config";
 import type { Entry } from "@/lib/types";
 import { BRAND_NAME } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 
-type NavItem = {
-  href: string;
-  label: string;
-  icon: LucideIcon;
-  showInboxCount?: boolean;
-  trackingTab?: TrackingTab;
-};
-
-const navigation: NavItem[] = [
-  { href: ROUTES.dashboard, label: "Сегодня", icon: Home },
-  { href: ROUTES.inbox, label: "Входящие", icon: Inbox, showInboxCount: true },
-  { href: ROUTES.board, label: "Канбан", icon: Kanban },
-  { href: ROUTES.notes, label: "Заметки", icon: StickyNote },
-  { href: ROUTES.journal, label: "Журнал", icon: BookOpen },
-  { href: ROUTES.plans, label: "Планы", icon: CalendarRange },
-  { href: trackingTabHref("habits"), label: "Привычки", icon: Repeat, trackingTab: "habits" },
-  { href: trackingTabHref("finance"), label: "Финансы", icon: Wallet, trackingTab: "finance" },
-  { href: trackingTabHref("food"), label: "Питание", icon: Flame, trackingTab: "food" },
-  { href: ROUTES.transcription, label: "Транскрибация", icon: Mic },
-  { href: ROUTES.assistant, label: "Ассистент", icon: Bot },
-  { href: ROUTES.reference, label: "Справочник", icon: Library },
-];
-
-const mobileTabNavigation: NavItem[] = [
-  { href: ROUTES.dashboard, label: "Сегодня", icon: Home },
-  { href: ROUTES.inbox, label: "Входящие", icon: Inbox, showInboxCount: true },
-  { href: ROUTES.plans, label: "Планы", icon: CalendarRange },
-  { href: trackingTabHref("habits"), label: "Привычки", icon: Repeat, trackingTab: "habits" },
-];
-
-const mobileMoreNavigation: NavItem[] = [
-  { href: ROUTES.board, label: "Канбан", icon: Kanban },
-  { href: ROUTES.notes, label: "Заметки", icon: StickyNote },
-  { href: ROUTES.journal, label: "Журнал", icon: BookOpen },
-  { href: trackingTabHref("finance"), label: "Финансы", icon: Wallet, trackingTab: "finance" },
-  { href: trackingTabHref("food"), label: "Питание", icon: Flame, trackingTab: "food" },
-  { href: ROUTES.transcription, label: "Транскрибация", icon: Mic },
-  { href: ROUTES.assistant, label: "Ассистент", icon: Bot },
-  { href: ROUTES.reference, label: "Справочник", icon: Library },
-];
+function readNavDragPayload(event: DragEvent<HTMLElement>): NavItemId | null {
+  const raw = event.dataTransfer.getData("application/x-folio-nav-item");
+  if (!raw) {
+    return null;
+  }
+  return raw as NavItemId;
+}
 
 function isNavItemActive(
   pathname: string,
@@ -201,6 +158,21 @@ export function AppShell({
   const pathname = usePathname();
   const router = useRouter();
   const { user, token, logout } = useAuth();
+  const {
+    items: sidebarNavigation,
+    pickItems,
+    isReorderMode,
+    setIsReorderMode,
+    dragOverId,
+    setDragOverId,
+    moveItem,
+    resetOrder,
+  } = useNavOrder(user?.id);
+  const mobileTabNavigation = useMemo(() => pickItems(MOBILE_TAB_NAV_IDS), [pickItems]);
+  const mobileMoreNavigation = useMemo(() => {
+    const tabIds = new Set(MOBILE_TAB_NAV_IDS);
+    return sidebarNavigation.filter((item) => !tabIds.has(item.id));
+  }, [sidebarNavigation]);
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
   const [hoveredNavIndex, setHoveredNavIndex] = useState<number | null>(null);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -499,7 +471,103 @@ export function AppShell({
 
   function toggleSidebar() {
     setHoveredNavIndex(null);
+    setIsReorderMode(false);
+    setDragOverId(null);
     setIsSidebarExpanded((current) => !current);
+  }
+
+  function handleNavDragStart(event: DragEvent<HTMLElement>, itemId: NavItemId) {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("application/x-folio-nav-item", itemId);
+  }
+
+  function handleNavDrop(event: DragEvent<HTMLElement>, targetId: NavItemId) {
+    event.preventDefault();
+    const sourceId = readNavDragPayload(event);
+    if (!sourceId) {
+      return;
+    }
+    moveItem(sourceId, targetId);
+  }
+
+  function renderSidebarNavItem(item: NavItemConfig, index: number) {
+    const isActive = isNavItemActive(pathname, item.href, {
+      trackingTab: item.trackingTab,
+      currentTrackingTab,
+    });
+    const peekTone = getPeekTone(index);
+    const navInboxCount = item.showInboxCount ? inboxCount : 0;
+    const isDropTarget = isReorderMode && dragOverId === item.id;
+
+    const content = (
+      <>
+        {isReorderMode ? (
+          <GripVertical aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+        ) : null}
+        <item.icon aria-hidden="true" className="size-5 shrink-0 text-primary" />
+        <span className={sidebarTextClass}>{item.label}</span>
+        {navInboxCount > 0 && pathname !== ROUTES.inbox ? (
+          <span
+            className={cn(
+              "flex size-5 shrink-0 items-center justify-center rounded-full bg-secondary text-[10px] font-semibold text-secondary-foreground",
+              !isSidebarOpen && "lg:absolute lg:-right-1 lg:-top-1",
+            )}
+          >
+            {formatCountBadge(navInboxCount)}
+          </span>
+        ) : null}
+        {!isSidebarExpanded && !isReorderMode ? (
+          <SidebarPeekLabel active={isActive} tone={peekTone}>
+            {item.label}
+          </SidebarPeekLabel>
+        ) : null}
+      </>
+    );
+
+    if (isReorderMode) {
+      return (
+        <div
+          key={item.id}
+          draggable
+          onDragStart={(event) => handleNavDragStart(event, item.id)}
+          onDragOver={(event) => {
+            event.preventDefault();
+            setDragOverId(item.id);
+          }}
+          onDragLeave={() => setDragOverId((current) => (current === item.id ? null : current))}
+          onDrop={(event) => handleNavDrop(event, item.id)}
+          onMouseEnter={() => setHoveredNavIndex(index)}
+          className={cn(
+            "relative cursor-grab active:cursor-grabbing",
+            sidebarLinkBase,
+            isDropTarget
+              ? "border-primary/50 bg-primary/10 text-foreground ring-2 ring-primary/20"
+              : "border-transparent bg-muted/40 text-muted-foreground",
+          )}
+        >
+          {content}
+        </div>
+      );
+    }
+
+    return (
+      <Link
+        key={item.id}
+        href={item.href}
+        aria-current={isActive ? "page" : undefined}
+        onMouseEnter={() => setHoveredNavIndex(index)}
+        onFocus={() => setHoveredNavIndex(index)}
+        className={cn(
+          "relative",
+          sidebarLinkBase,
+          isActive
+            ? "border-primary/40 bg-primary/10 text-foreground"
+            : "border-transparent text-muted-foreground hover:border-border hover:bg-muted hover:text-foreground",
+        )}
+      >
+        {content}
+      </Link>
+    );
   }
 
   function getPeekTone(index: number) {
@@ -570,48 +638,41 @@ export function AppShell({
               className="flex flex-col gap-2 overflow-visible pb-0"
               onMouseLeave={() => setHoveredNavIndex(null)}
             >
-              {navigation.map((item, index) => {
-                const isActive = isNavItemActive(pathname, item.href, {
-                  trackingTab: item.trackingTab,
-                  currentTrackingTab,
-                });
-                const peekTone = getPeekTone(index);
-                const navInboxCount = "showInboxCount" in item && item.showInboxCount ? inboxCount : 0;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    aria-current={isActive ? "page" : undefined}
-                    onMouseEnter={() => setHoveredNavIndex(index)}
-                    onFocus={() => setHoveredNavIndex(index)}
-                    className={cn(
-                      "relative",
-                      sidebarLinkBase,
-                      isActive
-                        ? "border-primary/40 bg-primary/10 text-foreground"
-                        : "border-transparent text-muted-foreground hover:border-border hover:bg-muted hover:text-foreground",
-                    )}
-                  >
-                    <item.icon aria-hidden="true" className="size-5 shrink-0 text-primary" />
-                    <span className={sidebarTextClass}>{item.label}</span>
-                    {navInboxCount > 0 && pathname !== ROUTES.inbox ? (
-                      <span
-                        className={cn(
-                          "flex size-5 shrink-0 items-center justify-center rounded-full bg-secondary text-[10px] font-semibold text-secondary-foreground",
-                          !isSidebarOpen && "lg:absolute lg:-right-1 lg:-top-1",
-                        )}
+              {isSidebarExpanded ? (
+                <div className="mb-1 flex items-center gap-2 px-1">
+                  {isReorderMode ? (
+                    <>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="h-8 flex-1"
+                        onClick={() => {
+                          setIsReorderMode(false);
+                          setDragOverId(null);
+                        }}
                       >
-                        {formatCountBadge(navInboxCount)}
-                      </span>
-                    ) : null}
-                    {!isSidebarExpanded ? (
-                      <SidebarPeekLabel active={isActive} tone={peekTone}>
-                        {item.label}
-                      </SidebarPeekLabel>
-                    ) : null}
-                  </Link>
-                );
-              })}
+                        Готово
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" className="h-8 px-2" onClick={resetOrder}>
+                        Сброс
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-full justify-start gap-2 px-2 text-muted-foreground"
+                      onClick={() => setIsReorderMode(true)}
+                    >
+                      <GripVertical aria-hidden="true" className="size-4" />
+                      Порядок меню
+                    </Button>
+                  )}
+                </div>
+              ) : null}
+              {sidebarNavigation.map((item, index) => renderSidebarNavItem(item, index))}
             </nav>
 
             <div
@@ -821,7 +882,7 @@ export function AppShell({
                   trackingTab: item.trackingTab,
                   currentTrackingTab,
                 });
-                const navInboxCount = "showInboxCount" in item && item.showInboxCount ? inboxCount : 0;
+                const navInboxCount = item.showInboxCount ? inboxCount : 0;
                 const inboxAriaLabel =
                   navInboxCount > 0 && pathname !== ROUTES.inbox
                     ? `${item.label}, неразобранных: ${formatCountBadge(navInboxCount)}`
@@ -908,7 +969,7 @@ export function AppShell({
                     });
                     return (
                       <Link
-                        key={item.href}
+                        key={item.id}
                         href={item.href}
                         aria-current={isActive ? "page" : undefined}
                         onClick={() => setIsMoreOpen(false)}
