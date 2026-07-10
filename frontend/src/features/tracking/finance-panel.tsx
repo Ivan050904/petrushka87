@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { FilePenLine, Plus, Search, Trash2, TrendingDown, TrendingUp, Upload, WalletCards, X } from "lucide-react";
 
+import { FinanceCategorySelect } from "@/features/tracking/finance-category-select";
+import { saveFinanceCategories } from "@/features/tracking/finance-categories";
 import { FinanceDashboard } from "@/features/tracking/finance-dashboard";
 import { FinanceImportWizard } from "@/features/tracking/finance-import-wizard";
 
@@ -15,11 +17,11 @@ import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field
 import { Input } from "@/components/ui/input";
 import { Notice } from "@/components/ui/notice";
 import { Select } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { useRequireAuth } from "@/hooks/use-auth";
 import { createEntry, deleteEntry, getErrorMessage, getFinanceSummary, listEntries, updateEntry } from "@/lib/api";
 import { entryDescription, formatCurrency, formatDate, getNumber, getString } from "@/lib/entry-helpers";
 import type { FinanceSummary } from "@/lib/finance-import";
+import { currentMonthValue, monthRange } from "@/lib/finance-month";
 import { formatFinanceDirection } from "@/lib/labels";
 import type { Entry } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -32,14 +34,18 @@ type FinanceForm = {
   amount: string;
   direction: FinanceDirection;
   currency: string;
-  description: string;
+  title: string;
+  category: string;
+  transactionDate: string;
 };
 
 const emptyFinanceForm: FinanceForm = {
   amount: "",
   direction: "expense",
   currency: "RUB",
-  description: "",
+  title: "",
+  category: "",
+  transactionDate: "",
 };
 
 const FINANCE_DRAFT_STORAGE_KEY = "folio_one_finance_draft";
@@ -79,6 +85,7 @@ export function FinancePanel({
   const [entryTotal, setEntryTotal] = useState(0);
   const [isSummaryLoading, setIsSummaryLoading] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [dashboardMonth, setDashboardMonth] = useState(currentMonthValue);
   const draftKey = user?.id ? `${FINANCE_DRAFT_STORAGE_KEY}:${user.id}` : null;
 
   function setSelectedId(id: string | null) {
@@ -132,14 +139,15 @@ export function FinancePanel({
     }
     setIsSummaryLoading(true);
     try {
-      const result = await getFinanceSummary(token);
+      const [from, to] = monthRange(dashboardMonth);
+      const result = await getFinanceSummary(token, { from, to });
       setSummary(result);
     } catch {
       setSummary(null);
     } finally {
       setIsSummaryLoading(false);
     }
-  }, [token]);
+  }, [dashboardMonth, token]);
 
   useEffect(() => {
     void loadEntries();
@@ -150,12 +158,11 @@ export function FinancePanel({
     if (panelTab === "dashboard") {
       void loadSummary();
     }
-  }, [loadSummary, panelTab, entries.length]);
+  }, [loadSummary, panelTab, entries.length, dashboardMonth]);
 
   async function handleImported() {
     await loadEntries();
     await loadSummary();
-    setPanelTab("dashboard");
   }
 
   useEffect(() => {
@@ -182,12 +189,7 @@ export function FinancePanel({
     }
     const entry = entries.find((item) => item.id === selectedIdFromUrl);
     if (entry) {
-      setForm({
-        amount: String(getNumber(entry.metadata.amount) || ""),
-        direction: getString(entry.metadata.direction, "expense") === "income" ? "income" : "expense",
-        currency: getString(entry.metadata.currency, "RUB"),
-        description: getString(entry.metadata.description, entryDescription(entry)),
-      });
+      setForm(entryToFinanceForm(entry));
       return;
     }
     if (entries.length > 0 && onSelectedChange) {
@@ -221,6 +223,24 @@ export function FinancePanel({
       }
     }
     return [...categories].sort((left, right) => left.localeCompare(right, "ru"));
+  }, [entries]);
+
+  useEffect(() => {
+    if (!user?.id || categoryOptions.length === 0) {
+      return;
+    }
+    saveFinanceCategories(user.id, categoryOptions);
+  }, [categoryOptions, user?.id]);
+
+  const existingExternalIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const entry of entries) {
+      const externalId = getString(entry.metadata.external_id);
+      if (externalId) {
+        ids.add(externalId);
+      }
+    }
+    return ids;
   }, [entries]);
 
   const totals = useMemo<FinanceTotal[]>(() => {
@@ -262,12 +282,15 @@ export function FinancePanel({
     return entries.filter((entry) => {
       const amount = getNumber(entry.metadata.amount);
       const direction = getString(entry.metadata.direction, "expense");
+      const category = getString(entry.metadata.category);
       const currency = normalizeCurrency(getString(entry.metadata.currency, "RUB"));
       const matchesDirection = directionFilter === "all" || direction === directionFilter;
+      const matchesCategory = categoryFilter === "all" || category === categoryFilter;
       const searchableText = [
         entry.title,
         entry.content,
         entryDescription(entry),
+        category,
         String(amount),
         formatCurrency(amount, currency),
         currency,
@@ -277,24 +300,21 @@ export function FinancePanel({
         .join("\n")
         .toLowerCase();
       const matchesQuery = !query || searchableText.includes(query);
-      return matchesDirection && matchesQuery;
+      return matchesDirection && matchesCategory && matchesQuery;
     });
-  }, [directionFilter, entries, financeQuery]);
-  const hasActiveFilters = Boolean(financeQuery.trim()) || directionFilter !== "all";
+  }, [categoryFilter, directionFilter, entries, financeQuery]);
+  const hasActiveFilters =
+    Boolean(financeQuery.trim()) || directionFilter !== "all" || categoryFilter !== "all";
 
   function resetFinanceFilters() {
     setFinanceQuery("");
     setDirectionFilter("all");
+    setCategoryFilter("all");
   }
 
   function selectFinanceEntry(entry: Entry) {
     setSelectedId(entry.id);
-    setForm({
-      amount: String(getNumber(entry.metadata.amount) || ""),
-      direction: getString(entry.metadata.direction, "expense") === "income" ? "income" : "expense",
-      currency: getString(entry.metadata.currency, "RUB"),
-      description: getString(entry.metadata.description, entryDescription(entry)),
-    });
+    setForm(entryToFinanceForm(entry));
     setError(null);
   }
 
@@ -328,8 +348,8 @@ export function FinancePanel({
       return;
     }
 
-    if (!form.description.trim()) {
-      setError("Добавь описание операции.");
+    if (!form.title.trim()) {
+      setError("Добавь название операции.");
       return;
     }
 
@@ -344,19 +364,23 @@ export function FinancePanel({
     try {
       const payload = {
         type: "finance",
-        title: form.description,
-        content: form.description,
+        title: form.title.trim(),
+        content: form.title.trim(),
         metadata: {
           amount,
           direction: form.direction,
           currency,
-          description: form.description,
+          description: form.title.trim(),
+          kind: form.direction,
+          category: form.category.trim() || null,
+          transaction_date: form.transactionDate || null,
         },
       } as const;
       const saved = selectedId
         ? await updateEntry(token, selectedId, payload)
         : await createEntry(token, payload);
       await loadEntries();
+      await loadSummary();
       if (selectedId) {
         selectFinanceEntry(saved);
       } else {
@@ -382,6 +406,8 @@ export function FinancePanel({
     try {
       await deleteEntry(token, selectedEntry.id);
       setEntries((current) => current.filter((entry) => entry.id !== selectedEntry.id));
+      setEntryTotal((current) => Math.max(0, current - 1));
+      await loadSummary();
       startNewFinanceEntry();
     } catch (requestError) {
       setError(getErrorMessage(requestError, "Не удалось удалить операцию."));
@@ -390,7 +416,7 @@ export function FinancePanel({
 
   return (
     <>
-      <div className={cn("flex flex-col", compact ? "min-h-0 flex-1 gap-3" : "gap-4")}>
+      <div className={cn("flex flex-col", compact ? "min-h-0 flex-1 gap-3 overflow-hidden" : "gap-4")}>
         {!embedded ? (
           <header className="flex flex-col gap-3">
             <div className="flex flex-col gap-1">
@@ -403,13 +429,29 @@ export function FinancePanel({
           <FinancePanelTabs value={panelTab} onChange={setPanelTab} compact />
         )}
 
-        {panelTab === "import" ? <FinanceImportWizard onImported={() => void handleImported()} /> : null}
+        {panelTab === "import" ? (
+          <div className={cn(compact && "min-h-0 flex-1 overflow-y-auto")}>
+            <FinanceImportWizard
+              onImported={() => void handleImported()}
+              existingExternalIds={existingExternalIds}
+              extraCategories={categoryOptions}
+            />
+          </div>
+        ) : null}
 
         {panelTab === "dashboard" ? (
-          <FinanceDashboard summary={summary} isLoading={isSummaryLoading} />
+          <div className={cn(compact && "min-h-0 flex-1 overflow-y-auto")}>
+            <FinanceDashboard
+              summary={summary}
+              isLoading={isSummaryLoading}
+              month={dashboardMonth}
+              onMonthChange={setDashboardMonth}
+            />
+          </div>
         ) : null}
 
         {panelTab === "operations" ? (
+          <div className={cn(compact && "flex min-h-0 flex-1 flex-col overflow-hidden")}>
           <>
         {compact ? (
           <FinanceSummaryStrip totals={totals} />
@@ -496,14 +538,35 @@ export function FinancePanel({
                 </div>
 
                 <Field>
-                  <FieldLabel htmlFor="finance-description">Описание</FieldLabel>
-                  <Textarea
-                    id="finance-description"
-                    value={form.description}
+                  <FieldLabel htmlFor="finance-title">Название</FieldLabel>
+                  <Input
+                    id="finance-title"
+                    value={form.title}
+                    onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
+                  />
+                </Field>
+
+                <Field>
+                  <FieldLabel htmlFor="finance-category">Категория</FieldLabel>
+                  <FinanceCategorySelect
+                    id="finance-category"
+                    userId={user?.id}
+                    value={form.category}
+                    onChange={(category) => setForm((current) => ({ ...current, category }))}
+                    extraCategories={categoryOptions}
+                    suggestion={{ title: form.title }}
+                  />
+                </Field>
+
+                <Field>
+                  <FieldLabel htmlFor="finance-transaction-date">Дата операции</FieldLabel>
+                  <Input
+                    id="finance-transaction-date"
+                    type="date"
+                    value={form.transactionDate}
                     onChange={(event) =>
-                      setForm((current) => ({ ...current, description: event.target.value }))
+                      setForm((current) => ({ ...current, transactionDate: event.target.value }))
                     }
-                    className={compact ? "min-h-20" : "min-h-24"}
                   />
                 </Field>
 
@@ -534,11 +597,11 @@ export function FinancePanel({
                     Сбросить
                   </Button>
                 ) : null}
-                <Badge variant="secondary">{filteredEntries.length}</Badge>
+                <Badge variant="secondary">{entryTotal || filteredEntries.length}</Badge>
               </div>
             </CardHeader>
             <CardContent className={cn("flex flex-col gap-3", compact && "min-h-0 flex-1 overflow-hidden pt-0")}>
-              <div className="grid shrink-0 gap-3 md:grid-cols-[1fr_180px]">
+              <div className="grid shrink-0 gap-3 md:grid-cols-[1fr_180px_180px]">
                 <Field>
                   <FieldLabel htmlFor="finance-search">Поиск</FieldLabel>
                   <div className="relative">
@@ -567,6 +630,22 @@ export function FinancePanel({
                     <option value="income">{formatFinanceDirection("income")}</option>
                   </Select>
                 </Field>
+
+                <Field>
+                  <FieldLabel htmlFor="finance-category-filter">Категория</FieldLabel>
+                  <Select
+                    id="finance-category-filter"
+                    value={categoryFilter}
+                    onChange={(event) => setCategoryFilter(event.target.value)}
+                  >
+                    <option value="all">Все</option>
+                    {categoryOptions.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
               </div>
 
               {isLoading ? (
@@ -591,6 +670,8 @@ export function FinancePanel({
                   const amount = getNumber(entry.metadata.amount);
                   const currency = getString(entry.metadata.currency, "RUB");
                   const direction = getString(entry.metadata.direction, "expense");
+                  const category = getString(entry.metadata.category);
+                  const transactionDate = getString(entry.metadata.transaction_date, entry.updated_at);
                   return (
                     <button
                       key={entry.id}
@@ -605,8 +686,9 @@ export function FinancePanel({
                     >
                       <div className="min-w-0">
                         <div className="truncate text-sm font-medium">{entryDescription(entry)}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {formatDate(entry.updated_at)}
+                        <div className="truncate text-sm text-muted-foreground">
+                          {category ? `${category} · ` : ""}
+                          {formatDate(transactionDate)}
                         </div>
                       </div>
                       <div className="flex shrink-0 items-center gap-3">
@@ -626,6 +708,7 @@ export function FinancePanel({
           </Card>
         </section>
           </>
+          </div>
         ) : null}
       </div>
     </>
@@ -753,18 +836,32 @@ function FinanceTotalLines({
   );
 }
 
+function entryToFinanceForm(entry: Entry): FinanceForm {
+  const direction = getString(entry.metadata.direction, "expense") === "income" ? "income" : "expense";
+  return {
+    amount: String(getNumber(entry.metadata.amount) || ""),
+    direction,
+    currency: getString(entry.metadata.currency, "RUB"),
+    title: getString(entry.metadata.description, entryDescription(entry)),
+    category: getString(entry.metadata.category),
+    transactionDate: getString(entry.metadata.transaction_date).slice(0, 10),
+  };
+}
+
 function parseFinanceDraft(value: string | null): FinanceForm | null {
   if (!value) {
     return null;
   }
 
-  const parsed = JSON.parse(value) as Partial<FinanceForm>;
+  const parsed = JSON.parse(value) as Partial<FinanceForm> & { description?: string };
   const currency = typeof parsed.currency === "string" ? normalizeCurrency(parsed.currency) : "RUB";
   return {
     amount: typeof parsed.amount === "string" ? parsed.amount : "",
     direction: normalizeFinanceDirection(parsed.direction),
     currency: currency || "RUB",
-    description: typeof parsed.description === "string" ? parsed.description : "",
+    title: typeof parsed.title === "string" ? parsed.title : typeof parsed.description === "string" ? parsed.description : "",
+    category: typeof parsed.category === "string" ? parsed.category : "",
+    transactionDate: typeof parsed.transactionDate === "string" ? parsed.transactionDate : "",
   };
 }
 
@@ -777,7 +874,9 @@ function hasFinanceDraft(form: FinanceForm) {
     Boolean(form.amount.trim()) ||
     form.direction !== "expense" ||
     normalizeCurrency(form.currency) !== "RUB" ||
-    Boolean(form.description.trim())
+    Boolean(form.title.trim()) ||
+    Boolean(form.category.trim()) ||
+    Boolean(form.transactionDate.trim())
   );
 }
 

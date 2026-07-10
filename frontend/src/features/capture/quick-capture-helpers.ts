@@ -6,6 +6,7 @@ import { parseFinanceLine } from "@/features/capture/finance-draft-parser";
 import { hasFoodMacros, parseFoodLine, type FoodDraft } from "@/features/capture/food-draft-parser";
 import type { CaptureTaskDraft } from "@/features/capture/task-draft-parser";
 import { parseQuickTasks } from "@/features/capture/task-draft-parser";
+import { addMinutes, parseEntryDate, toDateTimeInputValueFromDate } from "@/lib/agenda";
 
 export type { CaptureTaskDraft as QuickTaskDraft } from "@/features/capture/task-draft-parser";
 export {
@@ -103,6 +104,17 @@ function parseOptionalPositiveInteger(value: string) {
 }
 
 export function taskDraftToPayload(draft: CaptureTaskDraft, source = "dashboard_quick_input") {
+  const plannedDurationMinutes = parseOptionalPositiveInteger(draft.plannedDurationMinutes);
+  const scheduledAt = draft.scheduledAt || null;
+  let endsAt: string | null = null;
+
+  if (scheduledAt && plannedDurationMinutes) {
+    const start = parseEntryDate(scheduledAt);
+    if (start) {
+      endsAt = toDateTimeInputValueFromDate(addMinutes(start, plannedDurationMinutes));
+    }
+  }
+
   return {
     type: "task" as const,
     title: draft.title,
@@ -110,9 +122,10 @@ export function taskDraftToPayload(draft: CaptureTaskDraft, source = "dashboard_
     metadata: {
       status: draft.status,
       priority: draft.priority,
-      scheduled_at: draft.scheduledAt || null,
+      scheduled_at: scheduledAt,
+      ends_at: endsAt,
       deadline: draft.deadline || null,
-      planned_duration_minutes: parseOptionalPositiveInteger(draft.plannedDurationMinutes),
+      planned_duration_minutes: plannedDurationMinutes,
       actual_duration_minutes: parseOptionalPositiveInteger(draft.actualDurationMinutes),
       reminder_at: draft.reminderAt || null,
       reminder_text: draft.reminderText || null,

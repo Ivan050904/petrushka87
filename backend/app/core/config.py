@@ -95,6 +95,40 @@ class Settings:
     finance_ai_api_key: str = ""
     finance_ai_model: str = ""
 
+    assistant_enabled: bool = False
+    assistant_base_url: str = "https://models.github.ai/inference"
+    assistant_api_key: str = ""
+    assistant_model: str = "openai/gpt-4o-mini"
+    assistant_auto_confirm: bool = False
+    assistant_max_history: int = 20
+
+    speech_enabled: bool = True
+    whisper_model: str = "small"
+    whisper_device: str = "cpu"
+    whisper_compute_type: str = "int8"
+    speech_language: str = "ru"
+    speech_max_bytes: int = 5 * 1024 * 1024
+
+    digest_enabled: bool = True
+    digest_topics: list[str] = field(
+        default_factory=lambda: [
+            "ии агенты",
+            "cursor ai",
+            "claude codex",
+            "claude агент",
+            "cursor ide",
+        ]
+    )
+    digest_max_articles: int = 5
+    digest_schedule_hour: int = 8
+    digest_user_email: str = "demo@folio-one.local"
+    digest_llm_base_url: str = "http://localhost:11434/v1"
+    digest_llm_api_key: str = "ollama"
+    digest_llm_model: str = "qwen2.5-coder:7b"
+    digest_search_provider: str = "habr"
+    digest_first_run_lookback_days: int = 7
+    digest_scheduler_enabled: bool = True
+
     file_storage_provider: str = "local"
     local_storage_path: str = DEFAULT_LOCAL_STORAGE_PATH
     s3_bucket_name: str = ""
@@ -159,6 +193,43 @@ def get_settings() -> Settings:
         finance_ai_base_url=_env(dotenv, "FINANCE_AI_BASE_URL", ""),
         finance_ai_api_key=_env(dotenv, "FINANCE_AI_API_KEY", ""),
         finance_ai_model=_env(dotenv, "FINANCE_AI_MODEL", ""),
+        assistant_enabled=_env_bool(dotenv, "ASSISTANT_ENABLED", False),
+        assistant_base_url=_env(
+            dotenv,
+            "ASSISTANT_BASE_URL",
+            "https://models.github.ai/inference",
+        ),
+        assistant_api_key=_env(dotenv, "ASSISTANT_API_KEY", ""),
+        assistant_model=_env(dotenv, "ASSISTANT_MODEL", "openai/gpt-4o-mini"),
+        assistant_auto_confirm=_env_bool(dotenv, "ASSISTANT_AUTO_CONFIRM", False),
+        assistant_max_history=_env_int(dotenv, "ASSISTANT_MAX_HISTORY", 20),
+        speech_enabled=_env_bool(dotenv, "SPEECH_ENABLED", True),
+        whisper_model=_env(dotenv, "WHISPER_MODEL", "small"),
+        whisper_device=_env(dotenv, "WHISPER_DEVICE", "cpu"),
+        whisper_compute_type=_env(dotenv, "WHISPER_COMPUTE_TYPE", "int8"),
+        speech_language=_env(dotenv, "SPEECH_LANGUAGE", "ru"),
+        speech_max_bytes=_env_int(dotenv, "SPEECH_MAX_BYTES", 5 * 1024 * 1024),
+        digest_enabled=_env_bool(dotenv, "DIGEST_ENABLED", True),
+        digest_topics=_env_list(
+            dotenv,
+            "DIGEST_TOPICS",
+            [
+                "ии агенты",
+                "cursor ai",
+                "claude codex",
+                "claude агент",
+                "cursor ide",
+            ],
+        ),
+        digest_max_articles=_env_int(dotenv, "DIGEST_MAX_ARTICLES", 5),
+        digest_schedule_hour=_env_int(dotenv, "DIGEST_SCHEDULE_HOUR", 8),
+        digest_user_email=_env(dotenv, "DIGEST_USER_EMAIL", "demo@folio-one.local"),
+        digest_llm_base_url=_env(dotenv, "DIGEST_LLM_BASE_URL", "http://localhost:11434/v1"),
+        digest_llm_api_key=_env(dotenv, "DIGEST_LLM_API_KEY", "ollama"),
+        digest_llm_model=_env(dotenv, "DIGEST_LLM_MODEL", "qwen2.5-coder:7b"),
+        digest_search_provider=_env(dotenv, "DIGEST_SEARCH_PROVIDER", "habr"),
+        digest_first_run_lookback_days=_env_int(dotenv, "DIGEST_FIRST_RUN_LOOKBACK_DAYS", 7),
+        digest_scheduler_enabled=_env_bool(dotenv, "DIGEST_SCHEDULER_ENABLED", True),
         file_storage_provider=_env(dotenv, "FILE_STORAGE_PROVIDER", "local"),
         local_storage_path=_env(dotenv, "LOCAL_STORAGE_PATH", DEFAULT_LOCAL_STORAGE_PATH),
         s3_bucket_name=_env(dotenv, "S3_BUCKET_NAME", ""),

@@ -35,6 +35,9 @@ class TaskMetadata(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     status: Literal["inbox", "active", "done", "cancelled"] = "inbox"
+    scheduled_at: str | None = None
+    ends_at: str | None = None
+    planned_duration_minutes: int | None = Field(default=None, ge=1)
     deadline: str | None = None
     project: str | None = None
     parent_id: str | None = None
@@ -46,6 +49,24 @@ class TaskMetadata(BaseModel):
     @classmethod
     def validate_deadline(cls, value: str | None) -> str | None:
         return _validate_iso_date_or_datetime(value, field_name="deadline")
+
+    @field_validator("scheduled_at")
+    @classmethod
+    def validate_scheduled_at(cls, value: str | None) -> str | None:
+        return _validate_iso_date_or_datetime(value, field_name="scheduled_at")
+
+    @field_validator("ends_at")
+    @classmethod
+    def validate_ends_at(cls, value: str | None) -> str | None:
+        return _validate_iso_date_or_datetime(value, field_name="ends_at")
+
+    @model_validator(mode="after")
+    def validate_task_range(self) -> "TaskMetadata":
+        if self.scheduled_at and self.ends_at and _sortable_datetime(self.ends_at) <= _sortable_datetime(
+            self.scheduled_at
+        ):
+            raise ValueError("ends_at must be after scheduled_at")
+        return self
 
     @field_validator("skipped_weeks")
     @classmethod

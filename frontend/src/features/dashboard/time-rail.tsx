@@ -2,11 +2,21 @@
 
 import { useEffect, useMemo, useRef } from "react";
 
-import { type AgendaItem, agendaDotClass, agendaLabel, isSameDay } from "@/lib/agenda";
+import {
+  type AgendaItem,
+  agendaDotClass,
+  agendaLabel,
+  agendaTimeOffset,
+  AGENDA_HOUR_HEIGHT,
+  AGENDA_MIN_BLOCK_HEIGHT,
+  durationToAgendaHeight,
+  formatAgendaTimeRange,
+  isSameDay,
+} from "@/lib/agenda";
 import { cn } from "@/lib/utils";
 
 const RAIL_TOTAL_HOURS = 24;
-const HOUR_HEIGHT = 56;
+const HOUR_HEIGHT = AGENDA_HOUR_HEIGHT;
 const TRACK_HEIGHT = HOUR_HEIGHT * RAIL_TOTAL_HOURS;
 const TRACK_PADDING_TOP = 14;
 const TRACK_PADDING_BOTTOM = 10;
@@ -16,23 +26,26 @@ const TOTAL_TRACK_HEIGHT = TRACK_PADDING_TOP + TRACK_HEIGHT + TRACK_PADDING_BOTT
 type TimeRailProps = {
   items: AgendaItem[];
   className?: string;
+  day?: Date;
 };
 
-export function TimeRail({ items, className }: TimeRailProps) {
+export function TimeRail({ items, className, day }: TimeRailProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const targetDay = day ?? new Date();
 
-  const todayItems = useMemo(
+  const dayItems = useMemo(
     () =>
       items
-        .filter((item) => isSameDay(item.date, new Date()))
+        .filter((item) => isSameDay(item.date, targetDay))
         .sort((left, right) => left.date.getTime() - right.date.getTime()),
-    [items],
+    [items, targetDay],
   );
 
   const hours = useMemo(() => Array.from({ length: RAIL_TOTAL_HOURS + 1 }, (_, index) => index), []);
 
   const now = new Date();
-  const nowTop = timeOffset(now.getHours(), now.getMinutes());
+  const showNowMarker = isSameDay(targetDay, now);
+  const nowTop = agendaTimeOffset(now, TRACK_PADDING_TOP, HOUR_HEIGHT);
 
   useEffect(() => {
     const scrollEl = scrollRef.current;
@@ -72,7 +85,7 @@ export function TimeRail({ items, className }: TimeRailProps) {
             </span>
           ))}
 
-          {nowTop >= TRACK_PADDING_TOP && nowTop <= TRACK_PADDING_TOP + TRACK_HEIGHT ? (
+          {showNowMarker && nowTop >= TRACK_PADDING_TOP && nowTop <= TRACK_PADDING_TOP + TRACK_HEIGHT ? (
             <div
               className="pointer-events-none absolute right-0 z-20 flex items-center"
               style={{ top: nowTop, left: TIME_GUTTER - 6 }}
@@ -83,19 +96,28 @@ export function TimeRail({ items, className }: TimeRailProps) {
             </div>
           ) : null}
 
-          {todayItems.map((item) => {
-            const top = timeOffset(item.date.getHours(), item.date.getMinutes());
+          {dayItems.map((item) => {
+            const top = agendaTimeOffset(item.date, TRACK_PADDING_TOP, HOUR_HEIGHT);
             if (top < TRACK_PADDING_TOP || top > TRACK_PADDING_TOP + TRACK_HEIGHT) {
               return null;
             }
+
+            const hasRange = Boolean(item.endDate && item.endDate.getTime() > item.date.getTime());
+            const blockHeight = hasRange
+              ? durationToAgendaHeight(item.date, item.endDate!, HOUR_HEIGHT, AGENDA_MIN_BLOCK_HEIGHT)
+              : AGENDA_MIN_BLOCK_HEIGHT;
+            const trackBottom = TRACK_PADDING_TOP + TRACK_HEIGHT;
+            const clippedHeight = Math.min(blockHeight, Math.max(AGENDA_MIN_BLOCK_HEIGHT, trackBottom - top + 2));
+
             return (
               <div
                 key={item.id}
-                className="absolute right-1.5 z-10 rounded-md border border-border/70 bg-card px-2.5 py-1.5 shadow-sm"
+                className="absolute right-1.5 z-10 overflow-hidden rounded-md border border-border/70 bg-card px-2.5 py-1.5 shadow-sm"
                 style={{
                   top: top - 2,
                   left: TIME_GUTTER + 4,
-                  minHeight: 42,
+                  height: hasRange ? clippedHeight : undefined,
+                  minHeight: AGENDA_MIN_BLOCK_HEIGHT,
                 }}
                 title={item.title}
               >
@@ -103,7 +125,11 @@ export function TimeRail({ items, className }: TimeRailProps) {
                   <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", agendaDotClass(item.kind))} />
                   <div className="min-w-0">
                     <p className="truncate text-sm font-medium leading-5">{item.title}</p>
-                    <p className="truncate text-xs text-muted-foreground">{agendaLabel(item.kind)}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {hasRange && clippedHeight >= 56
+                        ? formatAgendaTimeRange(item.date, item.endDate)
+                        : agendaLabel(item.kind)}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -117,8 +143,4 @@ export function TimeRail({ items, className }: TimeRailProps) {
 
 function hourTop(hour: number) {
   return TRACK_PADDING_TOP + hour * HOUR_HEIGHT;
-}
-
-function timeOffset(hours: number, minutes: number) {
-  return TRACK_PADDING_TOP + (hours + minutes / 60) * HOUR_HEIGHT;
 }

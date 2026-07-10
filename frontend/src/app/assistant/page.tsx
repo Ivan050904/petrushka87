@@ -6,6 +6,7 @@ import { Bot, Loader2, Send } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
+import { VoiceInputButton } from "@/features/assistant/voice-input-button";
 import { useAuth } from "@/hooks/use-auth";
 import {
   createAssistantConversation,
@@ -187,6 +188,12 @@ export default function AssistantPage() {
           {error ? <p className="px-4 text-sm text-destructive">{error}</p> : null}
 
           <form onSubmit={handleSubmit} className="flex items-end gap-2 border-t p-4">
+            <VoiceInputButton
+              token={token}
+              disabled={loading}
+              onTranscribed={(text) => setDraft((current) => (current ? `${current} ${text}` : text))}
+              onError={setError}
+            />
             <textarea
               value={draft}
               onChange={(event) => setDraft(event.target.value)}

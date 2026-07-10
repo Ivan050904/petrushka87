@@ -25,12 +25,18 @@ export type FinanceImportRow = {
   amount: number;
   direction: "income" | "expense";
   description: string;
+  title?: string | null;
   counterparty?: string | null;
   currency: string;
   kind?: FinanceKindCode | null;
   category?: string | null;
   external_id?: string | null;
   parser_note?: string | null;
+};
+
+export type PreviewImportRow = FinanceImportRow & {
+  selected: boolean;
+  isDuplicate?: boolean;
 };
 
 export type FinanceImportPreview = {
@@ -48,6 +54,8 @@ export type FinanceSummary = {
   balance: number;
   transfers: number;
   by_category: Array<{ category: string; total: number }>;
+  by_expense_category: Array<{ category: string; total: number }>;
+  by_income_category: Array<{ category: string; total: number }>;
 };
 
 export const FINANCE_BANK_OPTIONS: Array<{ value: FinanceBankCode; label: string }> = [

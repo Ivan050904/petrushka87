@@ -45,7 +45,20 @@ export function NotesView() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const loadGenerationRef = useRef(0);
+  const isLoadingMoreRef = useRef(false);
+  const entriesLengthRef = useRef(0);
+  entriesLengthRef.current = entries.length;
   const debouncedQuery = useDebouncedValue(query, 300);
+
+  function mergeEntries(current: Entry[], incoming: Entry[]) {
+    if (incoming.length === 0) {
+      return current;
+    }
+    const seen = new Set(current.map((entry) => entry.id));
+    const uniqueIncoming = incoming.filter((entry) => !seen.has(entry.id));
+    return uniqueIncoming.length > 0 ? [...current, ...uniqueIncoming] : current;
+  }
 
   const categories = useMemo(() => {
     const values = new Set<string>([DEFAULT_LIFE_NOTE_CATEGORY]);
@@ -71,9 +84,16 @@ export function NotesView() {
       }
 
       const reset = options?.reset ?? false;
+      if (!reset && isLoadingMoreRef.current) {
+        return;
+      }
+
+      const generation = reset ? ++loadGenerationRef.current : loadGenerationRef.current;
+
       if (reset) {
         setIsLoading(true);
       } else {
+        isLoadingMoreRef.current = true;
         setIsLoadingMore(true);
       }
       setLoadError(null);
@@ -85,26 +105,38 @@ export function NotesView() {
           category: activeCategory ?? undefined,
           q: debouncedQuery || undefined,
           limit: LIFE_NOTES_PAGE_SIZE,
-          offset: reset ? 0 : entries.length,
-          sort: "entry_date_asc",
+          offset: reset ? 0 : entriesLengthRef.current,
+          sort: "entry_date_desc",
         });
 
+        if (generation !== loadGenerationRef.current) {
+          return;
+        }
+
         setTotal(response.total);
-        setEntries((current) => (reset ? response.items : [...current, ...response.items]));
+        setEntries((current) => (reset ? response.items : mergeEntries(current, response.items)));
       } catch (error) {
-        setLoadError(getErrorMessage(error, "Не удалось загрузить заметки."));
+        if (generation === loadGenerationRef.current) {
+          setLoadError(getErrorMessage(error, "Не удалось загрузить заметки."));
+        }
       } finally {
+        if (generation !== loadGenerationRef.current) {
+          return;
+        }
         setIsLoading(false);
+        isLoadingMoreRef.current = false;
         setIsLoadingMore(false);
       }
     },
-    [token, activeCategory, debouncedQuery, entries.length],
+    [token, activeCategory, debouncedQuery],
   );
 
   useEffect(() => {
     setEntries([]);
     setTotal(0);
     void loadEntries({ reset: true });
+    // loadEntries is recreated only when filters change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, activeCategory, debouncedQuery]);
 
   useEffect(() => {
@@ -202,7 +234,7 @@ export function NotesView() {
         onCategoryChange={setActiveCategory}
       />
 
-      <div ref={scrollContainerRef} className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto">
+      <div ref={scrollContainerRef} className="notes-scrollbar min-h-0 flex-1 overflow-y-auto">
         {isLoading ? (
           <div className="px-6 py-16 text-sm text-[var(--notes-muted)]">Загружаем заметки...</div>
         ) : loadError ? (

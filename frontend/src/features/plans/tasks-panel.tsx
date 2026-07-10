@@ -38,6 +38,13 @@ import {
   recurrenceFormFromMetadata,
   recurrenceFormToMetadata,
 } from "@/lib/recurrence";
+import {
+  addMinutes,
+  computeDurationMinutes,
+  parseEntryDate,
+  resolveTaskEndsAtInput,
+  toDateTimeInputValueFromDate,
+} from "@/lib/agenda";
 import { useRequireAuth } from "@/hooks/use-auth";
 import {
   createEntry,
@@ -66,6 +73,7 @@ type TaskForm = {
   status: TaskStatus;
   priority: TaskPriority;
   scheduledAt: string;
+  endsAt: string;
   deadline: string;
   plannedDurationMinutes: string;
   actualDurationMinutes: string;
@@ -91,6 +99,7 @@ const emptyTaskForm: TaskForm = {
   status: "inbox",
   priority: "medium",
   scheduledAt: "",
+  endsAt: "",
   deadline: "",
   plannedDurationMinutes: "",
   actualDurationMinutes: "",
@@ -888,10 +897,23 @@ export function TasksPanel({ embedded = false }: { embedded?: boolean }) {
                         id="task-scheduled-at"
                         type="datetime-local"
                         value={form.scheduledAt}
-                        onChange={(event) => setForm((current) => ({ ...current, scheduledAt: event.target.value }))}
+                        onChange={(event) => setForm((current) => updateTaskScheduledAt(current, event.target.value))}
                       />
                     </Field>
 
+                    <Field>
+                      <FieldLabel htmlFor="task-ends-at">Окончание</FieldLabel>
+                      <Input
+                        id="task-ends-at"
+                        type="datetime-local"
+                        value={form.endsAt}
+                        min={form.scheduledAt || undefined}
+                        onChange={(event) => setForm((current) => updateTaskEndsAt(current, event.target.value))}
+                      />
+                    </Field>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
                     <Field>
                       <FieldLabel htmlFor="task-deadline">Дедлайн</FieldLabel>
                       <Input
@@ -990,10 +1012,9 @@ export function TasksPanel({ embedded = false }: { embedded?: boolean }) {
                           type="number"
                           min="0"
                           inputMode="numeric"
+                          readOnly
                           value={form.plannedDurationMinutes}
-                          onChange={(event) =>
-                            setForm((current) => ({ ...current, plannedDurationMinutes: event.target.value }))
-                          }
+                          className="bg-muted/40"
                         />
                       </Field>
 
@@ -1416,16 +1437,59 @@ function formatPriority(priority: TaskPriority) {
   return labels[priority];
 }
 
+function updateTaskScheduledAt(form: TaskForm, nextScheduledAt: string): TaskForm {
+  if (!form.scheduledAt || !form.endsAt) {
+    return { ...form, scheduledAt: nextScheduledAt };
+  }
+
+  const duration = computeDurationMinutes(form.scheduledAt, form.endsAt);
+  if (!duration) {
+    return { ...form, scheduledAt: nextScheduledAt };
+  }
+
+  const nextStart = parseEntryDate(nextScheduledAt);
+  if (!nextStart) {
+    return { ...form, scheduledAt: nextScheduledAt, endsAt: "", plannedDurationMinutes: "" };
+  }
+
+  const nextEndsAt = toDateTimeInputValueFromDate(addMinutes(nextStart, duration));
+  return {
+    ...form,
+    scheduledAt: nextScheduledAt,
+    endsAt: nextEndsAt,
+    plannedDurationMinutes: String(duration),
+  };
+}
+
+function updateTaskEndsAt(form: TaskForm, nextEndsAt: string): TaskForm {
+  const duration =
+    form.scheduledAt && nextEndsAt ? computeDurationMinutes(form.scheduledAt, nextEndsAt) : null;
+
+  return {
+    ...form,
+    endsAt: nextEndsAt,
+    plannedDurationMinutes: duration ? String(duration) : "",
+  };
+}
+
 function taskToForm(task: Entry): TaskForm {
   const recurrence = recurrenceFormFromMetadata(task.metadata);
+  const scheduledAt = toDateTimeInputValue(getString(task.metadata.scheduled_at));
+  const endsAt = resolveTaskEndsAtInput(getString(task.metadata.scheduled_at), task.metadata);
+  const plannedDurationMinutes =
+    scheduledAt && endsAt
+      ? String(computeDurationMinutes(scheduledAt, endsAt) ?? "")
+      : readOptionalNumberString(task.metadata.planned_duration_minutes);
+
   return {
     title: task.title,
     description: task.content === task.title ? "" : task.content,
     status: normalizeStatus(task.metadata.status),
     priority: normalizePriority(task.metadata.priority),
-    scheduledAt: toDateTimeInputValue(getString(task.metadata.scheduled_at)),
+    scheduledAt,
+    endsAt,
     deadline: toDateTimeInputValue(getString(task.metadata.deadline)),
-    plannedDurationMinutes: readOptionalNumberString(task.metadata.planned_duration_minutes),
+    plannedDurationMinutes,
     actualDurationMinutes: readOptionalNumberString(task.metadata.actual_duration_minutes),
     reminderAt: toDateTimeInputValue(getString(task.metadata.reminder_at)),
     reminderText: getString(task.metadata.reminder_text),
@@ -1445,13 +1509,19 @@ function taskToForm(task: Entry): TaskForm {
 }
 
 function formToTaskPayload(form: TaskForm, existingMetadata: Record<string, unknown> = {}) {
+  const plannedDurationMinutes =
+    form.scheduledAt && form.endsAt
+      ? computeDurationMinutes(form.scheduledAt, form.endsAt)
+      : parseOptionalPositiveInteger(form.plannedDurationMinutes);
+
   const metadata = recurrenceFormToMetadata(
     {
       status: form.status,
       priority: form.priority,
       scheduled_at: form.scheduledAt || null,
+      ends_at: form.endsAt || null,
       deadline: form.deadline || null,
-      planned_duration_minutes: parseOptionalPositiveInteger(form.plannedDurationMinutes),
+      planned_duration_minutes: plannedDurationMinutes,
       actual_duration_minutes: parseOptionalPositiveInteger(form.actualDurationMinutes),
       reminder_at: form.reminderAt || null,
       reminder_text: form.reminderText.trim() || null,
@@ -1496,6 +1566,7 @@ function parseTaskDraft(value: string | null): TaskForm | null {
     status: normalizeStatus(parsed.status),
     priority: normalizePriority(parsed.priority),
     scheduledAt: typeof parsed.scheduledAt === "string" ? parsed.scheduledAt : "",
+    endsAt: typeof parsed.endsAt === "string" ? parsed.endsAt : "",
     deadline: typeof parsed.deadline === "string" ? parsed.deadline : "",
     plannedDurationMinutes: typeof parsed.plannedDurationMinutes === "string" ? parsed.plannedDurationMinutes : "",
     actualDurationMinutes: typeof parsed.actualDurationMinutes === "string" ? parsed.actualDurationMinutes : "",
@@ -1525,6 +1596,7 @@ function hasTaskDraft(form: TaskForm) {
     form.status !== "inbox" ||
     form.priority !== "medium" ||
     Boolean(form.scheduledAt.trim()) ||
+    Boolean(form.endsAt.trim()) ||
     Boolean(form.deadline.trim()) ||
     Boolean(form.plannedDurationMinutes.trim()) ||
     Boolean(form.actualDurationMinutes.trim()) ||

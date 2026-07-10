@@ -635,7 +635,7 @@ export function AppShell({
 
             <nav
               aria-label="Основная навигация"
-              className="flex flex-col gap-2 overflow-visible pb-0"
+              className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overflow-x-visible pb-2"
               onMouseLeave={() => setHoveredNavIndex(null)}
             >
               {isSidebarExpanded ? (

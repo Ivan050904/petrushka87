@@ -32,6 +32,7 @@ class FinanceImportRow(BaseModel):
     amount: float = Field(gt=0)
     direction: Literal["income", "expense"]
     description: str = Field(min_length=1, max_length=500)
+    title: str | None = Field(default=None, max_length=160)
     counterparty: str | None = None
     currency: str = Field(default="RUB", min_length=3, max_length=3)
     kind: FinanceKindCode | None = None
@@ -81,3 +82,5 @@ class FinanceSummaryRead(BaseModel):
     balance: float
     transfers: int
     by_category: list[FinanceSummaryCategory]
+    by_expense_category: list[FinanceSummaryCategory]
+    by_income_category: list[FinanceSummaryCategory]

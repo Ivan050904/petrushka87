@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.routes import assistant, auth, dashboard, entries, entry_links, finance, notes, resources, tasks
+from app.api.routes import assistant, auth, dashboard, entries, entry_links, finance, notes, resources, tasks, agent
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
@@ -12,3 +12,4 @@ api_router.include_router(notes.router, prefix="/notes", tags=["notes"])
 api_router.include_router(resources.router, prefix="/resources", tags=["resources"])
 api_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
 api_router.include_router(assistant.router, prefix="/assistant", tags=["assistant"])
+api_router.include_router(agent.router, prefix="/agent", tags=["agent"])

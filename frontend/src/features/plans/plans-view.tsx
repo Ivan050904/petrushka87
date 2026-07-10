@@ -23,6 +23,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { EventsPanel } from "@/features/plans/events-panel";
 import { PlansWeekCalendar } from "@/features/plans/plans-week-calendar";
 import { TasksPanel } from "@/features/plans/tasks-panel";
+import { TimeRail } from "@/features/dashboard/time-rail";
 import { useRequireAuth } from "@/hooks/use-auth";
 import { createEntry, getErrorMessage, listEntries, parseTasks, updateEntry } from "@/lib/api";
 import {
@@ -31,9 +32,14 @@ import {
   type PlansTypeFilter,
   agendaLabel,
   buildAgendaItems,
+  computeDurationMinutes,
   filterPlansItems,
-  formatAgendaDateTime,
+  formatAgendaTimeRange,
+  isSameDay,
+  resolveTaskEndsAtInput,
+  startOfDay,
 } from "@/lib/agenda";
+import { computeFreeSlots, formatFreeSlot } from "@/lib/free-slots";
 import {
   isOccurrenceSkipped,
   readTaskRecurrence,
@@ -82,6 +88,7 @@ export function PlansView() {
     initialTab === "tasks" ? "tasks" : initialTab === "events" ? "events" : "timeline",
   );
   const [selectedAgendaId, setSelectedAgendaId] = useState<string | null>(searchParams.get("selected"));
+  const [selectedDay, setSelectedDay] = useState<Date | null>(() => startOfDay(new Date()));
 
   const loadEntries = useCallback(async () => {
     if (!token) {
@@ -117,6 +124,10 @@ export function PlansView() {
     visibleItems.find((item) => item.entry?.id === selectedId) ??
     agendaItems.find((item) => item.entry?.id === selectedId) ??
     null;
+  const calendarDayItems = useMemo(
+    () => (selectedDay ? agendaItems.filter((item) => isSameDay(item.date, selectedDay)) : []),
+    [agendaItems, selectedDay],
+  );
 
   async function createFromQuickInput() {
     if (!token || !quickInput.trim() || isQuickSaving) {
@@ -215,12 +226,22 @@ export function PlansView() {
             className="max-h-[calc(100dvh-11rem)] min-h-[520px]"
             entries={entries}
             selectedId={selectedAgendaId}
+            selectedDay={selectedDay}
             onSelect={(item) => {
               setSelectedAgendaId(item.id);
               setSelectedId(item.entry?.id ?? null);
+              setSelectedDay(startOfDay(item.date));
             }}
+            onSelectDay={setSelectedDay}
           />
-          <PlanInspector item={selectedItem} token={token} onUpdated={loadEntries} />
+          <PlanInspector
+            item={selectedItem}
+            token={token}
+            onUpdated={loadEntries}
+            dayItems={calendarDayItems}
+            selectedDay={selectedDay}
+            showDayRail
+          />
         </section>
       ) : null}
 
@@ -352,7 +373,7 @@ function TimelineRow({
           {status ? <Badge variant="secondary">{formatTaskStatus(status)}</Badge> : null}
         </span>
       </span>
-      <span className="text-sm text-muted-foreground">{formatAgendaDateTime(item.date)}</span>
+      <span className="text-sm text-muted-foreground">{formatAgendaTimeRange(item.date, item.endDate)}</span>
     </button>
   );
 }
@@ -361,15 +382,22 @@ function PlanInspector({
   item,
   token,
   onUpdated,
+  dayItems = [],
+  selectedDay = null,
+  showDayRail = false,
 }: {
   item: AgendaItem | null;
   token: string | null;
   onUpdated: () => Promise<void>;
+  dayItems?: AgendaItem[];
+  selectedDay?: Date | null;
+  showDayRail?: boolean;
 }) {
   const entry = item?.entry ?? null;
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [dateValue, setDateValue] = useState("");
+  const [endDateValue, setEndDateValue] = useState("");
   const [status, setStatus] = useState("inbox");
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -379,28 +407,45 @@ function PlanInspector({
   const occurrenceSkipped = item?.occurrenceDate
     ? isOccurrenceSkipped(entry?.metadata ?? {}, item.date)
     : false;
+  const isOccurrence = Boolean(item?.recurring && item.occurrenceDate);
+  const activeDay = selectedDay ?? startOfDay(new Date());
+  const freeSlots = useMemo(
+    () => (showDayRail ? computeFreeSlots(dayItems, activeDay) : []),
+    [showDayRail, dayItems, activeDay],
+  );
 
   useEffect(() => {
-    if (!entry) {
+    if (!entry || !item) {
       setTitle("");
       setContent("");
       setDateValue("");
+      setEndDateValue("");
       setStatus("inbox");
       return;
     }
     setTitle(entry.title);
     setContent(entry.content);
+    if (isOccurrence && entry.type === "task") {
+      setDateValue(toLocalInputFromDate(item.date));
+      setEndDateValue(item.endDate ? toLocalInputFromDate(item.endDate) : "");
+      setStatus(getString(entry.metadata.status, "inbox"));
+      return;
+    }
     if (entry.type === "task") {
-      setDateValue(resolveInspectorDateValue(entry, item, "scheduled_at", "deadline"));
+      const scheduledAt = getString(entry.metadata.scheduled_at) || getString(entry.metadata.deadline);
+      setDateValue(toLocalInput(scheduledAt));
+      setEndDateValue(resolveTaskEndsAtInput(scheduledAt, entry.metadata));
       setStatus(getString(entry.metadata.status, "inbox"));
     } else if (entry.type === "event") {
-      setDateValue(resolveInspectorDateValue(entry, item, "starts_at"));
+      setDateValue(toLocalInput(getString(entry.metadata.starts_at)));
+      setEndDateValue(toLocalInput(getString(entry.metadata.ends_at)));
       setStatus(getString(entry.metadata.status));
     } else if (entry.type === "reminder") {
       setDateValue(resolveInspectorDateValue(entry, item, "remind_at"));
+      setEndDateValue("");
       setStatus(getString(entry.metadata.status, "scheduled"));
     }
-  }, [entry, item]);
+  }, [entry, item, isOccurrence]);
 
   async function updateRecurrenceMetadata(nextMetadata: Record<string, unknown>) {
     if (!token || !entry) {
@@ -419,27 +464,31 @@ function PlanInspector({
   }
 
   async function save() {
-    if (!token || !entry) {
+    if (!token || !entry || isOccurrence) {
       return;
     }
     setIsSaving(true);
     setError(null);
     try {
       if (entry.type === "task") {
+        const plannedDurationMinutes =
+          dateValue && endDateValue ? computeDurationMinutes(dateValue, endDateValue) : null;
         await updateEntry(token, entry.id, {
           title,
           content,
           metadata: {
             ...entry.metadata,
             status,
-            ...(item?.recurring ? {} : { scheduled_at: dateValue || null }),
+            scheduled_at: dateValue || null,
+            ends_at: endDateValue || null,
+            planned_duration_minutes: plannedDurationMinutes,
           },
         });
       } else if (entry.type === "event") {
         await updateEntry(token, entry.id, {
           title,
           content,
-          metadata: { ...entry.metadata, status, starts_at: dateValue || null },
+          metadata: { ...entry.metadata, status, starts_at: dateValue || null, ends_at: endDateValue || null },
         });
       } else if (entry.type === "reminder") {
         await updateEntry(token, entry.id, {
@@ -456,7 +505,7 @@ function PlanInspector({
     }
   }
 
-  if (!entry) {
+  if (!entry && !showDayRail) {
     return (
       <aside className="rounded-md border border-dashed border-border bg-muted/20 p-6 text-center text-sm text-muted-foreground">
         Выбери элемент в календаре или ленте, чтобы отредактировать детали.
@@ -464,8 +513,21 @@ function PlanInspector({
     );
   }
 
+  if (!entry && showDayRail) {
+    return (
+      <aside className="flex min-h-0 flex-col gap-3 xl:sticky xl:top-4">
+        <DayRailPanel day={activeDay} dayItems={dayItems} freeSlots={freeSlots} />
+      </aside>
+    );
+  }
+
+  if (!entry) {
+    return null;
+  }
+
   return (
-    <aside className="rounded-md border border-border bg-card p-4 shadow-panel xl:sticky xl:top-4 xl:max-h-[calc(100dvh-11rem)] xl:overflow-y-auto">
+    <aside className="flex min-h-0 flex-col gap-3 xl:sticky xl:top-4 xl:max-h-[calc(100dvh-11rem)] xl:overflow-y-auto">
+      <div className="rounded-md border border-border bg-card p-4 shadow-panel">
       <div className="mb-4 flex items-center justify-between gap-2">
         <h2 className="text-base font-semibold">{formatEntryType(entry.type)}</h2>
         <Badge variant="secondary">{formatDate(entry.updated_at)}</Badge>
@@ -480,8 +542,13 @@ function PlanInspector({
           <p className="mt-2 text-muted-foreground">{recurrenceRuleLabel(recurrence)}</p>
           {item.occurrenceDate ? (
             <p className="mt-1 text-xs text-muted-foreground">
-              Вхождение: {formatAgendaDateTime(item.date)}
+              Вхождение: {formatAgendaTimeRange(item.date, item.endDate, item.date)}
               {occurrenceSkipped ? " · отменено" : ""}
+            </p>
+          ) : null}
+          {isOccurrence ? (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Чтобы изменить время повторения, открой задачу во вкладке «Задачи».
             </p>
           ) : null}
         </div>
@@ -490,30 +557,50 @@ function PlanInspector({
       <FieldGroup>
         <Field>
           <FieldLabel htmlFor="plan-title">Название</FieldLabel>
-          <Input id="plan-title" value={title} onChange={(event) => setTitle(event.target.value)} />
+          <Input
+            id="plan-title"
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            readOnly={isOccurrence}
+          />
         </Field>
         <Field>
           <FieldLabel htmlFor="plan-content">Описание</FieldLabel>
-          <Textarea id="plan-content" value={content} onChange={(event) => setContent(event.target.value)} className="min-h-24" />
+          <Textarea
+            id="plan-content"
+            value={content}
+            onChange={(event) => setContent(event.target.value)}
+            className="min-h-24"
+            readOnly={isOccurrence}
+          />
         </Field>
         <Field>
           <FieldLabel htmlFor="plan-date">
-            {item?.recurring ? "Дата вхождения" : "Дата и время"}
+            {isOccurrence ? "Дата вхождения" : entry.type === "event" ? "Начало" : "Дата и время"}
           </FieldLabel>
           <Input
             id="plan-date"
             type="datetime-local"
             value={dateValue}
-            readOnly={Boolean(item?.recurring)}
+            readOnly={isOccurrence}
             onChange={(event) => setDateValue(event.target.value)}
-            className={item?.recurring ? "bg-muted/40" : undefined}
+            className={isOccurrence ? "bg-muted/40" : undefined}
           />
-          {item?.recurring ? (
-            <p className="mt-1 text-xs text-muted-foreground">
-              Для еженедельного плана дата берётся из календаря. Чтобы изменить время повторения, открой задачу во вкладке «Задачи».
-            </p>
-          ) : null}
         </Field>
+        {entry.type === "task" || entry.type === "event" ? (
+          <Field>
+            <FieldLabel htmlFor="plan-end-date">Окончание</FieldLabel>
+            <Input
+              id="plan-end-date"
+              type="datetime-local"
+              value={endDateValue}
+              min={dateValue || undefined}
+              readOnly={isOccurrence}
+              onChange={(event) => setEndDateValue(event.target.value)}
+              className={isOccurrence ? "bg-muted/40" : undefined}
+            />
+          </Field>
+        ) : null}
         <Field>
           <FieldLabel htmlFor="plan-status">Статус</FieldLabel>
           <Select id="plan-status" value={status} onChange={(event) => setStatus(event.target.value)}>
@@ -586,12 +673,52 @@ function PlanInspector({
           </div>
         ) : null}
 
-        <Button onClick={() => void save()} disabled={isSaving}>
+        <Button onClick={() => void save()} disabled={isSaving || isOccurrence}>
           <Plus data-icon="inline-start" />
           {isSaving ? "Сохранение" : "Сохранить"}
         </Button>
       </FieldGroup>
+      </div>
+
+      {showDayRail ? <DayRailPanel day={activeDay} dayItems={dayItems} freeSlots={freeSlots} /> : null}
     </aside>
+  );
+}
+
+function DayRailPanel({
+  day,
+  dayItems,
+  freeSlots,
+}: {
+  day: Date;
+  dayItems: AgendaItem[];
+  freeSlots: ReturnType<typeof computeFreeSlots>;
+}) {
+  return (
+    <>
+      <div className="rounded-md border border-border bg-card p-3 shadow-panel">
+        <h3 className="text-sm font-semibold">
+          {new Intl.DateTimeFormat("ru-RU", { weekday: "long", day: "numeric", month: "long" }).format(day)}
+        </h3>
+        <p className="mt-1 text-xs text-muted-foreground">Лента дня и свободные окна</p>
+      </div>
+      <TimeRail items={dayItems} day={day} className="min-h-[280px]" />
+      <div className="rounded-md border border-border bg-card p-3 shadow-panel">
+        <h3 className="text-sm font-semibold">Свободное время</h3>
+        {freeSlots.length === 0 ? (
+          <p className="mt-2 text-sm text-muted-foreground">Нет свободных окон в диапазоне 07:00–22:00.</p>
+        ) : (
+          <ul className="mt-2 space-y-1.5">
+            {freeSlots.map((slot) => (
+              <li key={`${slot.start.toISOString()}-${slot.end.toISOString()}`} className="rounded-md bg-muted/40 px-2.5 py-1.5 text-sm">
+                <span className="font-medium tabular-nums">{formatFreeSlot(slot)}</span>
+                <span className="ml-2 text-muted-foreground">{slot.minutes} мин</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </>
   );
 }
 

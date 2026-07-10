@@ -193,7 +193,7 @@ def finance_import_confirm(
             "source": "bank_import",
         }
         metadata = normalize_metadata(EntryType.finance, metadata)
-        title = row.description[:160] or "Операция"
+        title = (row.title or row.description)[:160] or "Операция"
         entry = Entry(
             user_id=current_user.id,
             type=EntryType.finance.value,
@@ -252,7 +252,8 @@ def finance_summary(
     income = 0.0
     expense = 0.0
     transfers = 0
-    by_category: dict[str, float] = defaultdict(float)
+    by_expense_category: dict[str, float] = defaultdict(float)
+    by_income_category: dict[str, float] = defaultdict(float)
 
     for entry in entries:
         metadata = entry.metadata_
@@ -272,20 +273,31 @@ def finance_summary(
         effective_kind = kind or direction
         if effective_kind == "income":
             income += amount
+            category = metadata.get("category") or "Прочее"
+            if isinstance(category, str):
+                by_income_category[category] += amount
             continue
         if effective_kind == "expense":
             expense += amount
             category = metadata.get("category") or "Прочее"
             if isinstance(category, str):
-                by_category[category] += amount
+                by_expense_category[category] += amount
+
+    expense_categories = [
+        FinanceSummaryCategory(category=category, total=total)
+        for category, total in sorted(by_expense_category.items(), key=lambda item: item[1], reverse=True)
+    ]
+    income_categories = [
+        FinanceSummaryCategory(category=category, total=total)
+        for category, total in sorted(by_income_category.items(), key=lambda item: item[1], reverse=True)
+    ]
 
     return FinanceSummaryRead(
         income=income,
         expense=expense,
         balance=income - expense,
         transfers=transfers,
-        by_category=[
-            FinanceSummaryCategory(category=category, total=total)
-            for category, total in sorted(by_category.items(), key=lambda item: item[1], reverse=True)
-        ],
+        by_category=expense_categories,
+        by_expense_category=expense_categories,
+        by_income_category=income_categories,
     )

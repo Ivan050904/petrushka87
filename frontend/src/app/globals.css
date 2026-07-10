@@ -429,6 +429,32 @@
     color: var(--notes-text);
   }
 
+  .notes-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: var(--notes-muted) transparent;
+  }
+
+  .notes-scrollbar::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .notes-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .notes-scrollbar::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--notes-muted) 70%, transparent);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  .notes-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: var(--notes-muted);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
   .notes-card {
     background-color: var(--notes-card);
     border: 1px solid transparent;

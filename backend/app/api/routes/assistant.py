@@ -4,15 +4,19 @@ import json
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from starlette.concurrency import run_in_threadpool
+
 from app.api.deps import get_current_user
+from app.core.config import settings
 from app.db.session import SessionLocal, get_db
 from app.models.user import User
 from app.services.ai.base import AIUnavailableError
+from app.services.assistant.agent import run_assistant_turn
 from app.services.assistant.chat import (
     add_message,
     create_conversation,
@@ -20,6 +24,14 @@ from app.services.assistant.chat import (
     list_conversations,
     stream_assistant_reply,
 )
+from app.services.assistant.llm import check_assistant_provider_health
+from app.services.assistant.schemas import (
+    AssistantChatRequest,
+    AssistantChatResponse,
+    AssistantStatusResponse,
+    AssistantTranscribeResponse,
+)
+from app.services.assistant.speech import SpeechUnavailableError, speech_is_configured, transcribe_audio_bytes
 
 router = APIRouter()
 
@@ -50,6 +62,90 @@ class ConversationCreate(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=20000)
+
+
+@router.get("/status", response_model=AssistantStatusResponse)
+def assistant_agent_status(
+    current_user: User = Depends(get_current_user),
+) -> AssistantStatusResponse:
+    del current_user
+    from app.services.assistant.llm import AssistantLLMClient
+
+    client = AssistantLLMClient()
+    configured = client.is_configured()
+    return AssistantStatusResponse(
+        enabled=settings.assistant_enabled,
+        configured=configured,
+        model=settings.assistant_model,
+        base_url=settings.assistant_base_url,
+        provider_reachable=check_assistant_provider_health() if configured else False,
+        auto_confirm=settings.assistant_auto_confirm,
+        classification_enabled=settings.ai_classification_enabled,
+        classification_model=settings.openai_compatible_model,
+        speech_enabled=settings.speech_enabled,
+        speech_configured=speech_is_configured(),
+        whisper_model=settings.whisper_model,
+    )
+
+
+@router.post("/transcribe", response_model=AssistantTranscribeResponse)
+async def assistant_transcribe(
+    audio: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+) -> AssistantTranscribeResponse:
+    del current_user
+    if not settings.speech_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Speech recognition is disabled",
+        )
+
+    audio_bytes = await audio.read()
+    try:
+        text = await run_in_threadpool(
+            transcribe_audio_bytes,
+            audio_bytes,
+            content_type=audio.content_type,
+            filename=audio.filename,
+        )
+    except SpeechUnavailableError as exc:
+        message = str(exc)
+        if "too large" in message.lower():
+            raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=message) from exc
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=message) from exc
+
+    return AssistantTranscribeResponse(text=text)
+
+
+@router.post("/agent/chat", response_model=AssistantChatResponse)
+def assistant_agent_chat(
+    payload: AssistantChatRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> AssistantChatResponse:
+    if not settings.assistant_enabled:
+        return AssistantChatResponse(
+            reply=(
+                "Ассистент-агент отключён. Установите ASSISTANT_ENABLED=true и "
+                "ASSISTANT_API_KEY в backend/.env."
+            ),
+            session_id=payload.session_id or "disabled",
+            configured=False,
+        )
+
+    try:
+        return run_assistant_turn(
+            db,
+            user_id=current_user.id,
+            message=payload.message,
+            session_id=payload.session_id,
+            confirm=payload.confirm,
+        )
+    except AIUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc) or exc.__class__.__name__,
+        ) from exc
 
 
 @router.get("/conversations", response_model=list[ConversationRead])

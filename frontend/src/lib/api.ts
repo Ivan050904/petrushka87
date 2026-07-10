@@ -181,6 +181,7 @@ export function listEntries(
   params: {
     q?: string;
     type?: EntryType;
+    kind?: string;
     limit?: number;
     offset?: number;
     collection?: string;
@@ -197,6 +198,9 @@ export function listEntries(
   }
   if (params.type) {
     searchParams.set("type", params.type);
+  }
+  if (params.kind) {
+    searchParams.set("kind", params.kind);
   }
   if (params.limit) {
     searchParams.set("limit", String(params.limit));
@@ -501,4 +505,111 @@ export async function streamAssistantChat(
       }
     }
   }
+}
+
+export type AssistantAgentPendingAction = {
+  action: "create_task" | "create_event";
+  params: Record<string, unknown>;
+  missing_fields: string[];
+};
+
+export type AssistantAgentActionResult = {
+  type: "task" | "event";
+  title: string;
+  entry_id: string | null;
+  metadata: Record<string, unknown>;
+};
+
+export type AssistantAgentChatResponse = {
+  reply: string;
+  session_id: string;
+  configured: boolean;
+  actions: AssistantAgentActionResult[];
+  pending_confirmation: AssistantAgentPendingAction | null;
+  entries_preview: Array<Record<string, unknown>>;
+};
+
+export type AssistantAgentStatus = {
+  enabled: boolean;
+  configured: boolean;
+  model: string;
+  base_url: string;
+  provider_reachable: boolean;
+  auto_confirm: boolean;
+  classification_enabled: boolean;
+  classification_model: string;
+  speech_enabled: boolean;
+  speech_configured: boolean;
+  whisper_model: string;
+};
+
+export function transcribeAssistantAudio(token: string, audio: Blob): Promise<{ text: string }> {
+  const formData = new FormData();
+  formData.append("audio", audio, "voice.webm");
+
+  return request<{ text: string }>("/assistant/transcribe", {
+    method: "POST",
+    token,
+    body: formData,
+    headers: {
+      Accept: "application/json",
+    },
+  });
+}
+
+export function getAssistantAgentStatus(token: string): Promise<AssistantAgentStatus> {
+  return request<AssistantAgentStatus>("/assistant/status", { token });
+}
+
+export function assistantAgentChat(
+  token: string,
+  payload: { message: string; session_id?: string | null; confirm?: boolean },
+): Promise<AssistantAgentChatResponse> {
+  return request<AssistantAgentChatResponse>("/assistant/agent/chat", {
+    method: "POST",
+    token,
+    body: JSON.stringify({
+      message: payload.message,
+      session_id: payload.session_id ?? null,
+      confirm: payload.confirm ?? false,
+    }),
+  });
+}
+
+export type DigestStatus = {
+  enabled: boolean;
+  ollama_reachable: boolean;
+  schedule_hour: number;
+  scheduler_enabled: boolean;
+  configured_topics: string[];
+  search_provider: string;
+  last_run_at: string | null;
+  last_status: string;
+  last_articles_saved: number;
+  last_error: string | null;
+  last_topics: string[] | null;
+  last_search_until: string | null;
+  next_search_from: string | null;
+};
+
+export type DigestRunResponse = {
+  status: string;
+  articles_saved: number;
+  articles_skipped: number;
+  topics: string[];
+  message: string;
+  search_period_from: string | null;
+  search_period_to: string | null;
+};
+
+export function getDigestStatus(token: string): Promise<DigestStatus> {
+  return request<DigestStatus>("/agent/digest/status", { token });
+}
+
+export function runDigest(token: string): Promise<DigestRunResponse> {
+  return request<DigestRunResponse>("/agent/digest/run", {
+    method: "POST",
+    token,
+    body: JSON.stringify({}),
+  });
 }

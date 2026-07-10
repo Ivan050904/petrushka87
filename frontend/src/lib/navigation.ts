@@ -8,6 +8,7 @@ export const ROUTES = {
   tracking: "/tracking",
   transcription: "/transcription",
   assistant: "/assistant",
+  articles: "/articles",
   reference: "/reference",
   search: "/search",
   login: "/login",

@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Empty } from "@/components/ui/empty";
 import { Notice } from "@/components/ui/notice";
 import { CaptureDock } from "@/features/capture/capture-dock";
+import { AssistantPanel } from "@/features/assistant/assistant-panel";
 import { DashboardWidgets } from "@/features/dashboard/dashboard-widgets";
 import { TimeRail } from "@/features/dashboard/time-rail";
 import { filterInboxEntries } from "@/features/inbox/inbox-helpers";
@@ -29,7 +30,7 @@ import {
   DAY_SECTION_LABELS,
   agendaLabel,
   buildAgendaItems,
-  formatAgendaDateTime,
+  formatAgendaTimeRange,
   groupAgendaForDashboard,
   isSameDay,
 } from "@/lib/agenda";
@@ -216,7 +217,10 @@ export default function DashboardPage() {
           <TimeRail items={agendaItems} className="hidden min-h-0 min-w-0 lg:flex" />
         </div>
 
-        <CaptureDock token={token} onSaved={loadEntries} className="min-w-0 shrink-0" />
+        <div className="grid min-h-0 min-w-0 shrink-0 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(280px,34%)]">
+          <CaptureDock token={token} onSaved={loadEntries} className="min-w-0" />
+          <AssistantPanel token={token} onChanged={loadEntries} className="min-w-0 min-h-[280px]" />
+        </div>
       </div>
     </AppShell>
   );
@@ -302,9 +306,7 @@ function AgendaRow({
         <span className="mt-0.5 block text-sm text-muted-foreground">{agendaLabel(item.kind)}</span>
       </Link>
       <div className={cn("text-right text-sm text-muted-foreground", emphasized && "font-medium tabular-nums")}>
-        {isToday
-          ? new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute: "2-digit" }).format(item.date)
-          : formatAgendaDateTime(item.date)}
+        {formatAgendaTimeRange(item.date, item.endDate, isToday ? item.date : new Date())}
       </div>
     </div>
   );

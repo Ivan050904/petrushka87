@@ -305,8 +305,10 @@ describe("buildCapturePayloads", () => {
     if (result.ok) {
       const payload = result.payloads[0];
       expect(payload?.type).toBe("finance");
-      expect(payload?.metadata.amount).toBe(15000);
-      expect(payload?.metadata.direction).toBe("income");
+      if (payload?.type === "finance") {
+        expect(payload.metadata.amount).toBe(15000);
+        expect(payload.metadata.direction).toBe("income");
+      }
     }
   });
 });

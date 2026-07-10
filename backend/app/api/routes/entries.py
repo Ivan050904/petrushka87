@@ -34,6 +34,7 @@ def _apply_metadata_filters(
     collection: str | None,
     exclude_collection: str | None,
     category: str | None,
+    kind: str | None,
     entry_date_from: str | None,
     entry_date_to: str | None,
 ):
@@ -48,6 +49,8 @@ def _apply_metadata_filters(
         )
     if category:
         statement = statement.where(_metadata_text("category") == category)
+    if kind:
+        statement = statement.where(_metadata_text("kind") == kind.strip())
     if entry_date_from:
         statement = statement.where(_metadata_text("entry_date") >= entry_date_from)
     if entry_date_to:
@@ -205,6 +208,7 @@ def list_entries(
     collection: str | None = Query(default=None, min_length=1, max_length=64),
     exclude_collection: str | None = Query(default=None, min_length=1, max_length=64),
     category: str | None = Query(default=None, min_length=1, max_length=64),
+    kind: str | None = Query(default=None, min_length=1),
     entry_date_from: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
     entry_date_to: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
     sort: str | None = Query(default=None),
@@ -223,6 +227,7 @@ def list_entries(
         collection=collection,
         exclude_collection=exclude_collection,
         category=category,
+        kind=kind,
         entry_date_from=entry_date_from,
         entry_date_to=entry_date_to,
     )
@@ -239,13 +244,13 @@ def list_entries(
 
     total = db.scalar(select(func.count()).select_from(statement.subquery())) or 0
 
-    if sort == "entry_date_desc":
+    if sort == "entry_date_desc" or (sort is None and collection == "life_notes"):
         order_clause = (
             _metadata_text("entry_date").desc(),
             Entry.updated_at.desc(),
             Entry.created_at.desc(),
         )
-    elif sort == "entry_date_asc" or collection == "life_notes":
+    elif sort == "entry_date_asc":
         order_clause = (
             _metadata_text("entry_date").asc(),
             Entry.created_at.asc(),

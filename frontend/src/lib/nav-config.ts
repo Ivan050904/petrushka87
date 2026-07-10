@@ -8,6 +8,7 @@ import {
   Kanban,
   Library,
   Mic,
+  Newspaper,
   Repeat,
   StickyNote,
   Wallet,
@@ -26,6 +27,7 @@ export type NavItemId =
   | "board"
   | "notes"
   | "journal"
+  | "articles"
   | "plans"
   | "tracking-habits"
   | "tracking-finance"
@@ -49,6 +51,7 @@ export const NAV_ITEMS: Record<NavItemId, NavItemConfig> = {
   board: { id: "board", href: ROUTES.board, label: "Канбан", icon: Kanban },
   notes: { id: "notes", href: ROUTES.notes, label: "Заметки", icon: StickyNote },
   journal: { id: "journal", href: ROUTES.journal, label: "Журнал", icon: BookOpen },
+  articles: { id: "articles", href: ROUTES.articles, label: "Статьи", icon: Newspaper },
   plans: { id: "plans", href: ROUTES.plans, label: "Планы", icon: CalendarRange },
   "tracking-habits": {
     id: "tracking-habits",
@@ -82,6 +85,7 @@ export const DEFAULT_NAV_ORDER: NavItemId[] = [
   "board",
   "notes",
   "journal",
+  "articles",
   "plans",
   "tracking-habits",
   "tracking-finance",

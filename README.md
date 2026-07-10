@@ -165,3 +165,82 @@ cost in `entry.metadata.ai.usage`. The MVP uses this sync tariff for estimates:
 `0.025 RUB / 1K tool tokens`, and `0.2 RUB / 1K output tokens`.
 
 The provider is isolated behind `app/services/ai`, so it can be replaced without changing route code.
+
+## Daily article digest (Ollama + DuckDuckGo)
+
+The backend can run a free daily development article digest:
+
+- **Ollama** filters and summarizes candidates
+- **DuckDuckGo** provides search results without an API key
+- Articles are saved as `resource` entries with `metadata.kind=article`
+- The frontend shows them on the **Статьи** page
+
+### Setup
+
+1. Install and start [Ollama](https://ollama.com), then pull a model:
+
+```powershell
+ollama pull qwen2.5-coder:7b
+```
+
+2. Configure `backend/.env`:
+
+```powershell
+DIGEST_ENABLED=true
+DIGEST_TOPICS=ии агенты,cursor ai,claude codex,claude агент,cursor ide
+DIGEST_MAX_ARTICLES=5
+DIGEST_SCHEDULE_HOUR=8
+DIGEST_USER_EMAIL=petr@petr.local
+DIGEST_SCHEDULER_ENABLED=true
+DIGEST_SEARCH_PROVIDER=habr
+DIGEST_LLM_BASE_URL=http://localhost:11434/v1
+DIGEST_LLM_API_KEY=ollama
+DIGEST_LLM_MODEL=qwen2.5-coder:7b
+USER_TIMEZONE=Asia/Vladivostok
+```
+
+3. Install dependencies:
+
+```powershell
+cd backend
+pip install duckduckgo-search
+```
+
+4. Run manually:
+
+```powershell
+python scripts/run_daily_digest.py
+```
+
+Or open **Статьи** in the sidebar and click **Запустить дайджест сейчас**.
+
+### Automatic daily run at 8:00
+
+When `DIGEST_SCHEDULER_ENABLED=true`, the backend starts a background scheduler on startup. It runs `run_daily_digest()` every day at `DIGEST_SCHEDULE_HOUR` in `USER_TIMEZONE`. Articles are saved to the account from `DIGEST_USER_EMAIL`.
+
+Requirements: backend (uvicorn) and Ollama must be running 24/7 on the server.
+
+On backend startup, logs should contain: `Digest scheduler enabled, next run at ...`
+
+### Local verification before deploy
+
+```powershell
+cd backend
+.\.venv\Scripts\python.exe -m pytest tests/test_digest.py -v
+.\.venv\Scripts\python.exe scripts\run_daily_digest.py
+.\.venv\Scripts\python.exe scripts\test_digest_scheduler.py
+```
+
+Check `backend/storage/logs/digest.log` and `digest_state.json`.
+
+To test the scheduler without waiting until 8:00, temporarily set `DIGEST_SCHEDULE_HOUR` to the current hour, restart backend, and watch `digest.log`.
+
+### Windows Task Scheduler (optional fallback)
+
+Create a daily task at 08:00 pointing to:
+
+```text
+C:\path\to\petrushka87\backend\scripts\run_daily_digest.bat
+```
+
+Logs: `backend/storage/logs/digest.log`.
