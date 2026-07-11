@@ -68,6 +68,7 @@ jobs:
         run: |
           cd ../backend
           python scripts/bootstrap_data.py
+          python -c "from app.services.demo_seed import run_demo_seed; print(run_demo_seed(reset=False))"
       - name: Start backend
         run: |
           cd ../backend
