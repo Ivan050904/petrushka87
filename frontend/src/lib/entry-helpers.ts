@@ -1,5 +1,5 @@
 import type { Entry } from "@/lib/types";
-import { journalHref, plansHref, referenceHref, trackingHref } from "@/lib/navigation";
+import { notesHref, plansHref, referenceHref, trackingHref } from "@/lib/navigation";
 
 export function getString(value: unknown, fallback = "") {
   return typeof value === "string" ? value : fallback;
@@ -62,9 +62,11 @@ export function entryModuleHref(entry: Entry) {
       return referenceHref({ tab: "people", selected: entry.id });
     case "resource":
       return referenceHref({ tab: "resources", selected: entry.id });
+    case "therapy_session" as Entry["type"]:
+      return "/therapy-sessions";
     case "diary":
     case "note":
-      return journalHref(entry.id);
+      return notesHref(entry.id);
     default:
       return `/search?q=${encodeURIComponent(entry.title)}`;
   }

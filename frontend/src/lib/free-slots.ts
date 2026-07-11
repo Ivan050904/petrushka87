@@ -11,8 +11,8 @@ const timeFormatter = new Intl.DateTimeFormat("ru-RU", { hour: "2-digit", minute
 export function computeFreeSlots(
   items: AgendaItem[],
   day: Date,
-  workStartHour = 7,
-  workEndHour = 22,
+  workStartHour = 0,
+  workEndHour = 24,
 ): FreeSlot[] {
   const dayStart = startOfDay(day);
   const windowStart = new Date(dayStart);

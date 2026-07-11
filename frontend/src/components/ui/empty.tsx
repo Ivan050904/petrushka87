@@ -16,9 +16,12 @@ export function Empty({
   onAction?: () => void;
 }) {
   return (
-    <div className="flex min-h-24 flex-col items-center justify-center gap-3 rounded-md border border-dashed border-border bg-muted/30 p-4 text-center">
+    <div
+      role="status"
+      className="flex min-h-24 flex-col items-center justify-center gap-3 rounded-md border border-dashed border-border bg-muted/30 p-4 text-center"
+    >
       <div className="space-y-1">
-        <p className="text-sm text-muted-foreground">{title}</p>
+        <h3 className="text-sm font-medium text-muted-foreground">{title}</h3>
         {description ? <p className="text-xs text-muted-foreground/80">{description}</p> : null}
       </div>
       {onAction && actionLabel ? (

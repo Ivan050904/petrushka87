@@ -26,6 +26,8 @@ export type AgendaItem = {
 
 export const AGENDA_HOUR_HEIGHT = 56;
 export const AGENDA_MIN_BLOCK_HEIGHT = 42;
+export const CALENDAR_GRID_START_HOUR = 0;
+export const CALENDAR_GRID_END_HOUR = 24;
 
 export type AgendaBuildOptions = {
   rangeStart?: Date;
@@ -464,7 +466,7 @@ export function agendaLabel(kind: AgendaKind) {
 
 export function agendaDotClass(kind: AgendaKind) {
   if (kind === "task") {
-    return "bg-secondary";
+    return "bg-accent";
   }
   if (kind === "event") {
     return "bg-primary";
@@ -473,4 +475,17 @@ export function agendaDotClass(kind: AgendaKind) {
     return "bg-accent";
   }
   return "bg-muted-foreground";
+}
+
+export function agendaBlockClass(kind: AgendaKind) {
+  if (kind === "task") {
+    return "border-accent/50 bg-accent/25";
+  }
+  if (kind === "event") {
+    return "border-primary/40 bg-primary/15";
+  }
+  if (kind === "birthday") {
+    return "border-accent/40 bg-accent/20";
+  }
+  return "border-muted-foreground/35 bg-muted/50";
 }

@@ -1,0 +1,200 @@
+{
+  "generated_at": "2026-07-11T11:05:13.665305+00:00",
+  "commit": "1a8c2e4bb39e9a9ae7b489e987bd1818b686c2f8",
+  "root": "C:\\Users\\Пользователь\\Desktop\\petrushka87",
+  "by_extension": {
+    ".py": 204,
+    ".tsx": 85,
+    ".ts": 71,
+    ".md": 42,
+    ".html": 7,
+    ".json": 6,
+    ".png": 5,
+    ".css": 3,
+    ".bat": 2,
+    ".js": 2,
+    ".ini": 1,
+    ".toml": 1,
+    ".docx": 1,
+    ".db": 1
+  },
+  "by_zone": {
+    "README.md": {
+      "files": 1,
+      "total_lines": 308,
+      "code_lines": 218,
+      "blank_lines": 90,
+      "comment_lines": 0,
+      "functions": 0,
+      "classes": 0,
+      "components": 0,
+      "test_files": 0
+    },
+    "backend": {
+      "files": 32,
+      "total_lines": 234,
+      "code_lines": 187,
+      "blank_lines": 47,
+      "comment_lines": 0,
+      "functions": 0,
+      "classes": 0,
+      "components": 0,
+      "test_files": 0
+    },
+    "backend_alembic": {
+      "files": 9,
+      "total_lines": 692,
+      "code_lines": 592,
+      "blank_lines": 100,
+      "comment_lines": 0,
+      "functions": 17,
+      "classes": 0,
+      "components": 0,
+      "test_files": 0
+    },
+    "backend_app": {
+      "files": 128,
+      "total_lines": 12885,
+      "code_lines": 10836,
+      "blank_lines": 2036,
+      "comment_lines": 13,
+      "functions": 449,
+      "classes": 147,
+      "components": 0,
+      "test_files": 0
+    },
+    "backend_scripts": {
+      "files": 16,
+      "total_lines": 1832,
+      "code_lines": 1516,
+      "blank_lines": 314,
+      "comment_lines": 2,
+      "functions": 57,
+      "classes": 2,
+      "components": 0,
+      "test_files": 3
+    },
+    "backend_tests": {
+      "files": 27,
+      "total_lines": 4573,
+      "code_lines": 3846,
+      "blank_lines": 726,
+      "comment_lines": 1,
+      "functions": 221,
+      "classes": 12,
+      "components": 0,
+      "test_files": 27
+    },
+    "claude": {
+      "files": 1,
+      "total_lines": 33,
+      "code_lines": 25,
+      "blank_lines": 8,
+      "comment_lines": 0,
+      "functions": 0,
+      "classes": 0,
+      "components": 0,
+      "test_files": 0
+    },
+    "design_system": {
+      "files": 1,
+      "total_lines": 88,
+      "code_lines": 63,
+      "blank_lines": 25,
+      "comment_lines": 0,
+      "functions": 0,
+      "classes": 0,
+      "components": 0,
+      "test_files": 0
+    },
+    "docs": {
+      "files": 10,
+      "total_lines": 826,
+      "code_lines": 669,
+      "blank_lines": 157,
+      "comment_lines": 0,
+      "functions": 0,
+      "classes": 0,
+      "components": 0,
+      "test_files": 0
+    },
+    "frontend": {
+      "files": 10,
+      "total_lines": 8716,
+      "code_lines": 8702,
+      "blank_lines": 9,
+      "comment_lines": 5,
+      "functions": 0,
+      "classes": 0,
+      "components": 0,
+      "test_files": 0
+    },
+    "frontend_src": {
+      "files": 151,
+      "total_lines": 27714,
+      "code_lines": 25129,
+      "blank_lines": 2577,
+      "comment_lines": 8,
+      "functions": 862,
+      "classes": 1,
+      "components": 88,
+      "test_files": 6
+    },
+    "scripts": {
+      "files": 2,
+      "total_lines": 285,
+      "code_lines": 237,
+      "blank_lines": 47,
+      "comment_lines": 1,
+      "functions": 10,
+      "classes": 0,
+      "components": 0,
+      "test_files": 0
+    },
+    "start-dev.bat": {
+      "files": 1,
+      "total_lines": 114,
+      "code_lines": 96,
+      "blank_lines": 18,
+      "comment_lines": 0,
+      "functions": 0,
+      "classes": 0,
+      "components": 0,
+      "test_files": 0
+    },
+    "transcription": {
+      "files": 35,
+      "total_lines": 4091,
+      "code_lines": 3247,
+      "blank_lines": 838,
+      "comment_lines": 6,
+      "functions": 115,
+      "classes": 3,
+      "components": 0,
+      "test_files": 0
+    }
+  },
+  "totals": {
+    "files": 424,
+    "total_lines": 62391,
+    "code_lines": 55363,
+    "functions": 1731,
+    "classes": 165,
+    "components": 88,
+    "test_files": 36
+  },
+  "large_files_over_100kb": [
+    {
+      "path": "backend/storage/folio_one.db",
+      "bytes": 17248256
+    },
+    {
+      "path": "frontend/package-lock.json",
+      "bytes": 301463
+    },
+    {
+      "path": "frontend/tsconfig.tsbuildinfo",
+      "bytes": 163589
+    }
+  ]
+}

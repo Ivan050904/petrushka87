@@ -37,6 +37,17 @@ export function formatMonthLabel(month: string): string {
   return new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric" }).format(date);
 }
 
+export function formatMonthShort(month: string): string {
+  const [yearPart, monthPart] = month.split("-");
+  const date = new Date(Number(yearPart), Number(monthPart) - 1, 1);
+  return new Intl.DateTimeFormat("ru-RU", { month: "short" }).format(date).replace(".", "");
+}
+
+export function recentMonths(count: number, anchorMonth?: string): string[] {
+  const start = anchorMonth ?? currentMonthValue();
+  return Array.from({ length: count }, (_, index) => shiftMonth(start, index - (count - 1)));
+}
+
 export function formatIsoDateRu(isoDate: string): string {
   const match = isoDate.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (!match) {

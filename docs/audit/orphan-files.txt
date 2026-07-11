@@ -1,0 +1,9 @@
+# Orphan TS/TSX analysis — 2026-07-11 (post single-DB remediation)
+
+Orphans: 0
+
+Removed this pass:
+- frontend/src/lib/dev-kanban.ts
+- frontend/src/features/tracking/finance-ai-status.tsx
+
+audit_orphans.py now skips middleware.ts (Next.js entry, false positive).

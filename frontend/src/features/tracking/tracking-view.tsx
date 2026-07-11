@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Notice } from "@/components/ui/notice";
 import { FinancePanel } from "@/features/tracking/finance-panel";
 import { HabitsPanel } from "@/features/tracking/habits-panel";
+import { WorkoutsPanel } from "@/features/tracking/workouts-panel";
 import { TRACKING_GRID, TRACKING_SCROLL_COL, TRACKING_SHELL } from "@/features/tracking/tracking-layout";
 import { useRequireAuth } from "@/hooks/use-auth";
 import { createEntry, deleteEntry, getErrorMessage, listEntries, updateEntry } from "@/lib/api";
@@ -71,9 +72,9 @@ function formatMacroValue(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
 
-const foodInputClass = "min-h-8 h-8 px-2.5 py-1 text-sm xl:min-h-10 xl:h-10 xl:px-3";
+const foodInputClass = "min-h-11 h-11 px-2.5 py-1 text-sm lg:min-h-8 lg:h-8 xl:min-h-10 xl:h-10 xl:px-3";
 const foodMacroInputClass =
-  "focus-ring min-h-8 w-full min-w-0 border-0 bg-transparent py-1 pr-1.5 text-sm font-mono outline-none placeholder:text-muted-foreground/70 xl:min-h-10 xl:py-1.5 xl:text-base";
+  "focus-ring min-h-11 w-full min-w-0 border-0 bg-transparent py-1 pr-1.5 text-sm font-mono outline-none placeholder:text-muted-foreground/70 lg:min-h-8 xl:min-h-10 xl:py-1.5 xl:text-base";
 
 export function TrackingView() {
   const router = useRouter();
@@ -93,6 +94,7 @@ export function TrackingView() {
           <FinancePanel embedded compact selectedId={selectedId} onSelectedChange={changeSelected} />
         ) : null}
         {tab === "food" ? <FoodPanel selectedId={selectedId} onSelectedChange={changeSelected} /> : null}
+        {tab === "workouts" ? <WorkoutsPanel /> : null}
       </div>
     </div>
   );
@@ -691,7 +693,7 @@ function FoodModeToggle({
         title="Итого за порцию"
         onClick={() => onChange("direct")}
         className={cn(
-          "focus-ring min-h-7 min-w-7 rounded-[calc(var(--radius)-3px)] px-1.5 font-mono text-xs font-bold leading-none transition xl:min-h-8 xl:min-w-8 xl:text-sm",
+          "focus-ring min-h-11 min-w-11 rounded-[calc(var(--radius)-3px)] px-1.5 font-mono text-xs font-bold leading-none transition lg:min-h-7 lg:min-w-7 xl:min-h-8 xl:min-w-8 xl:text-sm",
           value === "direct" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
         )}
       >
@@ -703,7 +705,7 @@ function FoodModeToggle({
         title="На 100 г"
         onClick={() => onChange("per100g")}
         className={cn(
-          "focus-ring min-h-7 rounded-[calc(var(--radius)-3px)] px-1 font-mono text-[10px] font-semibold leading-none transition xl:min-h-8 xl:px-1.5 xl:text-xs",
+          "focus-ring min-h-11 rounded-[calc(var(--radius)-3px)] px-1 font-mono text-[10px] font-semibold leading-none transition lg:min-h-7 xl:min-h-8 xl:px-1.5 xl:text-xs",
           value === "per100g" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
         )}
       >

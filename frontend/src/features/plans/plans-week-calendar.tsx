@@ -21,6 +21,7 @@ type PlansWeekCalendarProps = {
   selectedDay: Date | null;
   onSelect: (item: AgendaItem) => void;
   onSelectDay: (day: Date) => void;
+  onSlotClick?: (day: Date, start: Date, end: Date) => void;
   className?: string;
 };
 
@@ -40,6 +41,7 @@ export function PlansWeekCalendar({
   selectedDay,
   onSelect,
   onSelectDay,
+  onSlotClick,
   className,
 }: PlansWeekCalendarProps) {
   const gridRef = useRef<WeekTimeGridHandle>(null);
@@ -117,6 +119,7 @@ export function PlansWeekCalendar({
         selectedItemId={selectedId}
         onSelectDay={onSelectDay}
         onSelectItem={onSelect}
+        onSlotClick={onSlotClick}
         scrollToTodayToken={scrollToTodayToken}
       />
     </div>

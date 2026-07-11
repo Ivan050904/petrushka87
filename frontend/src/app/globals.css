@@ -85,6 +85,16 @@
     @apply min-h-8 px-2.5 text-xs;
   }
 
+  .touch-target {
+    @apply min-h-11 min-w-11;
+  }
+
+  @screen lg {
+    .touch-target-compact {
+      @apply min-h-10 min-w-10;
+    }
+  }
+
   .sidebar-peek-label {
     transform-origin: left center;
     transition:
@@ -164,8 +174,10 @@
     --kanban-muted: #656d76;
     --kanban-accent: #0969da;
     --kanban-empty: #ddf4ff;
+    --kanban-foreground: #1f2328;
+    --kanban-hover: #f6f8fa;
     background-color: var(--kanban-bg);
-    color: #1f2328;
+    color: var(--kanban-foreground);
   }
 
   .kanban-panel {
@@ -204,7 +216,7 @@
     --kanban-detail-text: #f0f6fc;
     --kanban-detail-accent: #388bfd;
     --kanban-detail-danger: #f85149;
-    background: var(--kanban-detail-bg);
+    background-color: var(--kanban-detail-bg);
     border: 1px solid var(--kanban-detail-border);
     border-radius: 16px;
     color: var(--kanban-detail-text);
@@ -304,8 +316,10 @@
 
   .kanban-detail-priority-btn {
     display: inline-flex;
-    width: 2rem;
-    height: 2rem;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    width: 2.75rem;
+    height: 2.75rem;
     align-items: center;
     justify-content: center;
     border-radius: 9999px;
@@ -315,6 +329,15 @@
     font-weight: 600;
     color: var(--kanban-detail-muted);
     transition: transform 120ms ease, background-color 120ms ease, color 120ms ease;
+  }
+
+  @screen lg {
+    .kanban-detail-priority-btn {
+      min-width: 2rem;
+      min-height: 2rem;
+      width: 2rem;
+      height: 2rem;
+    }
   }
 
   .kanban-detail-priority-btn-active {
@@ -376,10 +399,19 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    min-height: 2.75rem;
+    min-width: 2.75rem;
     border-radius: 0.5rem;
     padding: 0.375rem;
     color: var(--kanban-detail-muted);
     transition: background-color 120ms ease, color 120ms ease;
+  }
+
+  @screen lg {
+    .kanban-detail-icon-btn {
+      min-height: 2rem;
+      min-width: 2rem;
+    }
   }
 
   .kanban-detail-icon-btn:hover {

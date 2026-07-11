@@ -147,7 +147,7 @@ function WidgetBlock({
   return (
     <div className="min-w-0 rounded-md border border-border/60 bg-card/40 p-3 lg:p-4">
       <div className="mb-2.5 flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{title}</h3>
+        <h3 className="text-sm font-semibold text-muted-foreground">{title}</h3>
         <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-sm">
           <Link href={actionHref}>
             {actionLabel}

@@ -4,11 +4,14 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRe
 
 import {
   type AgendaItem,
+  agendaBlockClass,
   agendaDotClass,
   agendaTimeOffset,
   AGENDA_HOUR_HEIGHT,
   AGENDA_MIN_BLOCK_HEIGHT,
   buildWeekDays,
+  CALENDAR_GRID_END_HOUR,
+  CALENDAR_GRID_START_HOUR,
   durationToAgendaHeight,
   formatAgendaTimeRange,
   formatWeekday,
@@ -16,8 +19,8 @@ import {
 } from "@/lib/agenda";
 import { cn } from "@/lib/utils";
 
-const GRID_START_HOUR = 7;
-const GRID_END_HOUR = 22;
+const GRID_START_HOUR = CALENDAR_GRID_START_HOUR;
+const GRID_END_HOUR = CALENDAR_GRID_END_HOUR;
 const GRID_HOURS = GRID_END_HOUR - GRID_START_HOUR;
 const TRACK_PADDING_TOP = 8;
 const TIME_GUTTER = 52;
@@ -37,11 +40,21 @@ type WeekTimeGridProps = {
   selectedItemId: string | null;
   onSelectDay: (day: Date) => void;
   onSelectItem: (item: AgendaItem) => void;
+  onSlotClick?: (day: Date, start: Date, end: Date) => void;
   scrollToTodayToken?: number;
 };
 
 export const WeekTimeGrid = forwardRef<WeekTimeGridHandle, WeekTimeGridProps>(function WeekTimeGrid(
-  { items, weekStart, selectedDay, selectedItemId, onSelectDay, onSelectItem, scrollToTodayToken = 0 },
+  {
+    items,
+    weekStart,
+    selectedDay,
+    selectedItemId,
+    onSelectDay,
+    onSelectItem,
+    onSlotClick,
+    scrollToTodayToken = 0,
+  },
   ref,
 ) {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -134,7 +147,41 @@ export const WeekTimeGrid = forwardRef<WeekTimeGridHandle, WeekTimeGridProps>(fu
               return (
                 <div
                   key={day.key}
-                  className={cn("relative border-l border-border/50", isToday && "bg-primary/[0.04]")}
+                  role={onSlotClick ? "button" : undefined}
+                  tabIndex={onSlotClick ? 0 : undefined}
+                  onClick={
+                    onSlotClick
+                      ? (event) => {
+                          const slot = slotFromOffsetY(day.date, event.nativeEvent.offsetY);
+                          if (!slot) {
+                            return;
+                          }
+                          onSelectDay(day.date);
+                          onSlotClick(day.date, slot.start, slot.end);
+                        }
+                      : undefined
+                  }
+                  onKeyDown={
+                    onSlotClick
+                      ? (event) => {
+                          if (event.key !== "Enter" && event.key !== " ") {
+                            return;
+                          }
+                          event.preventDefault();
+                          const slot = slotFromOffsetY(day.date, TRACK_PADDING_TOP + AGENDA_HOUR_HEIGHT * 2);
+                          if (!slot) {
+                            return;
+                          }
+                          onSelectDay(day.date);
+                          onSlotClick(day.date, slot.start, slot.end);
+                        }
+                      : undefined
+                  }
+                  className={cn(
+                    "relative border-l border-border/50",
+                    isToday && "bg-primary/[0.04]",
+                    onSlotClick && "cursor-cell",
+                  )}
                   style={{ minHeight: TOTAL_GRID_HEIGHT }}
                 >
                   {hours.map((hour) => (
@@ -167,10 +214,13 @@ export const WeekTimeGrid = forwardRef<WeekTimeGridHandle, WeekTimeGridProps>(fu
                       <button
                         key={item.id}
                         type="button"
-                        onClick={() => onSelectItem(item)}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onSelectItem(item);
+                        }}
                         className={cn(
                           "absolute right-0.5 left-0.5 z-10 overflow-hidden rounded border px-1.5 py-1 text-left shadow-sm transition hover:brightness-95",
-                          item.kind === "event" ? "border-primary/40 bg-primary/15" : "border-secondary/50 bg-secondary/15",
+                          agendaBlockClass(item.kind),
                           item.skipped && "opacity-50 line-through",
                           selectedItemId === item.id && "ring-2 ring-primary/60",
                         )}
@@ -208,4 +258,16 @@ function hourTop(hour: number) {
 function itemTop(date: Date) {
   const absolute = agendaTimeOffset(date, TRACK_PADDING_TOP, AGENDA_HOUR_HEIGHT);
   return absolute - GRID_START_HOUR * AGENDA_HOUR_HEIGHT;
+}
+
+function slotFromOffsetY(day: Date, offsetY: number) {
+  const minutesFromGridStart = ((offsetY - TRACK_PADDING_TOP) / AGENDA_HOUR_HEIGHT) * 60;
+  const snappedMinutes = Math.round(minutesFromGridStart / 30) * 30;
+  const clampedMinutes = Math.max(0, Math.min(GRID_HOURS * 60 - 30, snappedMinutes));
+  const totalMinutes = GRID_START_HOUR * 60 + clampedMinutes;
+  const start = new Date(day);
+  start.setHours(Math.floor(totalMinutes / 60), totalMinutes % 60, 0, 0);
+  const end = new Date(start);
+  end.setMinutes(end.getMinutes() + 60);
+  return { start, end };
 }

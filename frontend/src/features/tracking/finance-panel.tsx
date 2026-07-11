@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { FilePenLine, Plus, Search, Trash2, TrendingDown, TrendingUp, Upload, WalletCards, X } from "lucide-react";
 
+import { LoadError } from "@/components/load-error";
 import { FinanceCategorySelect } from "@/features/tracking/finance-category-select";
 import { saveFinanceCategories } from "@/features/tracking/finance-categories";
 import { FinanceDashboard } from "@/features/tracking/finance-dashboard";
@@ -20,8 +21,10 @@ import { Select } from "@/components/ui/select";
 import { useRequireAuth } from "@/hooks/use-auth";
 import { createEntry, deleteEntry, getErrorMessage, getFinanceSummary, listEntries, updateEntry } from "@/lib/api";
 import { entryDescription, formatCurrency, formatDate, getNumber, getString } from "@/lib/entry-helpers";
+import { fingerprintFromEntryMetadata } from "@/lib/finance-dedup";
 import type { FinanceSummary } from "@/lib/finance-import";
-import { currentMonthValue, monthRange } from "@/lib/finance-month";
+import { loadFinanceSettings, type FinanceAccount } from "@/lib/finance-import";
+import { currentMonthValue, monthRange, shiftMonth } from "@/lib/finance-month";
 import { formatFinanceDirection } from "@/lib/labels";
 import type { Entry } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -82,11 +85,23 @@ export function FinancePanel({
   const [isDraftLoaded, setIsDraftLoaded] = useState(false);
   const [panelTab, setPanelTab] = useState<FinancePanelTab>("operations");
   const [summary, setSummary] = useState<FinanceSummary | null>(null);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [compareSummary, setCompareSummary] = useState<FinanceSummary | null>(null);
   const [entryTotal, setEntryTotal] = useState(0);
   const [isSummaryLoading, setIsSummaryLoading] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState("all");
-  const [dashboardMonth, setDashboardMonth] = useState(currentMonthValue);
+  const [dashboardMonth, setDashboardMonth] = useState(() => currentMonthValue());
+  const [compareMonth, setCompareMonth] = useState(() => shiftMonth(currentMonthValue(), -1));
+  const [financeAccounts, setFinanceAccounts] = useState<FinanceAccount[]>([]);
   const draftKey = user?.id ? `${FINANCE_DRAFT_STORAGE_KEY}:${user.id}` : null;
+
+  useEffect(() => {
+    if (!user?.id) {
+      setFinanceAccounts([]);
+      return;
+    }
+    setFinanceAccounts(loadFinanceSettings(user.id).accounts);
+  }, [user?.id]);
 
   function setSelectedId(id: string | null) {
     if (onSelectedChange) {
@@ -138,16 +153,30 @@ export function FinancePanel({
       return;
     }
     setIsSummaryLoading(true);
+    setSummaryError(null);
     try {
       const [from, to] = monthRange(dashboardMonth);
-      const result = await getFinanceSummary(token, { from, to });
-      setSummary(result);
-    } catch {
+      const [compareFrom, compareTo] = monthRange(compareMonth);
+      const [current, compare] = await Promise.all([
+        getFinanceSummary(token, { from, to }),
+        getFinanceSummary(token, { from: compareFrom, to: compareTo }),
+      ]);
+      setSummary(current);
+      setCompareSummary(compare);
+    } catch (requestError) {
       setSummary(null);
+      setCompareSummary(null);
+      setSummaryError(getErrorMessage(requestError, "Не удалось загрузить сводку."));
     } finally {
       setIsSummaryLoading(false);
     }
-  }, [dashboardMonth, token]);
+  }, [compareMonth, dashboardMonth, token]);
+
+  useEffect(() => {
+    if (compareMonth === dashboardMonth) {
+      setCompareMonth(shiftMonth(dashboardMonth, -1));
+    }
+  }, [compareMonth, dashboardMonth]);
 
   useEffect(() => {
     void loadEntries();
@@ -158,7 +187,7 @@ export function FinancePanel({
     if (panelTab === "dashboard") {
       void loadSummary();
     }
-  }, [loadSummary, panelTab, entries.length, dashboardMonth]);
+  }, [loadSummary, panelTab, entries.length, dashboardMonth, compareMonth]);
 
   async function handleImported() {
     await loadEntries();
@@ -241,6 +270,30 @@ export function FinancePanel({
       }
     }
     return ids;
+  }, [entries]);
+
+  const [existingFingerprints, setExistingFingerprints] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadFingerprints() {
+      const fingerprints = new Set<string>();
+      for (const entry of entries) {
+        const fingerprint = await fingerprintFromEntryMetadata(entry.metadata as Record<string, unknown>);
+        if (fingerprint) {
+          fingerprints.add(fingerprint);
+        }
+      }
+      if (!cancelled) {
+        setExistingFingerprints(fingerprints);
+      }
+    }
+
+    void loadFingerprints();
+    return () => {
+      cancelled = true;
+    };
   }, [entries]);
 
   const totals = useMemo<FinanceTotal[]>(() => {
@@ -434,6 +487,7 @@ export function FinancePanel({
             <FinanceImportWizard
               onImported={() => void handleImported()}
               existingExternalIds={existingExternalIds}
+              existingFingerprints={existingFingerprints}
               extraCategories={categoryOptions}
             />
           </div>
@@ -441,11 +495,19 @@ export function FinancePanel({
 
         {panelTab === "dashboard" ? (
           <div className={cn(compact && "min-h-0 flex-1 overflow-y-auto")}>
+            {summaryError ? (
+              <LoadError message={summaryError} onRetry={() => void loadSummary()} className="mb-4" />
+            ) : null}
             <FinanceDashboard
               summary={summary}
+              compareSummary={compareSummary}
+              entries={entries}
+              accounts={financeAccounts}
               isLoading={isSummaryLoading}
               month={dashboardMonth}
+              compareMonth={compareMonth}
               onMonthChange={setDashboardMonth}
+              onCompareMonthChange={setCompareMonth}
             />
           </div>
         ) : null}

@@ -8,8 +8,8 @@ import { extractPdfText } from "@/features/tracking/bank-import/pdf-extract";
 import { parseBankStatement } from "@/features/tracking/bank-import/registry";
 import { toFinanceImportRows, toPreviewImportRow } from "@/features/tracking/bank-import/to-finance-import-row";
 import type { BankId } from "@/features/tracking/bank-import/types";
-import { FinanceAIStatusCard } from "@/features/tracking/finance-ai-status";
-import { loadFinanceCategories } from "@/features/tracking/finance-categories";
+import { FinanceCategoryCombobox, FinanceCategoryPanel } from "@/features/tracking/finance-category-picker";
+import { addFinanceCategory, loadFinanceCategories } from "@/features/tracking/finance-categories";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,7 +23,6 @@ import {
   confirmFinanceImport,
   getErrorMessage,
   getFinanceAIStatus,
-  previewFinanceImport,
 } from "@/lib/api";
 import { formatCurrency } from "@/lib/entry-helpers";
 import { formatIsoDateRu } from "@/lib/finance-month";
@@ -39,11 +38,13 @@ import {
   type PreviewImportRow,
   saveFinanceSettings,
 } from "@/lib/finance-import";
+import { isDuplicateImportRow } from "@/lib/finance-dedup";
 import { cn } from "@/lib/utils";
 
 type FinanceImportWizardProps = {
   onImported: () => void;
   existingExternalIds?: Set<string>;
+  existingFingerprints?: Set<string>;
   extraCategories?: string[];
 };
 
@@ -69,6 +70,7 @@ function stripPreviewFields(row: PreviewImportRow): FinanceImportRow {
 export function FinanceImportWizard({
   onImported,
   existingExternalIds = new Set(),
+  existingFingerprints = new Set(),
   extraCategories = [],
 }: FinanceImportWizardProps) {
   const { token, user } = useRequireAuth();
@@ -87,10 +89,12 @@ export function FinanceImportWizard({
   const [isParsing, setIsParsing] = useState(false);
   const [isCategorizing, setIsCategorizing] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
-  const [isAiLoading, setIsAiLoading] = useState(true);
   const [hideTransfers, setHideTransfers] = useState(false);
-  const [newAccountLabel, setNewAccountLabel] = useState("");
-  const [newAccountLast4, setNewAccountLast4] = useState("");
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [isCreatingCategory, setIsCreatingCategory] = useState(false);
+  const [pendingCategoryRowIndex, setPendingCategoryRowIndex] = useState<number | null>(null);
+  const [activeCategoryRowIndex, setActiveCategoryRowIndex] = useState<number | null>(null);
+  const [categoryPanelQuery, setCategoryPanelQuery] = useState("");
 
   useEffect(() => {
     if (!user?.id) {
@@ -108,14 +112,11 @@ export function FinanceImportWizard({
     if (!token) {
       return;
     }
-    setIsAiLoading(true);
     try {
       const status = await getFinanceAIStatus(token);
       setAiStatus(status);
     } catch {
       setAiStatus(null);
-    } finally {
-      setIsAiLoading(false);
     }
   }, [token]);
 
@@ -162,25 +163,33 @@ export function FinanceImportWizard({
     }
   }
 
-  function addAccount() {
-    const label = newAccountLabel.trim();
-    if (!label) {
-      setError("Введите название счёта.");
-      return;
+  function ensureAccountForBank(targetBank: FinanceBankCode): string {
+    const existing = settings.accounts.find((account) => account.bank === targetBank);
+    if (existing) {
+      if (accountId !== existing.id) {
+        setAccountId(existing.id);
+      }
+      return existing.id;
     }
+    const label = FINANCE_BANK_OPTIONS.find((option) => option.value === targetBank)?.label ?? targetBank;
     const account: FinanceAccount = {
       id: createFinanceAccountId(),
-      bank,
+      bank: targetBank,
       label,
-      last4: newAccountLast4.trim() || null,
+      last4: null,
     };
     const next = { ...settings, accounts: [...settings.accounts, account] };
     persistSettings(next);
     setAccountId(account.id);
-    setNewAccountLabel("");
-    setNewAccountLast4("");
-    setError(null);
+    return account.id;
   }
+
+  useEffect(() => {
+    const match = settings.accounts.find((account) => account.bank === bank);
+    if (match && accountId !== match.id) {
+      setAccountId(match.id);
+    }
+  }, [accountId, bank, settings.accounts]);
 
   function handleFileSelect(nextFile: File | null) {
     setFile(nextFile);
@@ -190,6 +199,11 @@ export function FinanceImportWizard({
     setNotice(null);
     setParserWarning(null);
     setDuplicates(0);
+    setIsCreatingCategory(false);
+    setNewCategoryName("");
+    setPendingCategoryRowIndex(null);
+    setActiveCategoryRowIndex(null);
+    setCategoryPanelQuery("");
   }
 
   async function parsePdfFile(selectedFile: File) {
@@ -207,10 +221,17 @@ export function FinanceImportWizard({
     }
 
     setBank(toFinanceBankCode(resolvedBank));
+    ensureAccountForBank(toFinanceBankCode(resolvedBank));
+
+    const resolvedAccountId = ensureAccountForBank(toFinanceBankCode(resolvedBank));
+    const importContext = { bank: resolvedBank, accountId: resolvedAccountId };
 
     let duplicateCount = 0;
-    const importRows = toFinanceImportRows(transactions).map((row) => {
-      const isDuplicate = Boolean(row.external_id && existingExternalIds.has(row.external_id));
+    const importRows = (await toFinanceImportRows(transactions, importContext)).map((row) => {
+      const isDuplicate = isDuplicateImportRow(row, row.external_id ?? "", {
+        externalIds: existingExternalIds,
+        fingerprints: existingFingerprints,
+      });
       if (isDuplicate) {
         duplicateCount += 1;
       }
@@ -229,18 +250,34 @@ export function FinanceImportWizard({
   }
 
   async function parseCsvFile(selectedFile: File) {
-    const preview = await previewFinanceImport(token!, { bank, accountId, file: selectedFile });
-    const importRows = preview.rows.map((row) => {
-      const isDuplicate = Boolean(row.external_id && existingExternalIds.has(row.external_id));
+    const text = await selectedFile.text();
+    const resolvedBank = (bank !== "generic" ? bank : "generic") as BankId;
+    const transactions = parseBankStatement(text, resolvedBank);
+    if (transactions.length === 0) {
+      throw new Error("Не удалось найти операции в CSV. Проверьте банк и формат файла.");
+    }
+
+    const resolvedAccountId = ensureAccountForBank(toFinanceBankCode(resolvedBank));
+    const importContext = { bank: resolvedBank, accountId: resolvedAccountId };
+
+    let duplicateCount = 0;
+    const importRows = (await toFinanceImportRows(transactions, importContext)).map((row) => {
+      const isDuplicate = isDuplicateImportRow(row, row.external_id ?? "", {
+        externalIds: existingExternalIds,
+        fingerprints: existingFingerprints,
+      });
+      if (isDuplicate) {
+        duplicateCount += 1;
+      }
       return toPreviewImportRow(row, { isDuplicate });
     });
     setRows(importRows);
-    setParserWarning(preview.parser_warning ?? null);
-    setDuplicates(preview.duplicates);
+    setParserWarning(null);
+    setDuplicates(duplicateCount);
     setStep("preview");
     setNotice(
       importRows.length > 0
-        ? `Распознано ${importRows.length} операций${preview.duplicates ? `, пропущено дублей: ${preview.duplicates}` : ""}.`
+        ? `Распознано ${importRows.length} операций из CSV${duplicateCount ? `, пропущено дублей: ${duplicateCount}` : ""}.`
         : "Новых операций не найдено.",
     );
   }
@@ -250,14 +287,11 @@ export function FinanceImportWizard({
       setError("Прикрепите PDF или CSV.");
       return;
     }
-    if (!accountId) {
-      setError("Сначала добавьте и выберите счёт.");
-      return;
-    }
 
     setIsParsing(true);
     setError(null);
     setNotice(null);
+    ensureAccountForBank(bank);
     try {
       if (isPdfFile(file)) {
         await parsePdfFile(file);
@@ -298,7 +332,10 @@ export function FinanceImportWizard({
           if (rowIndex === undefined) {
             return;
           }
-          next[rowIndex] = { ...next[rowIndex]!, ...categorized };
+          const previous = next[rowIndex]!;
+          const kind =
+            previous.direction === "income" && categorized.kind === "expense" ? "income" : categorized.kind;
+          next[rowIndex] = { ...previous, ...categorized, kind };
         });
         return next;
       });
@@ -311,17 +348,20 @@ export function FinanceImportWizard({
   }
 
   async function confirmImport() {
-    if (!token || selectedRows.length === 0 || !accountId) {
+    if (!token || selectedRows.length === 0) {
       setError("Выберите хотя бы одну операцию для импорта.");
       return;
     }
+    const resolvedAccountId = ensureAccountForBank(
+      (selectedAccount?.bank as FinanceBankCode | undefined) ?? bank,
+    );
     const importBank = (selectedAccount?.bank as FinanceBankCode | undefined) ?? bank;
     setIsImporting(true);
     setError(null);
     try {
       const result = await confirmFinanceImport(token, {
         bank: importBank,
-        account_id: accountId,
+        account_id: resolvedAccountId,
         rows: selectedRows.map(stripPreviewFields),
       });
       setNotice(`Импортировано ${result.created} операций.`);
@@ -340,74 +380,117 @@ export function FinanceImportWizard({
     setRows((current) => current.map((row, rowIndex) => (rowIndex === index ? { ...row, ...patch } : row)));
   }
 
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
-        <div className="flex flex-col gap-4">
-          <FinanceAIStatusCard status={aiStatus} isLoading={isAiLoading} />
+  function addCategory(assignToRowIndex?: number) {
+    const trimmed = newCategoryName.trim().slice(0, 40);
+    if (!trimmed) {
+      setError("Введите название категории.");
+      return;
+    }
+    const exists = tableCategories.some((category) => category.toLowerCase() === trimmed.toLowerCase());
+    if (exists) {
+      setError("Такая категория уже есть.");
+      return;
+    }
+    if (user?.id) {
+      addFinanceCategory(user.id, trimmed);
+    }
+    const next = { ...settings, categories: [...new Set([...settings.categories, trimmed])] };
+    persistSettings(next);
+    if (assignToRowIndex !== undefined) {
+      updateRow(assignToRowIndex, { category: trimmed });
+    }
+    setNewCategoryName("");
+    setIsCreatingCategory(false);
+    setPendingCategoryRowIndex(null);
+    setError(null);
+    setNotice(`Категория «${trimmed}» добавлена.`);
+  }
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Мои счета</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {settings.accounts.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Добавьте счета, чтобы переводы между ними не считались тратами.</p>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  {settings.accounts.map((account) => (
-                    <button
-                      key={account.id}
-                      type="button"
-                      onClick={() => {
-                        setAccountId(account.id);
-                        setBank(account.bank as FinanceBankCode);
-                      }}
-                      className={cn(
-                        "rounded-md border px-3 py-2 text-left text-sm transition",
-                        accountId === account.id ? "border-primary bg-primary/10" : "border-border hover:bg-muted",
-                      )}
-                    >
-                      <div className="font-medium">{account.label}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {FINANCE_BANK_OPTIONS.find((item) => item.value === account.bank)?.label ?? account.bank}
-                        {account.last4 ? ` · ·${account.last4}` : ""}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
+  const activeCategoryRow = activeCategoryRowIndex !== null ? rows[activeCategoryRowIndex] : null;
 
-              <FieldGroup className="gap-3">
-                <Field>
-                  <FieldLabel>Название счёта</FieldLabel>
-                  <Input value={newAccountLabel} onChange={(event) => setNewAccountLabel(event.target.value)} />
-                </Field>
-                <Field>
-                  <FieldLabel>Последние 4 цифры</FieldLabel>
-                  <Input
-                    value={newAccountLast4}
-                    onChange={(event) => setNewAccountLast4(event.target.value.replace(/\D/g, "").slice(0, 4))}
-                    maxLength={4}
-                  />
-                </Field>
-                <Button type="button" variant="outline" onClick={addAccount}>
-                  <Plus data-icon="inline-start" />
-                  Добавить счёт
-                </Button>
-              </FieldGroup>
-            </CardContent>
-          </Card>
+  function openCategoryPanel(rowIndex: number) {
+    setActiveCategoryRowIndex(rowIndex);
+  }
+
+  function selectCategoryForActiveRow(category: string) {
+    if (activeCategoryRowIndex === null) {
+      return;
+    }
+    updateRow(activeCategoryRowIndex, { category });
+  }
+
+  function renderCategoryControls() {
+    return (
+      <div className="space-y-3 rounded-md border bg-muted/30 p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-sm font-medium">Категории для импорта</span>
+          {!isCreatingCategory ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setPendingCategoryRowIndex(null);
+                setIsCreatingCategory(true);
+              }}
+            >
+              <Plus data-icon="inline-start" />
+              Создать категорию
+            </Button>
+          ) : null}
         </div>
 
-        <Card>
+        {isCreatingCategory ? (
+          <FieldGroup className="gap-3">
+            <Field>
+              <FieldLabel>Новая категория</FieldLabel>
+              <Input
+                value={newCategoryName}
+                maxLength={40}
+                placeholder="Например, Хобби"
+                autoFocus
+                onChange={(event) => setNewCategoryName(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    addCategory(pendingCategoryRowIndex ?? undefined);
+                  }
+                }}
+              />
+            </Field>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" size="sm" onClick={() => addCategory(pendingCategoryRowIndex ?? undefined)}>
+                Сохранить
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setIsCreatingCategory(false);
+                  setNewCategoryName("");
+                  setPendingCategoryRowIndex(null);
+                }}
+              >
+                Отмена
+              </Button>
+            </div>
+          </FieldGroup>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <Card>
           <CardHeader>
             <CardTitle className="text-base">Импорт выписки</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {step === "upload" ? (
               <>
-                <div className="grid gap-3 md:grid-cols-2">
+                <div className="grid gap-3 md:grid-cols-1">
                   <Field>
                     <FieldLabel>Банк</FieldLabel>
                     <Select value={bank} onChange={(event) => setBank(event.target.value as FinanceBankCode)}>
@@ -417,17 +500,6 @@ export function FinanceImportWizard({
                         </option>
                       ))}
                       <option value="generic">Универсальный CSV</option>
-                    </Select>
-                  </Field>
-                  <Field>
-                    <FieldLabel>Счёт</FieldLabel>
-                    <Select value={accountId} onChange={(event) => setAccountId(event.target.value)}>
-                      <option value="">Выберите счёт</option>
-                      {settings.accounts.map((account) => (
-                        <option key={account.id} value={account.id}>
-                          {account.label}
-                        </option>
-                      ))}
                     </Select>
                   </Field>
                 </div>
@@ -463,7 +535,7 @@ export function FinanceImportWizard({
                   />
                 </label>
 
-                <Button type="button" onClick={() => void handleParse()} disabled={!file || isParsing || !accountId}>
+                <Button type="button" onClick={() => void handleParse()} disabled={!file || isParsing}>
                   {isParsing ? <Loader2 data-icon="inline-start" className="animate-spin" /> : null}
                   {isParsing ? "Разбираем файл..." : "Разобрать выписку"}
                 </Button>
@@ -499,6 +571,9 @@ export function FinanceImportWizard({
                   </Button>
                 </div>
 
+                {renderCategoryControls()}
+
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
                 <div className="max-h-[480px] overflow-auto rounded-md border">
                   <table className="min-w-full text-sm">
                     <thead className="sticky top-0 bg-muted/80 text-left text-xs uppercase tracking-wide text-muted-foreground backdrop-blur">
@@ -516,7 +591,10 @@ export function FinanceImportWizard({
                       {visibleRows.map((row) => {
                         const rowIndex = rows.indexOf(row);
                         return (
-                          <tr key={`${row.external_id ?? row.description}-${rowIndex}`} className="border-t align-top">
+                          <tr
+                            key={`${row.external_id ?? row.description}-${rowIndex}`}
+                            className={cn("border-t align-top", row.isDuplicate && "bg-muted/40 opacity-60")}
+                          >
                             <td className="px-3 py-2">
                               <input
                                 type="checkbox"
@@ -543,17 +621,16 @@ export function FinanceImportWizard({
                               />
                             </td>
                             <td className="px-3 py-2">
-                              <Select
+                              <FinanceCategoryCombobox
                                 value={row.category ?? ""}
-                                onChange={(event) => updateRow(rowIndex, { category: event.target.value || null })}
-                              >
-                                <option value="">—</option>
-                                {tableCategories.map((category) => (
-                                  <option key={category} value={category}>
-                                    {category}
-                                  </option>
-                                ))}
-                              </Select>
+                                categories={tableCategories}
+                                onChange={(category) => updateRow(rowIndex, { category: category || null })}
+                                onBrowseAll={() => openCategoryPanel(rowIndex)}
+                                onCreateCategory={() => {
+                                  setPendingCategoryRowIndex(rowIndex);
+                                  setIsCreatingCategory(true);
+                                }}
+                              />
                             </td>
                             <td className="px-3 py-2">
                               <Select
@@ -574,6 +651,20 @@ export function FinanceImportWizard({
                     </tbody>
                   </table>
                 </div>
+
+                <FinanceCategoryPanel
+                  categories={tableCategories}
+                  activeLabel={activeCategoryRow ? activeCategoryRow.title ?? activeCategoryRow.description : null}
+                  query={categoryPanelQuery}
+                  onQueryChange={setCategoryPanelQuery}
+                  onSelect={selectCategoryForActiveRow}
+                  onCreateCategory={() => {
+                    setPendingCategoryRowIndex(activeCategoryRowIndex);
+                    setIsCreatingCategory(true);
+                  }}
+                  className="flex min-h-[240px]"
+                />
+                </div>
               </>
             )}
 
@@ -589,7 +680,6 @@ export function FinanceImportWizard({
             ) : null}
           </CardContent>
         </Card>
-      </div>
     </div>
   );
 }

@@ -76,6 +76,7 @@ export const DEFAULT_FINANCE_CATEGORIES = [
   "Здоровье",
   "Покупки",
   "Переводы",
+  "Доход",
   "Прочее",
 ];
 

@@ -7,8 +7,8 @@ import {
   CalendarDays,
   CalendarRange,
   CheckSquare,
+  Check,
   Sparkles,
-  Plus,
   Repeat,
 } from "lucide-react";
 
@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Notice } from "@/components/ui/notice";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { CalendarCreateForm } from "@/features/plans/calendar-create-form";
 import { EventsPanel } from "@/features/plans/events-panel";
 import { PlansWeekCalendar } from "@/features/plans/plans-week-calendar";
 import { TasksPanel } from "@/features/plans/tasks-panel";
@@ -89,6 +90,7 @@ export function PlansView() {
   );
   const [selectedAgendaId, setSelectedAgendaId] = useState<string | null>(searchParams.get("selected"));
   const [selectedDay, setSelectedDay] = useState<Date | null>(() => startOfDay(new Date()));
+  const [createDraftSlot, setCreateDraftSlot] = useState<{ start: Date; end: Date } | null>(null);
 
   const loadEntries = useCallback(async () => {
     if (!token) {
@@ -128,6 +130,17 @@ export function PlansView() {
     () => (selectedDay ? agendaItems.filter((item) => isSameDay(item.date, selectedDay)) : []),
     [agendaItems, selectedDay],
   );
+  const calendarFreeSlots = useMemo(
+    () => (selectedDay ? computeFreeSlots(calendarDayItems, selectedDay, 0, 24) : []),
+    [calendarDayItems, selectedDay],
+  );
+
+  function handleCalendarSlotClick(day: Date, start: Date, end: Date) {
+    setCreateDraftSlot({ start, end });
+    setSelectedAgendaId(null);
+    setSelectedId(null);
+    setSelectedDay(startOfDay(day));
+  }
 
   async function createFromQuickInput() {
     if (!token || !quickInput.trim() || isQuickSaving) {
@@ -233,15 +246,30 @@ export function PlansView() {
               setSelectedDay(startOfDay(item.date));
             }}
             onSelectDay={setSelectedDay}
+            onSlotClick={handleCalendarSlotClick}
           />
-          <PlanInspector
-            item={selectedItem}
-            token={token}
-            onUpdated={loadEntries}
-            dayItems={calendarDayItems}
-            selectedDay={selectedDay}
-            showDayRail
-          />
+          <aside className="flex min-h-0 flex-col gap-3 xl:sticky xl:top-4 xl:max-h-[calc(100dvh-11rem)] xl:overflow-y-auto">
+            <CalendarCreateForm
+              token={token}
+              selectedDay={selectedDay}
+              draftSlot={createDraftSlot}
+              onCreated={loadEntries}
+              onClearSelection={() => {
+                setSelectedAgendaId(null);
+                setSelectedId(null);
+              }}
+              onClearDraftSlot={() => setCreateDraftSlot(null)}
+            />
+            {selectedItem?.entry ? (
+              <PlanInspector item={selectedItem} token={token} onUpdated={loadEntries} />
+            ) : null}
+            <DayRailPanel
+              day={selectedDay ?? startOfDay(new Date())}
+              dayItems={calendarDayItems}
+              freeSlots={calendarFreeSlots}
+              onFreeSlotClick={handleCalendarSlotClick}
+            />
+          </aside>
         </section>
       ) : null}
 
@@ -674,7 +702,7 @@ function PlanInspector({
         ) : null}
 
         <Button onClick={() => void save()} disabled={isSaving || isOccurrence}>
-          <Plus data-icon="inline-start" />
+          <Check data-icon="inline-start" />
           {isSaving ? "Сохранение" : "Сохранить"}
         </Button>
       </FieldGroup>
@@ -689,10 +717,12 @@ function DayRailPanel({
   day,
   dayItems,
   freeSlots,
+  onFreeSlotClick,
 }: {
   day: Date;
   dayItems: AgendaItem[];
   freeSlots: ReturnType<typeof computeFreeSlots>;
+  onFreeSlotClick?: (day: Date, start: Date, end: Date) => void;
 }) {
   return (
     <>
@@ -706,13 +736,22 @@ function DayRailPanel({
       <div className="rounded-md border border-border bg-card p-3 shadow-panel">
         <h3 className="text-sm font-semibold">Свободное время</h3>
         {freeSlots.length === 0 ? (
-          <p className="mt-2 text-sm text-muted-foreground">Нет свободных окон в диапазоне 07:00–22:00.</p>
+          <p className="mt-2 text-sm text-muted-foreground">Нет свободных окон в диапазоне 00:00–24:00.</p>
         ) : (
           <ul className="mt-2 space-y-1.5">
             {freeSlots.map((slot) => (
-              <li key={`${slot.start.toISOString()}-${slot.end.toISOString()}`} className="rounded-md bg-muted/40 px-2.5 py-1.5 text-sm">
-                <span className="font-medium tabular-nums">{formatFreeSlot(slot)}</span>
-                <span className="ml-2 text-muted-foreground">{slot.minutes} мин</span>
+              <li key={`${slot.start.toISOString()}-${slot.end.toISOString()}`}>
+                <button
+                  type="button"
+                  onClick={() => onFreeSlotClick?.(day, slot.start, slot.end)}
+                  className={cn(
+                    "min-h-11 w-full rounded-md bg-muted/40 px-2.5 py-1.5 text-left text-sm transition lg:min-h-0",
+                    onFreeSlotClick && "hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
+                  )}
+                >
+                  <span className="font-medium tabular-nums">{formatFreeSlot(slot)}</span>
+                  <span className="ml-2 text-muted-foreground">{slot.minutes} мин</span>
+                </button>
               </li>
             ))}
           </ul>

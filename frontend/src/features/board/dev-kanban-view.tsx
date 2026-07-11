@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Notice } from "@/components/ui/notice";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useRequireAuth } from "@/hooks/use-auth";
 import { useKanbanBoards } from "@/hooks/use-kanban-boards";
@@ -31,7 +32,7 @@ import {
   priorityAccent,
   type KanbanBoardConfig,
   type KanbanStage,
-} from "@/lib/dev-kanban";
+} from "@/lib/kanban-boards";
 import { resolveBoardIdFromQuery } from "@/lib/kanban-boards";
 import { boardHref } from "@/lib/navigation";
 import type { Entry } from "@/lib/types";
@@ -334,7 +335,7 @@ export function DevKanbanView() {
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="flex items-start gap-3">
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-md border border-[var(--kanban-border)] bg-white text-[var(--kanban-muted)]">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-md border border-[var(--kanban-border)] bg-[var(--kanban-panel)] text-[var(--kanban-muted)]">
                 <Kanban className="size-4" aria-hidden="true" />
               </div>
               <div>
@@ -342,7 +343,7 @@ export function DevKanbanView() {
                   <LayoutGrid className="size-3.5" aria-hidden="true" />
                   Канбан
                 </div>
-                <h1 className="text-2xl font-semibold tracking-tight text-[#1f2328]">{boardConfig?.label}</h1>
+                <h1 className="text-2xl font-semibold tracking-tight text-[var(--kanban-foreground)]">{boardConfig?.label}</h1>
                 <p className="mt-0.5 text-sm text-[var(--kanban-muted)]">{boardConfig?.subtitle}</p>
                 <p className="mt-1 text-sm text-[var(--kanban-muted)]">
                   {entries.length}{" "}
@@ -352,13 +353,15 @@ export function DevKanbanView() {
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <label className="relative min-w-[220px] flex-1 sm:max-w-sm">
+              <label htmlFor="kanban-search" className="relative min-w-[220px] flex-1 sm:max-w-sm">
+                <span className="sr-only">Поиск карточек</span>
                 <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--kanban-muted)]" />
                 <Input
+                  id="kanban-search"
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
                   placeholder="Поиск карточек..."
-                  className="border-[var(--kanban-border)] bg-white pl-9"
+                  className="border-[var(--kanban-border)] bg-[var(--kanban-panel)] pl-9"
                 />
               </label>
               <Button type="button" variant="secondary" onClick={() => setShowSettings(true)}>
@@ -377,7 +380,7 @@ export function DevKanbanView() {
                 aria-selected={boardId === board.id}
                 onClick={() => changeBoard(board)}
                 className={cn(
-                  "focus-ring rounded-md border px-3 py-1.5 text-sm font-medium transition",
+                  "focus-ring min-h-11 rounded-md border px-3 py-1.5 text-sm font-medium transition lg:min-h-10 lg:py-1.5",
                   boardId === board.id ? "kanban-filter-active" : "kanban-filter-inactive",
                 )}
               >
@@ -488,8 +491,8 @@ export function DevKanbanView() {
                   <div className="flex items-center justify-between gap-2 border-b border-[var(--kanban-border)] px-3 py-2.5">
                     <div className="flex min-w-0 items-center gap-2">
                       <span className={cn("size-2 shrink-0 rounded-full", column.dotColor)} aria-hidden="true" />
-                      <h2 className="truncate text-sm font-semibold text-[#1f2328]">{column.label}</h2>
-                      <span className="rounded-full border border-[var(--kanban-border)] bg-[#f6f8fa] px-2 py-0.5 text-xs font-medium text-[var(--kanban-muted)]">
+                      <h2 className="truncate text-sm font-semibold text-[var(--kanban-foreground)]">{column.label}</h2>
+                      <span className="rounded-full border border-[var(--kanban-border)] bg-[var(--kanban-hover)] px-2 py-0.5 text-xs font-medium text-[var(--kanban-muted)]">
                         {columnEntries.length}
                       </span>
                     </div>
@@ -511,10 +514,17 @@ export function DevKanbanView() {
                           <article
                             key={entry.id}
                             draggable
+                            tabIndex={0}
                             onDragStart={(event) => handleDragStart(event, entry)}
                             onClick={() => openEntry(entry)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                openEntry(entry);
+                              }
+                            }}
                             className={cn(
-                              "kanban-panel cursor-grab rounded-lg border p-3 shadow-sm transition hover:border-[var(--kanban-accent)]/40 hover:shadow-md active:cursor-grabbing",
+                              "kanban-panel cursor-grab rounded-lg border p-3 shadow-sm transition hover:border-[var(--kanban-accent)]/40 hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing",
                               isMoving && "opacity-50",
                             )}
                           >
@@ -525,7 +535,7 @@ export function DevKanbanView() {
                                 aria-hidden="true"
                               />
                               <div className="min-w-0 flex-1">
-                                <h3 className="line-clamp-2 text-sm font-semibold leading-5 text-[#1f2328]">
+                                <h3 className="line-clamp-2 text-sm font-semibold leading-5 text-[var(--kanban-foreground)]">
                                   {entry.title}
                                 </h3>
                                 {entry.content ? (
@@ -554,6 +564,23 @@ export function DevKanbanView() {
                                 </span>
                               ) : null}
                             </div>
+                            <Select
+                              aria-label={`Переместить «${entry.title}»`}
+                              value={getKanbanStage(entry, boardConfig)}
+                              onClick={(event) => event.stopPropagation()}
+                              onKeyDown={(event) => event.stopPropagation()}
+                              onChange={(event) => {
+                                event.stopPropagation();
+                                void moveEntry(entry, event.target.value as KanbanStage);
+                              }}
+                              className="mt-2 min-h-11 w-full text-xs lg:min-h-10"
+                            >
+                              {boardConfig.columns.map((stageColumn) => (
+                                <option key={stageColumn.id} value={stageColumn.id}>
+                                  → {stageColumn.label}
+                                </option>
+                              ))}
+                            </Select>
                           </article>
                         );
                       })
@@ -562,12 +589,16 @@ export function DevKanbanView() {
 
                   {addingStage === column.id ? (
                     <div className="border-t border-[var(--kanban-border)] p-2">
+                      <FieldLabel htmlFor={`kanban-quick-add-${column.id}`} className="sr-only">
+                        Новая карточка
+                      </FieldLabel>
                       <Textarea
+                        id={`kanban-quick-add-${column.id}`}
                         value={quickDraft}
                         onChange={(event) => setQuickDraft(event.target.value)}
                         placeholder={boardConfig.mode === "psych" ? "О чём мысль..." : "Новая карточка..."}
                         rows={3}
-                        className="border-[var(--kanban-border)] bg-white text-sm"
+                        className="border-[var(--kanban-border)] bg-[var(--kanban-panel)] text-sm"
                         autoFocus
                       />
                       <div className="mt-2 flex gap-2">
@@ -594,7 +625,7 @@ export function DevKanbanView() {
                     <button
                       type="button"
                       onClick={() => startAdding(column.id)}
-                      className="focus-ring flex items-center gap-2 rounded-b-xl border-t border-[var(--kanban-border)] px-3 py-2.5 text-sm text-[var(--kanban-muted)] transition hover:bg-[#f6f8fa] hover:text-[#1f2328]"
+                      className="focus-ring flex items-center gap-2 rounded-b-xl border-t border-[var(--kanban-border)] px-3 py-2.5 text-sm text-[var(--kanban-muted)] transition hover:bg-[var(--kanban-hover)] hover:text-[var(--kanban-foreground)]"
                     >
                       <Plus className="size-4" />
                       Добавить карточку
@@ -609,16 +640,17 @@ export function DevKanbanView() {
 
       {showBoardEmpty && addingStage === defaultStage ? (
         <div className="kanban-panel border-t px-4 py-4 lg:px-6">
-          <div className="mx-auto max-w-xl rounded-xl border border-[var(--kanban-border)] bg-white p-4 shadow-sm">
+          <div className="mx-auto max-w-xl rounded-xl border border-[var(--kanban-border)] bg-[var(--kanban-panel)] p-4 shadow-sm">
             <FieldGroup>
               <Field>
-                <FieldLabel>Новая карточка</FieldLabel>
+                <FieldLabel htmlFor="kanban-board-empty-add">Новая карточка</FieldLabel>
                 <Textarea
+                  id="kanban-board-empty-add"
                   value={quickDraft}
                   onChange={(event) => setQuickDraft(event.target.value)}
                   rows={4}
                   placeholder={boardConfig?.mode === "psych" ? "О чём мысль..." : "Новая карточка..."}
-                  className="border-[var(--kanban-border)] bg-white"
+                  className="border-[var(--kanban-border)] bg-[var(--kanban-panel)]"
                   autoFocus
                 />
               </Field>
@@ -651,6 +683,7 @@ export function DevKanbanView() {
             setSelectedEntry(updated);
           }}
           onDelete={() => void removeSelected()}
+          onMoveStage={(nextStage) => moveEntry(selectedEntry, nextStage)}
         />
       ) : null}
 

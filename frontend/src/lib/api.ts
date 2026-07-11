@@ -14,6 +14,15 @@ import type {
   FinanceSettings,
   FinanceSummary,
 } from "@/lib/finance-import";
+import type {
+  ExerciseCatalogItem,
+  MuscleGroup,
+  PersonalRecord,
+  ProgressPoint,
+  WorkoutSession,
+  WorkoutSessionList,
+  WorkoutSet,
+} from "@/lib/workouts";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
@@ -190,6 +199,7 @@ export function listEntries(
     entry_date_from?: string;
     entry_date_to?: string;
     sort?: string;
+    exclude_hidden?: boolean;
   } = {},
 ): Promise<EntryList> {
   const searchParams = new URLSearchParams();
@@ -225,6 +235,9 @@ export function listEntries(
   }
   if (params.sort) {
     searchParams.set("sort", params.sort);
+  }
+  if (params.exclude_hidden) {
+    searchParams.set("exclude_hidden", "true");
   }
 
   const query = searchParams.toString();
@@ -423,6 +436,23 @@ export type AssistantMessage = {
   created_at: string;
 };
 
+export type AssistantChatDebug = {
+  snippet_count: number;
+  matched_dates: string[];
+  effective_scope?: string | null;
+  searched_scopes?: string[];
+  router_confidence?: number;
+  embedding_provider?: string;
+  model?: string;
+};
+
+export type AssistantChatDonePayload = {
+  id: string;
+  role: string;
+  content: string;
+  debug?: AssistantChatDebug;
+};
+
 export function listAssistantConversations(token: string): Promise<AssistantConversation[]> {
   return request<AssistantConversation[]>("/assistant/conversations", { token });
 }
@@ -449,6 +479,7 @@ export async function streamAssistantChat(
   handlers: {
     onToken: (text: string) => void;
     onError?: (message: string) => void;
+    onDone?: (payload: AssistantChatDonePayload) => void;
   },
 ): Promise<void> {
   const response = await fetch(`${API_BASE_URL}/assistant/conversations/${conversationId}/chat`, {
@@ -495,9 +526,24 @@ export async function streamAssistantChat(
       if (!data) {
         continue;
       }
-      const payload = JSON.parse(data) as { text?: string; message?: string };
+      const payload = JSON.parse(data) as {
+        text?: string;
+        message?: string;
+        id?: string;
+        role?: string;
+        content?: string;
+        debug?: AssistantChatDebug;
+      };
       if (eventName === "token" && payload.text) {
         handlers.onToken(payload.text);
+      }
+      if (eventName === "done" && payload.id && payload.content !== undefined) {
+        handlers.onDone?.({
+          id: payload.id,
+          role: payload.role ?? "assistant",
+          content: payload.content,
+          debug: payload.debug,
+        });
       }
       if (eventName === "error" && payload.message) {
         handlers.onError?.(payload.message);
@@ -543,9 +589,13 @@ export type AssistantAgentStatus = {
   whisper_model: string;
 };
 
-export function transcribeAssistantAudio(token: string, audio: Blob): Promise<{ text: string }> {
+export function transcribeAssistantAudio(
+  token: string,
+  audio: Blob,
+  filename = "voice.webm",
+): Promise<{ text: string }> {
   const formData = new FormData();
-  formData.append("audio", audio, "voice.webm");
+  formData.append("audio", audio, filename);
 
   return request<{ text: string }>("/assistant/transcribe", {
     method: "POST",
@@ -576,6 +626,19 @@ export function assistantAgentChat(
   });
 }
 
+export type DigestProfileStatus = {
+  enabled: boolean;
+  last_run_at: string | null;
+  last_status: string;
+  last_articles_saved: number;
+  last_error: string | null;
+  last_topics: string[] | null;
+  last_search_until: string | null;
+  next_search_from: string | null;
+  query_source?: string | null;
+  tuned_at?: string | null;
+};
+
 export type DigestStatus = {
   enabled: boolean;
   ollama_reachable: boolean;
@@ -590,6 +653,7 @@ export type DigestStatus = {
   last_topics: string[] | null;
   last_search_until: string | null;
   next_search_from: string | null;
+  psychology: DigestProfileStatus;
 };
 
 export type DigestRunResponse = {
@@ -600,16 +664,270 @@ export type DigestRunResponse = {
   message: string;
   search_period_from: string | null;
   search_period_to: string | null;
+  profile?: "ai" | "psychology";
 };
 
 export function getDigestStatus(token: string): Promise<DigestStatus> {
   return request<DigestStatus>("/agent/digest/status", { token });
 }
 
-export function runDigest(token: string): Promise<DigestRunResponse> {
+export function runDigest(
+  token: string,
+  options: { force?: boolean; maxArticles?: number; profile?: "ai" | "psychology" } = {},
+): Promise<DigestRunResponse> {
   return request<DigestRunResponse>("/agent/digest/run", {
     method: "POST",
     token,
-    body: JSON.stringify({}),
+    body: JSON.stringify({
+      force: options.force ?? false,
+      max_articles: options.maxArticles,
+      profile: options.profile ?? "ai",
+    }),
   });
+}
+
+export type PsychQueryTuneResponse = {
+  status: string;
+  queries: string[];
+  message: string;
+  source: string;
+};
+
+export function tunePsychQueries(token: string): Promise<PsychQueryTuneResponse> {
+  return request<PsychQueryTuneResponse>("/agent/digest/psychology/tune-queries", {
+    method: "POST",
+    token,
+  });
+}
+
+export type ArticleFeedbackType = "dislike" | "off_topic";
+
+export function submitArticleFeedback(
+  token: string,
+  entryId: string,
+  feedback: ArticleFeedbackType,
+): Promise<Entry> {
+  return request<Entry>("/agent/digest/feedback", {
+    method: "POST",
+    token,
+    body: JSON.stringify({ entry_id: entryId, feedback }),
+  });
+}
+
+export type TherapyProblemItem = {
+  thesis: string;
+  evidence: string;
+  speaker: "client" | "therapist" | "unknown";
+};
+
+export type TherapyDefenseMechanism = {
+  name: string;
+  description: string;
+  evidence: string;
+  speaker: "client" | "therapist" | "unknown";
+};
+
+export type TherapySessionAnalysis = {
+  session_summary: string;
+  key_topics: string[];
+  problems: TherapyProblemItem[];
+  defense_mechanisms: TherapyDefenseMechanism[];
+  emotional_dynamics: string;
+  client_patterns: string[];
+  therapist_interventions: string[];
+  insights: string[];
+  homework_or_next_steps: string[];
+  open_questions: string[];
+  confidence_notes: string;
+};
+
+export type TherapySessionJob = {
+  id: number;
+  title: string;
+  session_date: string | null;
+  status: string;
+  stage: string;
+  stage_key: string;
+  progress: number;
+  source_filename: string;
+  duration_sec: number;
+  transcription_source: string;
+  transcript: string;
+  diarized_transcript: string;
+  speakers_json: Record<string, unknown>;
+  analysis_json: TherapySessionAnalysis | Record<string, unknown>;
+  analysis_markdown: string;
+  analysis_model: string;
+  error: string;
+  entry_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TherapySessionSummary = {
+  id: number;
+  title: string;
+  session_date: string | null;
+  status: string;
+  stage: string;
+  stage_key: string;
+  progress: number;
+  source_filename: string;
+  duration_sec: number;
+  error: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TherapySessionStatus = {
+  id: number;
+  status: string;
+  stage: string;
+  stage_key: string;
+  progress: number;
+  error: string;
+};
+
+export function listTherapySessions(token: string): Promise<TherapySessionSummary[]> {
+  return request<TherapySessionSummary[]>("/therapy-sessions", { token });
+}
+
+export function getTherapySession(token: string, jobId: number): Promise<TherapySessionJob> {
+  return request<TherapySessionJob>(`/therapy-sessions/${jobId}`, { token });
+}
+
+export function getTherapySessionStatus(token: string, jobId: number): Promise<TherapySessionStatus> {
+  return request<TherapySessionStatus>(`/therapy-sessions/${jobId}/status`, { token });
+}
+
+export async function uploadTherapySession(
+  token: string,
+  payload: { file: File; title?: string; sessionDate?: string },
+): Promise<TherapySessionJob> {
+  const formData = new FormData();
+  formData.append("file", payload.file);
+  if (payload.title?.trim()) {
+    formData.append("title", payload.title.trim());
+  }
+  if (payload.sessionDate?.trim()) {
+    formData.append("session_date", payload.sessionDate.trim());
+  }
+
+  const response = await fetch(`${API_BASE_URL}/therapy-sessions`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+  if (!response.ok) {
+    throw new ApiError(await errorMessageFromResponse(response), response.status);
+  }
+  return response.json() as Promise<TherapySessionJob>;
+}
+
+export function retryTherapySession(
+  token: string,
+  jobId: number,
+  mode: "full" | "analysis" = "full",
+): Promise<TherapySessionJob> {
+  return request<TherapySessionJob>(`/therapy-sessions/${jobId}/retry?mode=${mode}`, {
+    method: "POST",
+    token,
+  });
+}
+
+export function deleteTherapySession(token: string, jobId: number): Promise<void> {
+  return request<void>(`/therapy-sessions/${jobId}`, { method: "DELETE", token });
+}
+
+export function listWorkoutCatalog(token: string, muscleGroup?: MuscleGroup): Promise<ExerciseCatalogItem[]> {
+  const query = muscleGroup ? `?muscle_group=${muscleGroup}` : "";
+  return request<ExerciseCatalogItem[]>(`/workouts/catalog${query}`, { token });
+}
+
+export function createWorkoutCatalogItem(
+  token: string,
+  payload: { name: string; muscle_group: MuscleGroup },
+): Promise<ExerciseCatalogItem> {
+  return request<ExerciseCatalogItem>("/workouts/catalog", {
+    method: "POST",
+    token,
+    body: JSON.stringify(payload),
+  });
+}
+
+export function createWorkoutSession(
+  token: string,
+  payload: {
+    body_weight: number;
+    mood: number;
+    muscle_readiness: number;
+    sleep_quality: number;
+    general_fatigue: number;
+    exercises?: Array<{ exercise_catalog_id: string; sets: WorkoutSet[] }>;
+    date?: string;
+  },
+): Promise<WorkoutSession> {
+  return request<WorkoutSession>("/workouts/sessions", {
+    method: "POST",
+    token,
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateWorkoutSession(
+  token: string,
+  sessionId: string,
+  payload: {
+    exercises?: Array<{ exercise_catalog_id: string; sets: WorkoutSet[] }>;
+    body_weight?: number;
+    mood?: number;
+    muscle_readiness?: number;
+    sleep_quality?: number;
+    general_fatigue?: number;
+  },
+): Promise<WorkoutSession> {
+  return request<WorkoutSession>(`/workouts/sessions/${sessionId}`, {
+    method: "PATCH",
+    token,
+    body: JSON.stringify(payload),
+  });
+}
+
+export function listWorkoutSessions(
+  token: string,
+  options?: { offset?: number; limit?: number },
+): Promise<WorkoutSessionList> {
+  const params = new URLSearchParams();
+  if (options?.offset !== undefined) {
+    params.set("offset", String(options.offset));
+  }
+  if (options?.limit !== undefined) {
+    params.set("limit", String(options.limit));
+  }
+  const query = params.toString();
+  return request<WorkoutSessionList>(`/workouts/sessions${query ? `?${query}` : ""}`, { token });
+}
+
+export function listWorkoutRecords(token: string, exerciseCatalogId?: string): Promise<PersonalRecord[]> {
+  const query = exerciseCatalogId ? `?exercise_catalog_id=${exerciseCatalogId}` : "";
+  return request<PersonalRecord[]>(`/workouts/records${query}`, { token });
+}
+
+export function createWorkoutRecord(
+  token: string,
+  payload: { exercise_catalog_id: string; weight: number; reps: number; date: string },
+): Promise<PersonalRecord> {
+  return request<PersonalRecord>("/workouts/records", {
+    method: "POST",
+    token,
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getWorkoutExerciseAnalytics(token: string, catalogId: string): Promise<ProgressPoint[]> {
+  return request<ProgressPoint[]>(`/workouts/analytics/exercise/${catalogId}`, { token });
+}
+
+export function getWorkoutMuscleGroupAnalytics(token: string, group: MuscleGroup): Promise<ProgressPoint[]> {
+  return request<ProgressPoint[]>(`/workouts/analytics/muscle-group/${group}`, { token });
 }

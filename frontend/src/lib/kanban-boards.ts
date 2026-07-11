@@ -1,6 +1,7 @@
-import type { KanbanBoardMode, KanbanCardTypeOption } from "@/lib/dev-kanban";
-import { kanbanBoards } from "@/lib/dev-kanban";
+import type { KanbanBoardMode, KanbanCardTypeOption } from "@/lib/kanban-core";
+import { kanbanBoards } from "@/lib/kanban-core";
 
+export * from "@/lib/kanban-core";
 export type KanbanColumnDefinition = {
   id: string;
   label: string;
@@ -20,10 +21,6 @@ export type KanbanBoardDefinition = {
   isBuiltin?: boolean;
   configEntryId?: string;
   columns: KanbanColumnDefinition[];
-};
-
-export type KanbanBoardConfig = KanbanBoardDefinition & {
-  columns: Array<KanbanColumnDefinition & { accent: string; dotColor: string }>;
 };
 
 export function getDefaultKanbanBoards(): KanbanBoardDefinition[] {

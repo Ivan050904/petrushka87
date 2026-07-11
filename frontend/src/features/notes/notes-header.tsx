@@ -11,6 +11,7 @@ type NotesHeaderProps = {
   categories: string[];
   activeCategory: string | null;
   onCategoryChange: (category: string | null) => void;
+  total: number | null;
 };
 
 export function NotesHeader({
@@ -19,14 +20,20 @@ export function NotesHeader({
   categories,
   activeCategory,
   onCategoryChange,
+  total,
 }: NotesHeaderProps) {
   const pills = ["Все", ...categories.filter((category) => category !== DEFAULT_LIFE_NOTE_CATEGORY), DEFAULT_LIFE_NOTE_CATEGORY]
     .filter((value, index, array) => array.indexOf(value) === index);
 
   return (
     <header className="sticky top-0 z-20 bg-[var(--notes-bg)]/95 px-4 pb-3 pt-4 backdrop-blur lg:px-6">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <h1 className="text-3xl font-bold tracking-tight text-[var(--notes-text)]">Заметки</h1>
+      <div className="mb-4 flex items-end justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-[var(--notes-text)]">Заметки</h1>
+          {total !== null ? (
+            <p className="mt-1 text-sm text-[var(--notes-muted)]">{formatNotesCount(total)}</p>
+          ) : null}
+        </div>
       </div>
 
       <label className="notes-search mb-4 flex items-center gap-3 px-4 py-3">
@@ -57,4 +64,16 @@ export function NotesHeader({
       </div>
     </header>
   );
+}
+
+function formatNotesCount(count: number) {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod10 === 1 && mod100 !== 11) {
+    return `${count} заметка`;
+  }
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+    return `${count} заметки`;
+  }
+  return `${count} заметок`;
 }

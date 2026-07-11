@@ -26,6 +26,7 @@ export function VoiceInputButton({
     onTranscribed,
     onError,
     disabled,
+    maxRecordingMs: 60_000,
   });
 
   const isBusy = isTranscribing;

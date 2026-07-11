@@ -15,6 +15,14 @@ import {
   X,
 } from "lucide-react";
 
+import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Select } from "@/components/ui/select";
 import { useRequireAuth } from "@/hooks/use-auth";
 import {
   downloadResourceFile,
@@ -44,8 +52,9 @@ import {
   type KanbanBoardConfig,
   type KanbanComment,
   type KanbanHistoryEvent,
+  type KanbanStage,
   type KanbanSubtask,
-} from "@/lib/dev-kanban";
+} from "@/lib/kanban-boards";
 import { formatDate } from "@/lib/entry-helpers";
 import type { Entry } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -69,6 +78,7 @@ type KanbanCardDetailProps = {
   onClose: () => void;
   onUpdate: (entry: Entry) => void;
   onDelete: () => void;
+  onMoveStage: (stage: KanbanStage) => void | Promise<void>;
 };
 
 function entryToDraft(entry: Entry): KanbanCardDraft {
@@ -129,7 +139,14 @@ function SectionLabel({ icon, children }: { icon: ReactNode; children: ReactNode
   );
 }
 
-export function KanbanCardDetail({ entry, boardConfig, onClose, onUpdate, onDelete }: KanbanCardDetailProps) {
+export function KanbanCardDetail({
+  entry,
+  boardConfig,
+  onClose,
+  onUpdate,
+  onDelete,
+  onMoveStage,
+}: KanbanCardDetailProps) {
   const { token } = useRequireAuth();
   const stage = getKanbanStage(entry, boardConfig);
   const stageLabel = boardConfig.columns.find((column) => column.id === stage)?.label ?? stage;
@@ -379,13 +396,38 @@ export function KanbanCardDetail({ entry, boardConfig, onClose, onUpdate, onDele
   }, [draft.history, entry.created_at]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-0 sm:items-center sm:p-4">
-      <div className="kanban-detail-shell flex h-[100dvh] w-full max-w-xl flex-col sm:h-auto sm:max-h-[90vh]">
+    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent
+        showClose={false}
+        className="kanban-detail-shell !bg-[var(--kanban-detail-bg)] inset-x-0 bottom-0 top-auto flex h-[100dvh] max-h-[100dvh] w-full max-w-none translate-x-0 translate-y-0 flex-col overflow-hidden rounded-none border-0 p-0 shadow-none sm:inset-auto sm:left-1/2 sm:top-1/2 sm:h-auto sm:max-h-[90vh] sm:max-w-xl sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-md sm:border sm:shadow-panel"
+      >
+        <DialogTitle className="sr-only">{draft.title || entry.title}</DialogTitle>
+        <DialogDescription className="sr-only">Карточка канбана в стадии {stageLabel}</DialogDescription>
+        <div className="flex h-full max-h-[100dvh] flex-col sm:max-h-[90vh]">
         <header className="kanban-detail-header shrink-0 px-5 pb-0 pt-5">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
-              <p className="text-xs text-[var(--kanban-detail-muted)]">в {stageLabel}</p>
+              <label htmlFor="kanban-detail-stage" className="text-xs text-[var(--kanban-detail-muted)]">
+                Стадия
+              </label>
+              <Select
+                id="kanban-detail-stage"
+                aria-label="Стадия карточки"
+                value={stage}
+                onChange={(event) => void onMoveStage(event.target.value as KanbanStage)}
+                className="mt-1 min-h-11 border-[var(--kanban-detail-border)] bg-[var(--kanban-detail-surface)] text-sm text-[var(--kanban-detail-text)]"
+              >
+                {boardConfig.columns.map((column) => (
+                  <option key={column.id} value={column.id}>
+                    {column.label}
+                  </option>
+                ))}
+              </Select>
+              <label htmlFor="kanban-detail-title" className="sr-only">
+                Название карточки
+              </label>
               <input
+                id="kanban-detail-title"
                 value={draft.title}
                 onChange={(event) => updateDraft({ title: event.target.value })}
                 className="kanban-detail-title-input mt-1 w-full bg-transparent text-xl font-semibold outline-none"
@@ -393,21 +435,20 @@ export function KanbanCardDetail({ entry, boardConfig, onClose, onUpdate, onDele
               />
             </div>
             <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={onDelete}
-                className="kanban-detail-icon-btn"
-                aria-label="Удалить карточку"
-              >
-                <Trash2 className="size-4" />
-              </button>
-              <button type="button" onClick={onClose} className="kanban-detail-icon-btn" aria-label="Закрыть">
+              <ConfirmDeleteButton
+                ariaLabel="Удалить карточку"
+                confirmTitle="Удалить карточку?"
+                confirmDescription="Карточка и её содержимое будут удалены без возможности восстановления."
+                onConfirm={onDelete}
+                className="kanban-detail-icon-btn touch-target lg:touch-target-compact"
+              />
+              <button type="button" onClick={onClose} className="kanban-detail-icon-btn touch-target lg:touch-target-compact" aria-label="Закрыть">
                 <X className="size-4" />
               </button>
             </div>
           </div>
 
-          <div className="mt-4 flex gap-5 border-b border-[var(--kanban-detail-border)]" role="tablist">
+          <div className="mt-4 flex gap-5 border-b border-[var(--kanban-detail-border)]" role="tablist" aria-label="Разделы карточки">
             {(
               [
                 ["details", "Детали"],
@@ -419,7 +460,9 @@ export function KanbanCardDetail({ entry, boardConfig, onClose, onUpdate, onDele
                 key={tab}
                 type="button"
                 role="tab"
+                id={`kanban-tab-${tab}`}
                 aria-selected={activeTab === tab}
+                aria-controls={`kanban-tabpanel-${tab}`}
                 onClick={() => setActiveTab(tab)}
                 className={cn(
                   "kanban-detail-tab pb-3 text-sm font-medium transition",
@@ -434,14 +477,19 @@ export function KanbanCardDetail({ entry, boardConfig, onClose, onUpdate, onDele
 
         <div className="kanban-detail-body min-h-0 flex-1 overflow-y-auto px-5 py-5">
           {activeTab === "details" ? (
-            <div className="flex flex-col gap-6">
+            <div id="kanban-tabpanel-details" role="tabpanel" aria-labelledby="kanban-tab-details" className="flex flex-col gap-6">
               <section>
                 <SectionLabel icon={<AlignLeft className="size-3.5" />}>Описание</SectionLabel>
+                <label htmlFor="kanban-detail-description" className="sr-only">
+                  Описание карточки
+                </label>
                 <textarea
+                  id="kanban-detail-description"
                   value={draft.content}
                   onChange={(event) => updateDraft({ content: event.target.value })}
                   rows={5}
                   placeholder="Добавьте описание..."
+                  aria-label="Описание карточки"
                   className="kanban-detail-textarea mt-2"
                 />
               </section>
@@ -587,7 +635,7 @@ export function KanbanCardDetail({ entry, boardConfig, onClose, onUpdate, onDele
           ) : null}
 
           {activeTab === "discussion" ? (
-            <div className="flex flex-col gap-4">
+            <div id="kanban-tabpanel-discussion" role="tabpanel" aria-labelledby="kanban-tab-discussion" className="flex flex-col gap-4">
               {draft.comments.length === 0 ? (
                 <p className="text-sm text-[var(--kanban-detail-muted)]">Комментариев пока нет.</p>
               ) : (
@@ -624,7 +672,7 @@ export function KanbanCardDetail({ entry, boardConfig, onClose, onUpdate, onDele
           ) : null}
 
           {activeTab === "history" ? (
-            <ul className="flex flex-col gap-3">
+            <ul id="kanban-tabpanel-history" role="tabpanel" aria-labelledby="kanban-tab-history" className="flex flex-col gap-3">
               {historyItems.map((item) => (
                 <li key={item.id} className="kanban-detail-history-item">
                   <p className="text-sm">{item.label}</p>
@@ -640,7 +688,8 @@ export function KanbanCardDetail({ entry, boardConfig, onClose, onUpdate, onDele
         <footer className="kanban-detail-footer shrink-0 px-5 py-3 text-center text-xs text-[var(--kanban-detail-muted)]">
           {isSaving ? "Сохранение..." : lastSavedAt ? "Изменения сохраняются автоматически" : "Изменения сохраняются автоматически"}
         </footer>
-      </div>
-    </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

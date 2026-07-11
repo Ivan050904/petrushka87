@@ -219,7 +219,12 @@ export default function DashboardPage() {
 
         <div className="grid min-h-0 min-w-0 shrink-0 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(280px,34%)]">
           <CaptureDock token={token} onSaved={loadEntries} className="min-w-0" />
-          <AssistantPanel token={token} onChanged={loadEntries} className="min-w-0 min-h-[280px]" />
+          <details className="min-w-0 rounded-xl border border-border bg-card lg:contents lg:border-0 lg:bg-transparent">
+            <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold marker:content-none lg:hidden">
+              Чат с контекстом
+            </summary>
+            <AssistantPanel token={token} onChanged={loadEntries} className="min-w-0 border-0 shadow-none lg:min-h-[280px]" />
+          </details>
         </div>
       </div>
     </AppShell>

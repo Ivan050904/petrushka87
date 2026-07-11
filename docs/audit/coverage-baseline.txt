@@ -1,0 +1,158 @@
+﻿........................................................................ [ 53%]
+..............................................................           [100%]
+============================== warnings summary ===============================
+transcription\main.py:96
+  C:\Users\╧юы№чютрЄхы№\Desktop\petrushka87\backend\transcription\main.py:96: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    @app.on_event("startup")
+
+..\..\..\AppData\Local\Programs\Python\Python312\Lib\site-packages\fastapi\applications.py:4495
+  C:\Users\╧юы№чютрЄхы№\AppData\Local\Programs\Python\Python312\Lib\site-packages\fastapi\applications.py:4495: DeprecationWarning: 
+          on_event is deprecated, use lifespan event handlers instead.
+  
+          Read more about it in the
+          [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).
+          
+    return self.router.on_event(event_type)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=============================== tests coverage ================================
+_______________ coverage: platform win32, python 3.12.0-final-0 _______________
+
+Name                                                  Stmts   Miss  Cover   Missing
+-----------------------------------------------------------------------------------
+app\__init__.py                                           0      0   100%
+app\api\__init__.py                                       0      0   100%
+app\api\deps.py                                          25      4    84%   32, 34-35, 39
+app\api\router.py                                        15      0   100%
+app\api\routes\__init__.py                                0      0   100%
+app\api\routes\agent.py                                 108      2    98%   170-171
+app\api\routes\assistant.py                             125     57    54%   112-116, 145-146, 157-158, 176-184, 199-202, 227-300
+app\api\routes\auth.py                                   36      3    92%   34, 54, 64
+app\api\routes\dashboard.py                              29      0   100%
+app\api\routes\entries.py                               223     20    91%   43, 45, 52, 56, 58, 106-107, 111-112, 139, 150-151, 161, 174, 180, 186-187, 260, 266, 387
+app\api\routes\entry_links.py                            40      1    98%   91
+app\api\routes\finance.py                               158     19    88%   108-110, 127, 131, 135, 142-145, 173-174, 260, 268-271, 305, 307
+app\api\routes\notes.py                                  25      4    84%   45-51
+app\api\routes\resources.py                              64      5    92%   36, 90, 94-95, 108
+app\api\routes\tasks.py                                  22      5    77%   26, 33-39
+app\api\routes\therapy_sessions.py                      144     99    31%   50, 54, 79, 96-99, 107-113, 125-182, 191-192, 201-202, 220-240, 249-261, 270-279, 287-290, 294-296, 300-302, 306-307
+app\api\routes\workouts.py                              156     51    67%   64, 76, 82, 90, 110-115, 132, 150, 160-167, 176-179, 215, 217, 241, 251-268, 289-298
+app\api\serializers.py                                    5      0   100%
+app\core\__init__.py                                      0      0   100%
+app\core\config.py                                      135      6    96%   12-13, 15, 21, 35-36
+app\core\token_sources.py                                15      2    87%   15, 25
+app\db\__init__.py                                        0      0   100%
+app\db\base.py                                            3      0   100%
+app\db\session.py                                        30     11    63%   20, 28-33, 40-44
+app\db\types.py                                          22      3    86%   17-19, 26
+app\main.py                                              18      1    94%   34
+app\models\__init__.py                                   10      0   100%
+app\models\assistant.py                                  25      0   100%
+app\models\assistant_session.py                          18      0   100%
+app\models\entry.py                                      22      0   100%
+app\models\entry_embedding.py                            22      0   100%
+app\models\entry_link.py                                 16      0   100%
+app\models\therapy_session.py                            36      0   100%
+app\models\transcription.py                              51      0   100%
+app\models\user.py                                       22      0   100%
+app\models\workout.py                                    55      0   100%
+app\schemas\__init__.py                                   0      0   100%
+app\schemas\auth.py                                      29      1    97%   20
+app\schemas\dashboard.py                                 11      0   100%
+app\schemas\entry.py                                     40      0   100%
+app\schemas\finance.py                                   61      0   100%
+app\schemas\metadata.py                                 271     20    93%   23-31, 68, 75, 112, 187, 265, 288, 312, 316, 323-324, 346
+app\schemas\therapy_session.py                           66      0   100%
+app\schemas\workout.py                                   90      1    99%   136
+app\services\__init__.py                                  0      0   100%
+app\services\agent\__init__.py                            2      0   100%
+app\services\agent\article_feedback.py                   83      5    94%   69, 122, 124, 136, 154
+app\services\agent\digest.py                            231     50    78%   55-56, 73-74, 147, 160, 179-182, 186, 191, 223-235, 252-254, 262, 268, 295, 298-299, 301-302, 332, 363-372, 385-402, 415, 420, 436-456, 459-471, 495, 515-518
+app\services\agent\digest_profiles.py                   101     35    65%   48, 62-75, 79-96, 105-129, 144
+app\services\agent\llm.py                                43     18    58%   23-54, 65, 74-77
+app\services\agent\prompts.py                            27     14    48%   25, 32-33, 69-80
+app\services\agent\psych_llm.py                          80     80     0%   1-113
+app\services\agent\psych_queries.py                      51      5    90%   43, 46-47, 49, 71
+app\services\agent\psych_query_tuner.py                  80     21    74%   57, 71-80, 86, 88, 94, 105, 114, 130-131, 140, 150, 154
+app\services\agent\psych_relevance.py                    43      5    88%   95, 97, 99, 110, 136
+app\services\agent\scheduler.py                          88      9    90%   23-24, 53-54, 63-64, 94-95, 123
+app\services\agent\state.py                              60      6    90%   45, 64-65, 75, 77-78
+app\services\agent\tools\__init__.py                      3      0   100%
+app\services\agent\tools\article_validator.py            24     10    58%   14-26, 37
+app\services\agent\tools\habr_search.py                  75     17    77%   24, 27-28, 46, 53, 56, 73-74, 79, 86, 90, 97, 107, 121, 126-128
+app\services\agent\tools\web_search.py                   38     24    37%   28-61
+app\services\ai\__init__.py                               0      0   100%
+app\services\ai\analyze.py                               72     58    19%   28-73, 87-140
+app\services\ai\base.py                                  60      0   100%
+app\services\ai\factory.py                               17      6    65%   11, 14-16, 24, 27
+app\services\ai\life_notes.py                            78     52    33%   34-57, 61-104, 108-111, 115-123
+app\services\ai\openai_compatible.py                     65     25    62%   48, 74-75, 79-80, 83-116, 125, 134, 140-141, 156-157
+app\services\ai\prompts\life_notes_analyze.py             1      0   100%
+app\services\ai\prompts\therapy_session_analyze.py        3      0   100%
+app\services\ai\yandex_ai_studio.py                     106     35    67%   33, 56-57, 61-62, 68-101, 105, 114-123, 139, 146, 150, 190-191
+app\services\assistant\__init__.py                        2      0   100%
+app\services\assistant\agent.py                         188    140    26%   61-68, 75-116, 124-151, 165-170, 183-189, 202-263, 279, 283-293, 297-308, 312-321, 325-331
+app\services\assistant\chat.py                           54     31    43%   26, 36-39, 49-52, 62-67, 78-93, 97-105
+app\services\assistant\llm.py                            76     52    32%   35-94, 98-118, 122-123, 127-128, 136-139
+app\services\assistant\prompts.py                         1      0   100%
+app\services\assistant\schemas.py                        51      0   100%
+app\services\assistant\session.py                        31      4    87%   21, 37, 62, 66
+app\services\assistant\speech.py                         51     38    25%   31-42, 51-87, 91-105
+app\services\assistant\tools.py                         166     82    51%   24, 37-62, 75, 93, 120-143, 159, 163-165, 175-214, 225, 227-238, 244-245, 249, 261, 265, 270, 278-280
+app\services\context\__init__.py                          0      0   100%
+app\services\context\context_models.py                   86     15    83%   55, 62, 68, 73, 79, 82, 92, 96, 98, 114-119
+app\services\context\date_query.py                       82     13    84%   29-30, 38, 44-45, 51, 72, 102-105, 108, 133
+app\services\context\entry_rag_text.py                   85     19    78%   77-80, 88-89, 105, 136-146, 155-159
+app\services\context\orchestrator.py                     86     23    73%   28-30, 37, 53, 64-87, 89, 93, 111
+app\services\context\query_intent.py                     48      4    92%   44-45, 49, 61
+app\services\context\query_parsers.py                    74     15    80%   42-43, 51, 55, 64, 67, 81-82, 86-89, 92-94
+app\services\context\retrievers\__init__.py              18      1    94%   53
+app\services\context\retrievers\base.py                  63      3    95%   19, 57, 102
+app\services\context\retrievers\finance.py               26      0   100%
+app\services\context\retrievers\kanban.py                14      0   100%
+app\services\context\retrievers\notes.py                 15      0   100%
+app\services\context\retrievers\people.py                10      0   100%
+app\services\context\retrievers\plans.py                 34     12    65%   18, 39-49
+app\services\context\retrievers\therapy.py               30      1    97%   47
+app\services\context\retrievers\transcription.py         23      8    65%   35-42
+app\services\context\user_context.py                     25      2    92%   34, 45
+app\services\demo_seed.py                               176      6    97%   42-43, 49, 71, 478-479
+app\services\embeddings\__init__.py                       0      0   100%
+app\services\embeddings\indexer.py                       60     22    63%   36, 61-84, 88-113
+app\services\embeddings\provider.py                      95     25    74%   25, 35, 40-44, 60, 72, 77-78, 84, 110, 114-125, 131
+app\services\entry_links.py                              65     26    60%   37, 48, 63, 89-100, 104-118, 121-134
+app\services\finance\ai_config.py                        30     14    53%   13, 27-71
+app\services\finance\categorizer.py                      70     42    40%   57-112, 116-117, 130-165
+app\services\finance\dedup.py                            29      2    93%   45, 47
+app\services\finance\models.py                           25      0   100%
+app\services\finance\parser_registry.py                  20      1    95%   28
+app\services\finance\parsers\base.py                     13      1    92%   20
+app\services\finance\parsers\generic.py                 117     27    77%   56, 59-60, 67, 71-73, 78-82, 87-90, 97-99, 107-109, 113, 125, 135, 142, 146
+app\services\finance\transfer_detector.py                55     15    73%   31-32, 34-49, 63-64, 71, 74, 80, 82, 85-88, 95
+app\services\finance_excel_import.py                    100      9    91%   76, 84-85, 93, 95, 97, 103, 199-200
+app\services\security.py                                 37      3    92%   34, 38-39
+app\services\therapy_sessions\analysis_markdown.py       34      0   100%
+app\services\therapy_sessions\audio_utils.py             10      6    40%   8-28
+app\services\therapy_sessions\entry_sync.py              28     21    25%   11-12, 16-51
+app\services\therapy_sessions\llm_client.py             125    101    19%   27-52, 56, 60-67, 71-78, 82-89, 100-135, 139-146, 150-182
+app\services\therapy_sessions\psych_analyze.py           43     32    26%   16-21, 25-38, 47-75
+app\services\therapy_sessions\speaker_roles.py           37     31    16%   12-40, 44-50
+app\services\therapy_sessions\transcribe_diarize.py      84     62    26%   28-36, 40-45, 49-54, 58-86, 94-114, 122-127, 134-144
+app\services\therapy_sessions\worker.py                  91     45    51%   24-29, 45, 55-99, 110, 127-131, 142
+app\services\transcription\__init__.py                    0      0   100%
+app\services\transcription\entry_sync.py                 30     22    27%   13-14, 19-54
+app\services\workouts\__init__.py                         0      0   100%
+app\services\workouts\analytics.py                       58     27    53%   34, 51, 63-68, 78-100
+app\storage\__init__.py                                   3      0   100%
+app\storage\base.py                                      14      0   100%
+app\storage\factory.py                                   12      0   100%
+app\storage\local.py                                     31      0   100%
+app\storage\s3.py                                        37      5    86%   21-22, 52-53, 56
+-----------------------------------------------------------------------------------
+TOTAL                                                  6542   1798    73%
+134 passed, 2 warnings in 36.21s

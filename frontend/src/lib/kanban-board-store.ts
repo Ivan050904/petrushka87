@@ -6,7 +6,7 @@ import {
   type DevKanbanColumn,
   type KanbanBoardConfig,
   type KanbanBoardMode,
-} from "@/lib/dev-kanban";
+} from "@/lib/kanban-boards";
 import { createEntry, deleteEntry, listEntries, updateEntry } from "@/lib/api";
 
 export const KANBAN_BOARD_CONFIG_COLLECTION = "kanban_board_config";

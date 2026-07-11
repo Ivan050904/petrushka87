@@ -7,6 +7,7 @@ import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { FieldLabel } from "@/components/ui/field";
 import { Notice } from "@/components/ui/notice";
 import { Textarea } from "@/components/ui/textarea";
 import { VoiceInputButton } from "@/features/assistant/voice-input-button";
@@ -65,7 +66,7 @@ export function AssistantPanel({ token, onChanged, className }: AssistantPanelPr
   }, [messages, isSending]);
 
   async function sendMessage(message: string, confirm = false) {
-    if (!token || !message.trim() || isSending) {
+    if (!token || !message.trim() || isSending || !configured) {
       return;
     }
 
@@ -201,6 +202,12 @@ export function AssistantPanel({ token, onChanged, className }: AssistantPanelPr
         </div>
       ) : null}
 
+      {!configured ? (
+        <div className="px-4 pb-2">
+          <Notice variant="info">Ассистент не настроен. Добавьте ASSISTANT_API_KEY в backend/.env</Notice>
+        </div>
+      ) : null}
+
       {pendingConfirmation ? (
         <div className="flex flex-wrap gap-2 border-t border-border/70 px-4 py-2">
           <Button
@@ -227,10 +234,13 @@ export function AssistantPanel({ token, onChanged, className }: AssistantPanelPr
       <div className="flex items-end gap-2 border-t border-border/70 p-3">
         <VoiceInputButton
           token={token}
-          disabled={isSending}
+          disabled={isSending || !configured}
           onTranscribed={(text) => setInput((current) => (current ? `${current} ${text}` : text))}
           onError={setError}
         />
+        <FieldLabel htmlFor={inputId} className="sr-only">
+          Сообщение агенту
+        </FieldLabel>
         <Textarea
           id={inputId}
           value={input}
@@ -238,14 +248,14 @@ export function AssistantPanel({ token, onChanged, className }: AssistantPanelPr
           onKeyDown={handleKeyDown}
           placeholder="Создать задачу или встречу…"
           rows={1}
-          disabled={!token || isSending}
+          disabled={!token || isSending || !configured}
           className="min-h-10 resize-none"
         />
         <Button
           type="button"
           size="icon"
           aria-label="Отправить"
-          disabled={!token || !input.trim() || isSending}
+          disabled={!token || !input.trim() || isSending || !configured}
           onClick={() => void sendMessage(input)}
         >
           <SendHorizonal aria-hidden="true" className="size-4" />

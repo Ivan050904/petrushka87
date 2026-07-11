@@ -11,9 +11,9 @@ import {
   definitionToConfig,
 } from "@/lib/kanban-board-store";
 import type { KanbanBoardDefinition } from "@/lib/kanban-boards";
-import type { KanbanBoardConfig } from "@/lib/dev-kanban";
+import type { KanbanBoardConfig } from "@/lib/kanban-boards";
 import type { Entry } from "@/lib/types";
-import { getKanbanStage } from "@/lib/dev-kanban";
+import { getKanbanStage } from "@/lib/kanban-boards";
 import { cn } from "@/lib/utils";
 
 type KanbanBoardSettingsProps = {

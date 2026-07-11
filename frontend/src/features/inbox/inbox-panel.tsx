@@ -18,7 +18,7 @@ import { useRequireAuth } from "@/hooks/use-auth";
 import { deleteEntry, getErrorMessage, listEntries, updateEntry } from "@/lib/api";
 import { formatDate, getString } from "@/lib/entry-helpers";
 import { formatEntryType } from "@/lib/labels";
-import { journalHref, plansHref } from "@/lib/navigation";
+import { notesHref, plansHref } from "@/lib/navigation";
 import type { Entry } from "@/lib/types";
 
 export function InboxPanel() {
@@ -193,7 +193,7 @@ export function InboxPanel() {
                         {group === "notes" ? (
                           <>
                             <Button size="sm" variant="outline" asChild>
-                              <Link href={journalHref(entry.id)}>В журнал</Link>
+                              <Link href={notesHref(entry.id)}>В заметки</Link>
                             </Button>
                             <Button
                               size="sm"

@@ -5,7 +5,7 @@ import { ArticlesPanel } from "@/features/articles/articles-panel";
 
 export default function ArticlesPage() {
   return (
-    <AppShell>
+    <AppShell contentClassName="min-h-0 overflow-y-auto">
       <ArticlesPanel />
     </AppShell>
   );

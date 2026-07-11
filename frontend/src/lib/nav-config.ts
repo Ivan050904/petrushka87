@@ -1,7 +1,8 @@
 import {
-  BookOpen,
+  Brain,
   Bot,
   CalendarRange,
+  Dumbbell,
   Flame,
   Home,
   Inbox,
@@ -26,13 +27,14 @@ export type NavItemId =
   | "inbox"
   | "board"
   | "notes"
-  | "journal"
   | "articles"
   | "plans"
   | "tracking-habits"
   | "tracking-finance"
   | "tracking-food"
+  | "tracking-workouts"
   | "transcription"
+  | "therapy-sessions"
   | "assistant"
   | "reference";
 
@@ -50,7 +52,6 @@ export const NAV_ITEMS: Record<NavItemId, NavItemConfig> = {
   inbox: { id: "inbox", href: ROUTES.inbox, label: "Входящие", icon: Inbox, showInboxCount: true },
   board: { id: "board", href: ROUTES.board, label: "Канбан", icon: Kanban },
   notes: { id: "notes", href: ROUTES.notes, label: "Заметки", icon: StickyNote },
-  journal: { id: "journal", href: ROUTES.journal, label: "Журнал", icon: BookOpen },
   articles: { id: "articles", href: ROUTES.articles, label: "Статьи", icon: Newspaper },
   plans: { id: "plans", href: ROUTES.plans, label: "Планы", icon: CalendarRange },
   "tracking-habits": {
@@ -74,8 +75,21 @@ export const NAV_ITEMS: Record<NavItemId, NavItemConfig> = {
     icon: Flame,
     trackingTab: "food",
   },
+  "tracking-workouts": {
+    id: "tracking-workouts",
+    href: trackingTabHref("workouts"),
+    label: "Зал",
+    icon: Dumbbell,
+    trackingTab: "workouts",
+  },
   transcription: { id: "transcription", href: ROUTES.transcription, label: "Транскрибация", icon: Mic },
-  assistant: { id: "assistant", href: ROUTES.assistant, label: "Ассистент", icon: Bot },
+  "therapy-sessions": {
+    id: "therapy-sessions",
+    href: ROUTES.therapySessions,
+    label: "Сессии",
+    icon: Brain,
+  },
+  assistant: { id: "assistant", href: ROUTES.assistant, label: "Чат с контекстом", icon: Bot },
   reference: { id: "reference", href: ROUTES.reference, label: "Справочник", icon: Library },
 };
 
@@ -84,13 +98,14 @@ export const DEFAULT_NAV_ORDER: NavItemId[] = [
   "inbox",
   "board",
   "notes",
-  "journal",
   "articles",
   "plans",
   "tracking-habits",
   "tracking-finance",
   "tracking-food",
+  "tracking-workouts",
   "transcription",
+  "therapy-sessions",
   "assistant",
   "reference",
 ];

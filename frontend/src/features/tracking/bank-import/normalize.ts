@@ -15,22 +15,67 @@ export function cleanPdfLines(text: string): string[] {
     .filter((line) => line.length > 0 && !PAGE_MARKER.test(line));
 }
 
-export function parseAmountToken(raw: string): { amount: number; direction: "income" | "expense" } | null {
+const INCOME_TEXT = /стипенд|зарплат|зачислен|поступлен|cashback|кэшбэк|возврат|проценты по вкладу/i;
+const INCOME_BANK_CATEGORY = /зачисл|поступл|доход/i;
+
+export function inferDirectionFromText(...parts: Array<string | null | undefined>): "income" | "expense" | null {
+  const haystack = parts.filter(Boolean).join(" ").toLowerCase();
+  if (!haystack) {
+    return null;
+  }
+  if (INCOME_TEXT.test(haystack)) {
+    return "income";
+  }
+  if (INCOME_BANK_CATEGORY.test(haystack)) {
+    return "income";
+  }
+  return null;
+}
+
+export function parseAmountToken(
+  raw: string,
+  hints?: { bankCategory?: string | null; description?: string | null },
+): { amount: number; direction: "income" | "expense" } | null {
   const normalized = raw.replace(/\u00A0/g, " ").trim();
-  const match = normalized.match(SIGNED_AMOUNT_WITH_CURRENCY) ?? normalized.match(AMOUNT_LINE);
+  const currencyMatch = normalized.match(SIGNED_AMOUNT_WITH_CURRENCY);
+  const plainMatch = normalized.match(AMOUNT_LINE);
+  const match = currencyMatch ?? plainMatch;
   if (!match) {
     return null;
   }
 
-  const sign = (match[1] ?? "").trim();
-  const numeric = (match[2] ?? match[1] ?? "").replace(/\s/g, "").replace(",", ".");
+  let sign = "";
+  let numericRaw = "";
+  if (currencyMatch) {
+    sign = (currencyMatch[1] ?? "").trim();
+    numericRaw = currencyMatch[2] ?? "";
+  } else if (plainMatch) {
+    const token = (plainMatch[1] ?? "").trim();
+    if (/^[+−\-–]/.test(token)) {
+      sign = token[0] ?? "";
+      numericRaw = token.slice(1).trim();
+    } else {
+      numericRaw = token;
+    }
+  }
+
+  const numeric = numericRaw.replace(/\s/g, "").replace(",", ".");
   const amount = Number(numeric);
   if (!Number.isFinite(amount) || amount <= 0) {
     return null;
   }
 
-  const isIncome = sign === "+" || (sign === "" && normalized.startsWith("+"));
-  const isExpense = sign === "-" || sign === "−" || sign === "–" || (!isIncome && /^[-−–]/.test(normalized));
+  const textDirection = inferDirectionFromText(hints?.bankCategory, hints?.description, normalized);
+  const isIncome =
+    sign === "+" ||
+    normalized.startsWith("+") ||
+    textDirection === "income";
+  const isExpense =
+    sign === "-" ||
+    sign === "−" ||
+    sign === "–" ||
+    /^[-−–]/.test(normalized);
+
   return {
     amount,
     direction: isIncome && !isExpense ? "income" : "expense",

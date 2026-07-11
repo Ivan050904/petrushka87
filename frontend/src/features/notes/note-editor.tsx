@@ -327,6 +327,7 @@ export function NoteEditor({
           <textarea
             ref={textareaRef}
             value={content}
+            aria-label="Текст заметки"
             onChange={(event) => {
               setContent(event.target.value);
               setSaveState("idle");

@@ -12,9 +12,15 @@ import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 
 import { getCurrentUser, loginUser, registerUser } from "@/lib/api";
+import {
+  AUTH_TOKEN_KEY,
+  clearAuthCookie,
+  setAuthCookie,
+} from "@/lib/auth-cookie";
 import type { User } from "@/lib/types";
 
-const TOKEN_KEY = "folio_one_access_token";
+const TOKEN_KEY = AUTH_TOKEN_KEY;
+export { AUTH_COOKIE } from "@/lib/auth-cookie";
 
 type AuthContextValue = {
   token: string | null;
@@ -42,8 +48,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const storedToken = readStoredToken();
     setToken(storedToken);
+    if (storedToken) {
+      setAuthCookie();
+    }
 
     if (!storedToken) {
+      clearAuthCookie();
       setIsLoading(false);
       return;
     }
@@ -57,6 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       .catch(() => {
         window.localStorage.removeItem(TOKEN_KEY);
+        clearAuthCookie();
         if (isMounted) {
           setToken(null);
           setUser(null);
@@ -75,6 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const persistToken = useCallback((nextToken: string, nextUser: User) => {
     window.localStorage.setItem(TOKEN_KEY, nextToken);
+    setAuthCookie();
     setToken(nextToken);
     setUser(nextUser);
   }, []);
@@ -97,6 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     window.localStorage.removeItem(TOKEN_KEY);
+    clearAuthCookie();
     setToken(null);
     setUser(null);
   }, []);
@@ -123,7 +136,11 @@ export function useRequireAuth() {
 
   useEffect(() => {
     if (!auth.isLoading && !auth.token) {
-      router.replace("/login");
+      const next =
+        typeof window !== "undefined"
+          ? `${window.location.pathname}${window.location.search}`
+          : "/dashboard";
+      router.replace(`/login?next=${encodeURIComponent(next)}`);
     }
   }, [auth.isLoading, auth.token, router]);
 

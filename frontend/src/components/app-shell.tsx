@@ -211,7 +211,8 @@ export function AppShell({
     : notifications.filter((entry) => !seenNotificationIds.includes(notificationSeenId(entry))).length;
   const isBoardRoute = pathname === ROUTES.board;
   const isNotesRoute = pathname === ROUTES.notes;
-  const isImmersiveRoute = isBoardRoute || isNotesRoute;
+  const isTranscriptionRoute = pathname === ROUTES.transcription;
+  const isImmersiveRoute = isBoardRoute || isNotesRoute || isTranscriptionRoute;
   const isMobileMoreActive = mobileMoreNavigation.some((item) =>
     isNavItemActive(pathname, item.href, {
       trackingTab: item.trackingTab,

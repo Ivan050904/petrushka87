@@ -13,7 +13,7 @@ Navigation follows user scenarios, not raw Entry types:
 | Tier | Sections | Purpose |
 | --- | --- | --- |
 | 1 — Daily | Сегодня, Входящие | Agenda, capture, triage |
-| 2 — Content | Журнал, Планы, Трекинг | Writing, time-bound items, habits/money/food |
+| 2 — Content | Заметки, Планы, Трекинг | Writing, time-bound items, habits/money/food |
 | 3 — Reference | Справочник | People and files |
 | Global | Поиск | Find anything by text or type |
 
@@ -86,3 +86,20 @@ Selected filters use `border-primary/50 bg-primary/12 text-primary`, not full pr
 - Empty states are short and action-oriented.
 - Keep hover, focus, selected, disabled, and loading states visible in light mode.
 - Maximum two badges per list row.
+
+## Accessibility and touch targets
+
+- **Mobile primary controls** (`max-lg`): minimum touch target **44×44px** — use `.touch-target` (`min-h-11 min-w-11`) from `globals.css`. Desktop dense panels may use `.touch-target-compact` (`min-h-10 min-w-10` at `lg+`).
+- **Overlays and modals** must use the shared Radix `Dialog` / `AlertDialog` primitives (`frontend/src/components/ui/dialog.tsx`, `alert-dialog.tsx`). Do not hand-roll focus traps for new overlays.
+- **Destructive actions** use `ConfirmDeleteButton` (`frontend/src/components/confirm-delete-button.tsx`) — never delete on first click.
+- **Load failures** use `LoadError` with an explicit retry action when recovery is possible.
+- **Form fields** require visible labels or `sr-only` labels linked with `htmlFor` / `id`. Icon-only buttons require `aria-label`.
+- **Empty states** branch on semantics:
+  - **Filter-empty** — data exists but filters hide it → «Ничего не найдено» + «Сбросить фильтры».
+  - **True-empty** — no data at all → module-specific CTA (e.g. run digest).
+- **List rows**: at most **two badges** on the card surface; move metadata (dates, topics, verification) to a secondary line under the title.
+
+## Dialog requirement
+
+Any full-screen or blocking panel (kanban card detail, settings sheets, confirm flows) must use Radix Dialog with `DialogTitle`, focus trap, Escape to close, and return focus to the trigger.
+

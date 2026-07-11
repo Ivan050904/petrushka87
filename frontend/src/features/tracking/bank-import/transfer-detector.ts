@@ -1,4 +1,5 @@
 import { suggestCategory } from "@/features/tracking/finance-categories";
+import { inferDirectionFromText } from "@/features/tracking/bank-import/normalize";
 import type { ParsedBankTransaction, TransactionKind } from "@/features/tracking/bank-import/types";
 
 const TRANSFER_PATTERNS = [
@@ -68,13 +69,26 @@ export function enrichTransaction(row: Omit<ParsedBankTransaction, "suggestedCat
       bankCategory: row.bankCategory,
     });
 
+  const inferredDirection = inferDirectionFromText(
+    row.title,
+    row.description,
+    row.rawDescription,
+    row.bankCategory,
+  );
+  const direction = inferredDirection ?? row.direction;
+
   const suggestedKind =
     row.suggestedKind ??
-    (isTransferByDescription(row.rawDescription, row.bankCategory) ? "transfer" : row.direction);
+    (isTransferByDescription(row.rawDescription, row.bankCategory)
+      ? "transfer"
+      : suggestedCategory === "Доход" || direction === "income"
+        ? "income"
+        : direction);
 
   return {
     ...row,
-    suggestedCategory,
+    direction,
+    suggestedCategory: suggestedCategory === "Доход" || direction === "income" ? suggestedCategory ?? "Доход" : suggestedCategory,
     suggestedKind,
   };
 }

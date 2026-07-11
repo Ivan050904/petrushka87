@@ -10,7 +10,7 @@ import {
   saveKanbanBoardDefinition,
 } from "@/lib/kanban-board-store";
 import type { KanbanBoardDefinition } from "@/lib/kanban-boards";
-import type { KanbanBoardConfig } from "@/lib/dev-kanban";
+import type { KanbanBoardConfig } from "@/lib/kanban-boards";
 
 export function useKanbanBoards(token: string | null) {
   const [boards, setBoards] = useState<KanbanBoardConfig[]>([]);

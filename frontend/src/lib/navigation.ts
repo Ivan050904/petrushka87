@@ -1,12 +1,12 @@
 export const ROUTES = {
   dashboard: "/dashboard",
   inbox: "/inbox",
-  journal: "/journal",
   notes: "/notes",
   board: "/board",
   plans: "/plans",
   tracking: "/tracking",
   transcription: "/transcription",
+  therapySessions: "/therapy-sessions",
   assistant: "/assistant",
   articles: "/articles",
   reference: "/reference",
@@ -15,17 +15,18 @@ export const ROUTES = {
 } as const;
 
 export type PlansTab = "all" | "tasks" | "events" | "reminders";
-export type TrackingTab = "habits" | "finance" | "food";
+export type TrackingTab = "habits" | "finance" | "food" | "workouts";
 export type ReferenceTab = "people" | "resources";
 
 export const TRACKING_TAB_LINKS = [
   { tab: "habits" as const, label: "Привычки" },
   { tab: "finance" as const, label: "Финансы" },
   { tab: "food" as const, label: "Питание" },
+  { tab: "workouts" as const, label: "Зал" },
 ] as const;
 
 export function parseTrackingTab(value: string | null): TrackingTab {
-  if (value === "finance" || value === "food") {
+  if (value === "finance" || value === "food" || value === "workouts") {
     return value;
   }
   return "habits";
@@ -74,13 +75,6 @@ export function referenceHref(options?: { tab?: ReferenceTab; selected?: string 
   return query ? `${ROUTES.reference}?${query}` : ROUTES.reference;
 }
 
-export function journalHref(selected?: string) {
-  if (!selected) {
-    return ROUTES.journal;
-  }
-  return `${ROUTES.journal}?selected=${encodeURIComponent(selected)}`;
-}
-
 export function notesHref(selected?: string) {
   if (!selected) {
     return ROUTES.notes;
@@ -92,7 +86,7 @@ export function notesNewHref() {
   return `${ROUTES.notes}?new=1`;
 }
 
-export type KanbanBoardMode = import("@/lib/dev-kanban").KanbanBoardMode;
+export type KanbanBoardMode = import("@/lib/kanban-boards").KanbanBoardMode;
 
 export function parseKanbanBoardMode(value: string | null): KanbanBoardMode {
   if (value === "tasks" || value === "psych") {

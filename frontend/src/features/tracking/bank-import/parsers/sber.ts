@@ -87,12 +87,16 @@ export function parseSberStatement(text: string): ParsedBankTransaction[] {
       index += 1;
     }
 
-    const parsedAmount = parseAmountToken(amountLine.replace(/\u00A0/g, " "));
+    const rawDescription = descriptionParts.join(" ").trim();
+
+    const parsedAmount = parseAmountToken(amountLine.replace(/\u00A0/g, " "), {
+      bankCategory,
+      description: rawDescription,
+    });
     if (!parsedAmount) {
       continue;
     }
 
-    const rawDescription = descriptionParts.join(" ").trim();
     const description = [bankCategory, rawDescription].filter(Boolean).join(". ");
     const title = suggestTitleFromDescription(rawDescription || bankCategory, "sber");
 

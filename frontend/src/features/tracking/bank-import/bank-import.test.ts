@@ -40,7 +40,10 @@ describe("bank parsers", () => {
   it("parses sber operations and marks card-to-deposit as transfer", () => {
     const rows = parseBankStatement(readFixture("sber-sample.txt"), "sber");
     expect(rows.length).toBeGreaterThanOrEqual(3);
-    expect(rows.some((row) => row.title.includes("Стипендия"))).toBe(true);
+    const stipend = rows.find((row) => row.title.includes("Стипендия"));
+    expect(stipend).toBeDefined();
+    expect(stipend?.direction).toBe("income");
+    expect(stipend?.suggestedKind).toBe("income");
     expect(rows.some((row) => row.suggestedKind === "transfer")).toBe(true);
   });
 

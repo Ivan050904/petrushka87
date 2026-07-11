@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { Eye, EyeOff, LogIn } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { BrandWordmark } from "@/components/brand-logo";
@@ -18,7 +18,23 @@ import { DEMO_ACCOUNT } from "@/lib/demo-account";
 type AuthMode = "login" | "register";
 
 export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="flex min-h-dvh flex-col items-center justify-center gap-8 bg-background px-4 py-8">
+          <BrandWordmark showTagline className="rounded-xl px-2" />
+          <p className="text-sm text-muted-foreground">Загрузка…</p>
+        </main>
+      }
+    >
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { token, login, register, isLoading } = useAuth();
   const [mode, setMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
@@ -33,10 +49,20 @@ export default function LoginPage() {
     setError(null);
   }
 
+  function redirectAfterAuth() {
+    const next = searchParams.get("next");
+    if (next && next.startsWith("/") && !next.startsWith("//")) {
+      router.replace(next);
+      return;
+    }
+    router.replace("/dashboard");
+  }
+
   useEffect(() => {
     if (!isLoading && token) {
-      router.replace("/dashboard");
+      redirectAfterAuth();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading, router, token]);
 
   async function loginAsDemo() {
@@ -45,7 +71,7 @@ export default function LoginPage() {
     setIsSubmitting(true);
     try {
       await login(DEMO_ACCOUNT.email, DEMO_ACCOUNT.password);
-      router.replace("/dashboard");
+      redirectAfterAuth();
     } catch (requestError) {
       setError(
         getErrorMessage(
@@ -73,7 +99,7 @@ export default function LoginPage() {
       } else {
         await register(normalizedEmail, password, normalizedFullName || undefined);
       }
-      router.replace("/dashboard");
+      redirectAfterAuth();
     } catch (requestError) {
       setError(getErrorMessage(requestError, fallbackError));
     } finally {
@@ -178,7 +204,7 @@ export default function LoginPage() {
                 {isSubmitting ? "Подождите" : mode === "login" ? "Войти" : "Создать аккаунт"}
               </Button>
 
-              {mode === "login" ? (
+              {mode === "login" && process.env.NODE_ENV !== "production" ? (
                 <div className="space-y-2">
                   <Button
                     type="button"

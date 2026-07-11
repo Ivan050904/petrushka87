@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { NoteEditor } from "@/features/notes/note-editor";
+import { LoadError } from "@/components/load-error";
 import { NotesFab } from "@/features/notes/notes-fab";
 import { NotesGrid } from "@/features/notes/notes-grid";
 import { NotesHeader } from "@/features/notes/notes-header";
@@ -198,7 +199,11 @@ export function NotesView() {
 
   function handleSaved(entry: Entry) {
     setEntries((current) => {
+      const exists = current.some((item) => item.id === entry.id);
       const without = current.filter((item) => item.id !== entry.id);
+      if (!exists) {
+        setTotal((value) => value + 1);
+      }
       return [entry, ...without];
     });
   }
@@ -232,13 +237,16 @@ export function NotesView() {
         categories={categories}
         activeCategory={activeCategory}
         onCategoryChange={setActiveCategory}
+        total={isLoading ? null : total}
       />
 
       <div ref={scrollContainerRef} className="notes-scrollbar min-h-0 flex-1 overflow-y-auto">
         {isLoading ? (
           <div className="px-6 py-16 text-sm text-[var(--notes-muted)]">Загружаем заметки...</div>
         ) : loadError ? (
-          <div className="px-6 py-16 text-sm text-red-400">{loadError}</div>
+          <div className="px-6 py-16">
+            <LoadError message={loadError} onRetry={() => void loadEntries({ reset: true })} />
+          </div>
         ) : (
           <>
             <NotesGrid entries={entries} onSelect={openEntry} />
