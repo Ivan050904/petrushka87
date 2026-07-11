@@ -90,4 +90,5 @@ jobs:
         run: npm run test:e2e
         env:
           PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
+          PLAYWRIGHT_API_URL: http://127.0.0.1:8000/api/v1
           CI: true

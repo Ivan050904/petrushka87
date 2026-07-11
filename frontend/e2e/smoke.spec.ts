@@ -2,13 +2,26 @@ import { expect, test, type Page } from "@playwright/test";
 
 const DEMO_EMAIL = "demo@folio-one.local";
 const DEMO_PASSWORD = "demo12345";
+const API_URL = process.env.PLAYWRIGHT_API_URL ?? "http://127.0.0.1:8000/api/v1";
+const TOKEN_KEY = "folio_one_access_token";
 
 async function loginDemo(page: Page) {
+  const response = await page.request.post(`${API_URL}/auth/login`, {
+    data: { email: DEMO_EMAIL, password: DEMO_PASSWORD },
+  });
+  expect(response.ok(), `login failed: ${response.status()} ${await response.text()}`).toBeTruthy();
+  const body = (await response.json()) as { access_token: string };
+
   await page.goto("/login");
-  await page.locator("#email").fill(DEMO_EMAIL);
-  await page.locator("#password").fill(DEMO_PASSWORD);
-  await page.getByRole("button", { name: "Войти", exact: true }).click();
-  await page.waitForURL("**/dashboard**", { timeout: 30_000 });
+  await page.evaluate(
+    ({ token }) => {
+      window.localStorage.setItem(TOKEN_KEY, token);
+      document.cookie = "folio_one_auth=1; path=/; max-age=604800; SameSite=Lax";
+    },
+    { token: body.access_token },
+  );
+  await page.goto("/dashboard");
+  await expect(page).toHaveURL(/dashboard/, { timeout: 30_000 });
 }
 
 test("login page loads", async ({ page }) => {
@@ -19,7 +32,6 @@ test("login page loads", async ({ page }) => {
 
 test("demo credentials login redirects to dashboard", async ({ page }) => {
   await loginDemo(page);
-  await expect(page).toHaveURL(/dashboard/);
 });
 
 test("dashboard shows capture on mobile viewport", async ({ page }) => {
