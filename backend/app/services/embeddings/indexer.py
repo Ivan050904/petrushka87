@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import uuid
-from collections.abc import Iterable
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session

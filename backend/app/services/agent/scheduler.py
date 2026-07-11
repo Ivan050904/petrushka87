@@ -21,7 +21,7 @@ def _user_timezone() -> ZoneInfo | timezone:
     try:
         return ZoneInfo(settings.user_timezone)
     except ZoneInfoNotFoundError:
-        return timezone.utc
+        return UTC
 
 
 def compute_next_run_at(

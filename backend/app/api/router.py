@@ -1,6 +1,19 @@
 from fastapi import APIRouter
 
-from app.api.routes import assistant, auth, dashboard, entries, entry_links, finance, notes, resources, tasks, agent, therapy_sessions, workouts
+from app.api.routes import (
+    agent,
+    assistant,
+    auth,
+    dashboard,
+    entries,
+    entry_links,
+    finance,
+    notes,
+    resources,
+    tasks,
+    therapy_sessions,
+    workouts,
+)
 
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])

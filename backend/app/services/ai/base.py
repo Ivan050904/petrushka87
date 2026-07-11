@@ -94,7 +94,7 @@ class AIClient(Protocol):
         *,
         entry_date: str | None = None,
         context: Any | None = None,
-    ) -> "LifeNoteAnalyzeResult":
+    ) -> LifeNoteAnalyzeResult:
         """Analyze note text with optional user context."""
 
     def answer(

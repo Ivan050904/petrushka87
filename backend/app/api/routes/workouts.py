@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import func, select
@@ -188,7 +188,7 @@ def create_session(
     _validate_catalog_ids(db, current_user.id, payload.exercises)
     session = WorkoutSession(
         user_id=current_user.id,
-        date=payload.date or datetime.now(timezone.utc),
+        date=payload.date or datetime.now(UTC),
         body_weight=payload.body_weight,
         mood=payload.mood,
         muscle_readiness=payload.muscle_readiness,

@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Generator
 from dataclasses import replace
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 from unittest.mock import patch
 
@@ -18,7 +18,11 @@ from app.core.config import settings as app_settings
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
-from app.services.agent.digest import DigestResult, compute_force_refresh_date_range, compute_search_date_range
+from app.services.agent.digest import (
+    DigestResult,
+    compute_force_refresh_date_range,
+    compute_search_date_range,
+)
 from app.services.agent.scheduler import compute_next_run_at
 from app.services.agent.tools.habr_search import habr_search
 from app.storage.local import LocalFileStorage
@@ -124,7 +128,7 @@ def test_digest_run_endpoint_force(mock_run_digest, client: TestClient) -> None:
 
 
 def test_compute_next_run_at_before_schedule_hour() -> None:
-    tz = timezone.utc
+    tz = UTC
     now = datetime(2026, 7, 10, 7, 30, tzinfo=tz)
     next_run = compute_next_run_at(now=now, schedule_hour=8, timezone_info=tz)
     assert next_run.date() == date(2026, 7, 10)
@@ -132,7 +136,7 @@ def test_compute_next_run_at_before_schedule_hour() -> None:
 
 
 def test_compute_next_run_at_after_schedule_hour() -> None:
-    tz = timezone.utc
+    tz = UTC
     now = datetime(2026, 7, 10, 9, 0, tzinfo=tz)
     next_run = compute_next_run_at(now=now, schedule_hour=8, timezone_info=tz)
     assert next_run.date() == date(2026, 7, 11)

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import uuid
 from collections.abc import Generator
 from pathlib import Path
-import uuid
 
 import pytest
 from fastapi.testclient import TestClient

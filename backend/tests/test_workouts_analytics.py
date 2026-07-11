@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-import pytest
-
 from app.schemas.workout import WorkoutSet
 from app.services.workouts.analytics import (
     exercise_progress_points,

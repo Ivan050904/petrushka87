@@ -55,7 +55,7 @@ def apply_transfer_pairs(
     transactions: list[ParsedTransaction],
     window_days: int = 1,
 ) -> list[ParsedTransaction]:
-    from datetime import date, timedelta
+    from datetime import date
 
     def parse_day(value: str) -> date | None:
         try:

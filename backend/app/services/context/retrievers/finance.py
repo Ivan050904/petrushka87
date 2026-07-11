@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.models.entry import Entry
 from app.schemas.entry import EntryType
-from app.services.context.context_models import ContextScope, ContextSnippet, PINNED_SCORE
+from app.services.context.context_models import PINNED_SCORE, ContextScope, ContextSnippet
 from app.services.context.query_intent import QueryIntent
 from app.services.context.retrievers.base import entry_to_snippet, retrieve_hybrid
 

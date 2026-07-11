@@ -7,7 +7,7 @@ from typing import Any
 import httpx
 from pydantic import ValidationError
 
-from app.services.ai.base import AIUnavailableError, AIUsage
+from app.services.ai.base import AIUnavailableError
 from app.services.ai.life_notes import (
     LifeNoteAnalyzeResult,
     LifeNoteDrySpot,

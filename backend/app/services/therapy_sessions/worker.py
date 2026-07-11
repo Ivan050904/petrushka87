@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
-import tempfile
 
 from app.db.session import SessionLocal
 from app.models.therapy_session import TherapySessionJob
@@ -12,7 +12,10 @@ from app.services.therapy_sessions.audio_utils import probe_audio_duration_sec
 from app.services.therapy_sessions.entry_sync import sync_entry_for_job
 from app.services.therapy_sessions.llm_client import current_model_name
 from app.services.therapy_sessions.psych_analyze import analyze_therapy_session
-from app.services.therapy_sessions.speaker_roles import assign_speaker_roles, llm_diarize_plain_transcript
+from app.services.therapy_sessions.speaker_roles import (
+    assign_speaker_roles,
+    llm_diarize_plain_transcript,
+)
 from app.services.therapy_sessions.transcribe_diarize import (
     format_diarized_transcript,
     transcribe_with_diarization,

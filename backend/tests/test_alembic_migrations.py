@@ -4,7 +4,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
 from sqlalchemy import create_engine, inspect
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]

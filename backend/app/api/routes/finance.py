@@ -27,9 +27,13 @@ from app.schemas.finance import (
 from app.schemas.metadata import normalize_metadata
 from app.services.finance.ai_config import resolve_finance_ai_config
 from app.services.finance.categorizer import FinanceAIUnavailableError, categorize_transactions
-from app.services.finance.models import DEFAULT_FINANCE_CATEGORIES, FinanceAccount, ParsedTransaction
-from app.services.finance.parser_registry import parser_registry
 from app.services.finance.dedup import build_transaction_fingerprint, fingerprint_from_metadata
+from app.services.finance.models import (
+    DEFAULT_FINANCE_CATEGORIES,
+    FinanceAccount,
+    ParsedTransaction,
+)
+from app.services.finance.parser_registry import parser_registry
 from app.services.finance.parsers.generic import build_external_id
 from app.services.finance.transfer_detector import apply_transfer_pairs, apply_transfer_rules
 

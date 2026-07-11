@@ -8,7 +8,6 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
-
 from starlette.concurrency import run_in_threadpool
 
 from app.api.deps import get_current_user
@@ -32,7 +31,11 @@ from app.services.assistant.schemas import (
     AssistantStatusResponse,
     AssistantTranscribeResponse,
 )
-from app.services.assistant.speech import SpeechUnavailableError, speech_is_configured, transcribe_audio_bytes
+from app.services.assistant.speech import (
+    SpeechUnavailableError,
+    speech_is_configured,
+    transcribe_audio_bytes,
+)
 
 router = APIRouter()
 

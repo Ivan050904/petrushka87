@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import calendar
 import re
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.core.config import settings
@@ -40,7 +40,7 @@ def _user_today() -> date:
     try:
         tz = ZoneInfo(settings.user_timezone)
     except ZoneInfoNotFoundError:
-        tz = timezone.utc
+        tz = UTC
     return datetime.now(tz).date()
 
 

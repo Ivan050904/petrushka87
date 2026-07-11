@@ -6,7 +6,12 @@ import httpx
 import pytest
 
 from app.core.config import settings as app_settings
-from app.services.embeddings.provider import embed_text, embed_texts, get_embedding_provider_name, hash_embedding
+from app.services.embeddings.provider import (
+    embed_text,
+    embed_texts,
+    get_embedding_provider_name,
+    hash_embedding,
+)
 
 
 def test_hash_embedding_dimensions() -> None:

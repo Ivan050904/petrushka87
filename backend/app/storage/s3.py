@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import uuid
 from io import BytesIO
 from pathlib import Path
-import uuid
 from typing import BinaryIO
 
 from app.core.config import settings

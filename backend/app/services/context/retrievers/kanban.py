@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.models.entry import Entry
-from app.services.context.context_models import ContextScope, KANBAN_BOARD_CONFIG_COLLECTION, ContextSnippet
+from app.services.context.context_models import (
+    KANBAN_BOARD_CONFIG_COLLECTION,
+    ContextScope,
+    ContextSnippet,
+)
 from app.services.context.query_intent import QueryIntent
 from app.services.context.retrievers.base import retrieve_hybrid
 

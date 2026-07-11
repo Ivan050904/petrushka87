@@ -6,7 +6,10 @@ from pydantic import ValidationError
 
 from app.schemas.therapy_session import TherapySessionAnalysis
 from app.services.ai.prompts.therapy_session_analyze import THERAPY_SESSION_ANALYZE_SYSTEM_PROMPT
-from app.services.therapy_sessions.llm_client import TherapyLLMUnavailableError, therapy_generate_json
+from app.services.therapy_sessions.llm_client import (
+    TherapyLLMUnavailableError,
+    therapy_generate_json,
+)
 from transcription.pipeline.text_chunks import CHUNK_CHARS, split_text
 
 ProgressCallback = Callable[[int, str], None]

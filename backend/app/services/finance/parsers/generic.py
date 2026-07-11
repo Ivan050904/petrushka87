@@ -4,7 +4,6 @@ import csv
 import io
 import re
 from datetime import datetime
-from typing import Any
 
 from app.services.finance.dedup import build_transaction_fingerprint
 from app.services.finance.models import ParsedTransaction

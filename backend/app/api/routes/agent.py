@@ -15,7 +15,7 @@ from app.db.session import get_db
 from app.models.user import User
 from app.schemas.entry import EntryRead
 from app.services.agent.article_feedback import apply_article_feedback, load_feedback_profile
-from app.services.agent.digest import compute_search_date_range, run_daily_digest, _resolve_user
+from app.services.agent.digest import compute_search_date_range, run_daily_digest
 from app.services.agent.llm import check_ollama_health
 from app.services.agent.psych_query_tuner import get_active_psych_query_source, tune_psych_queries
 from app.services.agent.state import load_digest_state

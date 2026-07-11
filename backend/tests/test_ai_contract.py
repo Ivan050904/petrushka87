@@ -6,8 +6,8 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from app.services.ai.base import EntryClassification
 from app.services.ai import factory, openai_compatible, yandex_ai_studio
+from app.services.ai.base import EntryClassification
 
 
 def test_openai_compatible_client_sends_runtime_context(

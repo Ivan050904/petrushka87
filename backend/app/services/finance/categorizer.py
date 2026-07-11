@@ -7,7 +7,11 @@ import httpx
 from pydantic import BaseModel, Field, ValidationError
 
 from app.services.finance.ai_config import resolve_finance_ai_config
-from app.services.finance.models import DEFAULT_FINANCE_CATEGORIES, FinanceAccount, ParsedTransaction
+from app.services.finance.models import (
+    DEFAULT_FINANCE_CATEGORIES,
+    FinanceAccount,
+    ParsedTransaction,
+)
 
 CATEGORIZE_PROMPT = """Categorize bank transactions for a personal finance app.
 Return JSON only:

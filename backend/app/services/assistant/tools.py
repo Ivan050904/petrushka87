@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 import uuid
+from datetime import UTC, datetime
+from typing import Any
 
-from pydantic import ValidationError
-from sqlalchemy import String, cast, func, or_, select
+from sqlalchemy import String, cast, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.entry import Entry

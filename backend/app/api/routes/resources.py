@@ -14,7 +14,7 @@ from app.db.session import get_db
 from app.models.entry import Entry
 from app.models.user import User
 from app.schemas.entry import EntryRead
-from app.storage import FileStorage, get_file_storage
+from app.storage import get_file_storage
 
 router = APIRouter()
 storage = get_file_storage()

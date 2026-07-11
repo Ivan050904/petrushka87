@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import uuid
 from collections.abc import Generator
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -20,16 +19,24 @@ from app.db.session import get_db
 from app.main import app
 from app.models.entry import Entry
 from app.models.user import User
-from app.services.agent.article_feedback import FeedbackExample, FeedbackProfile, load_feedback_profile
+from app.services.agent.article_feedback import (
+    FeedbackExample,
+    FeedbackProfile,
+    load_feedback_profile,
+)
 from app.services.agent.digest import run_daily_digest
 from app.services.agent.digest_profiles import collect_psychology_candidates
-from app.services.agent.psych_queries import PSYCH_QUERY_BLOCKS, configured_psych_queries, select_rotated_psych_queries
+from app.services.agent.psych_queries import (
+    PSYCH_QUERY_BLOCKS,
+    configured_psych_queries,
+    select_rotated_psych_queries,
+)
+from app.services.agent.psych_query_tuner import tune_psych_queries
 from app.services.agent.psych_relevance import (
     filter_psych_candidates,
     is_psych_relevant,
     is_safe_psych_search_query,
 )
-from app.services.agent.psych_query_tuner import tune_psych_queries
 from app.services.agent.tools.article_validator import filter_reachable_articles
 from app.services.agent.tools.web_search import SearchResult
 from app.storage.local import LocalFileStorage

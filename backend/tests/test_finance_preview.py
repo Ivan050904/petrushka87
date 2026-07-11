@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import uuid
 from collections.abc import Generator
 from io import BytesIO
 from pathlib import Path
-import uuid
 
 import pytest
 from fastapi.testclient import TestClient
@@ -22,7 +22,7 @@ GENERIC_CSV = (
     "Дата;Сумма;Описание\n"
     "01.07.2026;-1500,00;Магазин\n"
     "02.07.2026;+50000,00;Зарплата\n"
-).encode("utf-8")
+).encode()
 
 
 @pytest.fixture()

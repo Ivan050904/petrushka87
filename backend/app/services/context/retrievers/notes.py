@@ -5,7 +5,7 @@ import uuid
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.services.context.context_models import ContextScope, ContextSnippet, PINNED_SCORE
+from app.services.context.context_models import PINNED_SCORE, ContextScope, ContextSnippet
 from app.services.context.date_query import lookup_entries_by_dates
 from app.services.context.query_intent import QueryIntent
 from app.services.context.retrievers.base import retrieve_hybrid

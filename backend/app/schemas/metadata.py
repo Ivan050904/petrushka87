@@ -19,7 +19,7 @@ class TaskRecurrenceRule(BaseModel):
     time: str = "09:00"
 
     @model_validator(mode="after")
-    def validate_weekly_rule(self) -> "TaskRecurrenceRule":
+    def validate_weekly_rule(self) -> TaskRecurrenceRule:
         unique_days = sorted(set(self.weekdays))
         if not unique_days:
             raise ValueError("weekdays must include at least one day")
@@ -61,7 +61,7 @@ class TaskMetadata(BaseModel):
         return _validate_iso_date_or_datetime(value, field_name="ends_at")
 
     @model_validator(mode="after")
-    def validate_task_range(self) -> "TaskMetadata":
+    def validate_task_range(self) -> TaskMetadata:
         if self.scheduled_at and self.ends_at and _sortable_datetime(self.ends_at) <= _sortable_datetime(
             self.scheduled_at
         ):
@@ -123,7 +123,7 @@ class EventMetadata(BaseModel):
         return _validate_iso_date_or_datetime(value, field_name="reminder_at")
 
     @model_validator(mode="after")
-    def validate_event_range(self) -> "EventMetadata":
+    def validate_event_range(self) -> EventMetadata:
         if self.ends_at and _sortable_datetime(self.ends_at) < _sortable_datetime(self.starts_at):
             raise ValueError("ends_at must be after starts_at")
         return self
@@ -165,7 +165,7 @@ class HabitRegularity(BaseModel):
     target: int | None = None
 
     @model_validator(mode="after")
-    def validate_regularity(self) -> "HabitRegularity":
+    def validate_regularity(self) -> HabitRegularity:
         if self.kind == "weekdays":
             unique_days = sorted(set(self.weekdays))
             if not unique_days:

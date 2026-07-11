@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 import uuid
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import func, select
@@ -11,7 +11,12 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.models.entry import Entry
 from app.schemas.entry import EntryType
-from app.services.context.context_models import ContextScope, ContextSnippet, PINNED_SCORE, matches_scope
+from app.services.context.context_models import (
+    PINNED_SCORE,
+    ContextScope,
+    ContextSnippet,
+    matches_scope,
+)
 from app.services.context.entry_rag_text import MONTH_NAMES_GENITIVE, build_entry_rag_text
 
 _ISO_DATE_RE = re.compile(r"\b(\d{4})-(\d{2})-(\d{2})\b")
@@ -27,7 +32,7 @@ def _default_year() -> int:
         tz = ZoneInfo(settings.user_timezone)
         return datetime.now(tz).date().year
     except ZoneInfoNotFoundError:
-        return datetime.now(timezone.utc).date().year
+        return datetime.now(UTC).date().year
 
 
 def _month_number(name: str) -> int | None:

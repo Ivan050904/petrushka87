@@ -19,8 +19,8 @@ from app.models.entry import Entry
 from app.services.agent.article_feedback import (
     FeedbackExample,
     FeedbackProfile,
-    load_feedback_profile,
     candidate_matches_negative_themes,
+    load_feedback_profile,
 )
 from app.services.agent.digest import _filter_with_llm, _prefilter_candidates
 from app.services.agent.tools.web_search import SearchResult

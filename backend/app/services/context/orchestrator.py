@@ -6,7 +6,12 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.entry import Entry
-from app.services.context.context_models import ContextScope, ContextSnippet, UserContext, PINNED_SCORE
+from app.services.context.context_models import (
+    PINNED_SCORE,
+    ContextScope,
+    ContextSnippet,
+    UserContext,
+)
 from app.services.context.date_query import lookup_entries_by_dates
 from app.services.context.entry_rag_text import build_entry_rag_text
 from app.services.context.query_intent import QueryIntent, route_query
