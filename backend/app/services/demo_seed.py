@@ -464,7 +464,23 @@ def _demo_entry_count(db: Session, user_id: Any) -> int:
     )
 
 
+def _delete_resource_files(db: Session, user_id: Any) -> None:
+    storage = get_file_storage()
+    rows = db.scalars(
+        select(Entry).where(Entry.user_id == user_id, Entry.type == EntryType.resource.value)
+    ).all()
+    for entry in rows:
+        file_meta = (entry.metadata_ or {}).get("file") or {}
+        key = file_meta.get("key")
+        if isinstance(key, str) and key.strip():
+            try:
+                storage.delete(key)
+            except Exception:
+                pass
+
+
 def _clear_demo_entries(db: Session, user_id: Any) -> None:
+    _delete_resource_files(db, user_id)
     db.execute(delete(Entry).where(Entry.user_id == user_id))
 
 

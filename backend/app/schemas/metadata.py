@@ -248,11 +248,31 @@ class ResourceFileMetadata(BaseModel):
     storage: str = Field(default="local", min_length=1, max_length=64)
 
 
+class TherapySessionMetadata(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    job_id: int | None = None
+    session_date: str | None = None
+    status: str | None = None
+    duration_sec: int | None = Field(default=None, ge=0)
+    transcription_source: str | None = None
+    analysis_model: str | None = None
+    source_filename: str | None = None
+
+    @field_validator("session_date")
+    @classmethod
+    def validate_session_date(cls, value: str | None) -> str | None:
+        return _validate_iso_date(value, field_name="session_date")
+
+
 class ResourceMetadata(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     description: str | None = None
     file: ResourceFileMetadata | None = None
+    article_hidden: bool | None = None
+    article_feedback: Literal["dislike", "off_topic"] | None = None
+    feedback_at: str | None = None
 
 
 def _clean_optional_string(value: str | None) -> str | None:
@@ -322,4 +342,6 @@ def normalize_metadata(entry_type: EntryType, metadata: dict[str, Any]) -> dict[
         return DiaryMetadata.model_validate(metadata).model_dump(exclude_none=True)
     if entry_type == EntryType.resource:
         return ResourceMetadata.model_validate(metadata).model_dump(exclude_none=True)
+    if entry_type == EntryType.therapy_session:
+        return TherapySessionMetadata.model_validate(metadata).model_dump(exclude_none=True)
     return metadata

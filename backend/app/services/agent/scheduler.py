@@ -8,7 +8,9 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.core.config import settings
 from app.db.session import SessionLocal
-from app.services.agent.digest import run_daily_digest
+from app.services.agent.article_feedback import load_feedback_profile
+from app.services.agent.digest import _resolve_user, run_daily_digest
+from app.services.agent.psych_query_tuner import tune_psych_queries
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +44,16 @@ def _seconds_until(target: datetime) -> float:
     return max((target - now).total_seconds(), 0.0)
 
 
+def _maybe_tune_psych_queries(db) -> None:  # noqa: ANN001
+    try:
+        user = _resolve_user(db, None, settings.digest_user_email)
+        feedback_profile = load_feedback_profile(db, user.id, collection="psychology")
+        result = tune_psych_queries(feedback_profile)
+        logger.info("Psych query tuning: status=%s message=%s", result.status, result.message)
+    except Exception:
+        logger.exception("Psych query tuning failed")
+
+
 async def _run_scheduled_digest() -> None:
     global _last_scheduled_run_date
 
@@ -57,13 +69,28 @@ async def _run_scheduled_digest() -> None:
     def _execute() -> None:
         db = SessionLocal()
         try:
-            result = run_daily_digest(db, user_email=settings.digest_user_email)
-            logger.info(
-                "Digest scheduler finished: status=%s saved=%s message=%s",
-                result.status,
-                result.articles_saved,
-                result.message,
-            )
+            if settings.digest_enabled:
+                result = run_daily_digest(db, user_email=settings.digest_user_email, profile="ai")
+                logger.info(
+                    "AI digest scheduler finished: status=%s saved=%s message=%s",
+                    result.status,
+                    result.articles_saved,
+                    result.message,
+                )
+            if settings.psych_digest_enabled:
+                _maybe_tune_psych_queries(db)
+                result = run_daily_digest(
+                    db,
+                    user_email=settings.digest_user_email,
+                    profile="psychology",
+                    max_articles=settings.psych_digest_max_articles,
+                )
+                logger.info(
+                    "Psychology digest scheduler finished: status=%s saved=%s message=%s",
+                    result.status,
+                    result.articles_saved,
+                    result.message,
+                )
         except Exception:
             logger.exception("Digest scheduler failed")
         finally:
@@ -72,8 +99,14 @@ async def _run_scheduled_digest() -> None:
     await asyncio.to_thread(_execute)
 
 
+def _scheduler_should_run() -> bool:
+    if not settings.digest_scheduler_enabled:
+        return False
+    return settings.digest_enabled or settings.psych_digest_enabled
+
+
 async def digest_scheduler_loop() -> None:
-    if not settings.digest_scheduler_enabled or not settings.digest_enabled:
+    if not _scheduler_should_run():
         logger.info("Digest scheduler is disabled")
         return
 
@@ -94,7 +127,7 @@ async def digest_scheduler_loop() -> None:
 async def digest_scheduler_lifespan(app):  # noqa: ANN001
     del app
     task: asyncio.Task[None] | None = None
-    if settings.digest_scheduler_enabled and settings.digest_enabled:
+    if _scheduler_should_run():
         task = asyncio.create_task(digest_scheduler_loop())
     try:
         yield

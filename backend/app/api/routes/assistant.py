@@ -18,6 +18,7 @@ from app.models.user import User
 from app.services.ai.base import AIUnavailableError
 from app.services.assistant.agent import run_assistant_turn
 from app.services.assistant.chat import (
+    AssistantStreamMeta,
     add_message,
     create_conversation,
     get_conversation,
@@ -236,6 +237,7 @@ def post_chat_stream(
 
     def event_stream():
         parts: list[str] = []
+        stream_meta = AssistantStreamMeta()
         try:
             stream_db = SessionLocal()
             try:
@@ -247,6 +249,7 @@ def post_chat_stream(
                     user_id=user_id,
                     conversation=live_conversation,
                     query=question,
+                    meta=stream_meta,
                 ):
                     parts.append(delta)
                     yield f"event: token\ndata: {json.dumps({'text': delta}, ensure_ascii=False)}\n\n"
@@ -275,6 +278,18 @@ def post_chat_stream(
                     "role": "assistant",
                     "content": answer,
                 }
+                if (
+                    settings.context_debug or settings.environment == "local"
+                ) and stream_meta.context is not None:
+                    payload_done["debug"] = {
+                        "snippet_count": len(stream_meta.context.snippets),
+                        "matched_dates": stream_meta.context.matched_dates,
+                        "effective_scope": stream_meta.context.effective_scope,
+                        "searched_scopes": stream_meta.context.searched_scopes,
+                        "router_confidence": stream_meta.context.router_confidence,
+                        "embedding_provider": stream_meta.context.embedding_provider,
+                        "model": stream_meta.model,
+                    }
             finally:
                 save_db.close()
 

@@ -14,11 +14,20 @@ from app.models.entry import Entry
 from app.models.user import User
 from app.schemas.entry import EntryType
 from app.schemas.metadata import normalize_metadata
+from app.services.agent.article_feedback import (
+    FeedbackProfile,
+    candidate_matches_negative_themes,
+    load_feedback_profile,
+)
+from app.services.agent.digest_profiles import (
+    DigestProfileName,
+    collect_ai_candidates,
+    collect_psychology_candidates,
+    get_digest_profile,
+)
 from app.services.agent.llm import DigestLLMClient, check_ollama_health
-from app.services.agent.prompts import DIGEST_FILTER_PROMPT
 from app.services.agent.state import load_digest_state, save_digest_state
-from app.services.agent.tools.habr_search import habr_search
-from app.services.agent.tools.web_search import SearchResult, web_search
+from app.services.agent.tools.web_search import SearchResult
 from app.services.ai.base import AIUnavailableError
 
 
@@ -31,6 +40,7 @@ class DigestResult:
     message: str
     search_period_from: str | None = None
     search_period_to: str | None = None
+    profile: DigestProfileName = "ai"
 
 
 @dataclass(frozen=True)
@@ -77,86 +87,19 @@ def compute_search_date_range(
     return SearchDateRange(date_from=date_from, date_to=date_to)
 
 
-def _build_search_queries(topics: list[str]) -> list[str]:
-    queries: list[str] = []
-    for topic in topics:
-        cleaned = topic.strip()
-        if cleaned:
-            queries.append(cleaned)
-    return queries
+def compute_force_refresh_date_range(*, today: date, lookback_days: int) -> SearchDateRange:
+    return SearchDateRange(
+        date_from=today - timedelta(days=max(lookback_days, 1)),
+        date_to=today,
+    )
 
 
-def _search_habr(
-    queries: list[str],
+def _serialize_candidates(
+    candidates: list[SearchResult],
     *,
-    date_from: date,
-    date_to: date,
-    max_results_per_query: int = 20,
-) -> list[SearchResult]:
-    candidates: list[SearchResult] = []
-    seen_urls: set[str] = set()
-    for query in queries:
-        for result in habr_search(
-            query,
-            date_from=date_from,
-            date_to=date_to,
-            max_results=max_results_per_query,
-        ):
-            if result.url in seen_urls:
-                continue
-            seen_urls.add(result.url)
-            candidates.append(result)
-    return candidates
-
-
-def _search_duckduckgo_fallback(queries: list[str]) -> list[SearchResult]:
-    candidates: list[SearchResult] = []
-    seen_urls: set[str] = set()
-    for query in queries:
-        for result in web_search(query, site="habr.com", timelimit="w"):
-            if result.url in seen_urls:
-                continue
-            seen_urls.add(result.url)
-            candidates.append(
-                SearchResult(
-                    title=result.title,
-                    url=result.url,
-                    snippet=result.snippet,
-                    query=result.query,
-                    published_at=result.published_at,
-                    source_site=result.source_site or "habr.com",
-                )
-            )
-    return candidates
-
-
-def _collect_candidates(
-    topics: list[str],
-    *,
-    date_from: date,
-    date_to: date,
-) -> list[SearchResult]:
-    queries = _build_search_queries(topics)
-    provider = settings.digest_search_provider.strip().lower()
-
-    if provider == "habr":
-        candidates = _search_habr(queries, date_from=date_from, date_to=date_to)
-        if not candidates:
-            candidates = _search_duckduckgo_fallback(queries)
-        return candidates
-
-    candidates: list[SearchResult] = []
-    seen_urls: set[str] = set()
-    for query in queries:
-        for result in web_search(query, site="habr.com", timelimit="w"):
-            if result.url in seen_urls:
-                continue
-            seen_urls.add(result.url)
-            candidates.append(result)
-    return candidates
-
-
-def _serialize_candidates(candidates: list[SearchResult]) -> list[dict[str, str | None]]:
+    tier_by_query: dict[str, str] | None = None,
+) -> list[dict[str, str | None]]:
+    tier_by_query = tier_by_query or {}
     return [
         {
             "title": item.title,
@@ -165,33 +108,111 @@ def _serialize_candidates(candidates: list[SearchResult]) -> list[dict[str, str 
             "query": item.query,
             "published_at": item.published_at,
             "source_site": item.source_site,
+            "article_tier": tier_by_query.get(item.query),
         }
         for item in candidates
     ]
+
+
+def _prefilter_candidates(
+    candidates: list[SearchResult],
+    profile: FeedbackProfile,
+) -> list[SearchResult]:
+    if not profile.blocked_urls and not profile.negative_themes:
+        return candidates
+
+    filtered: list[SearchResult] = []
+    for item in candidates:
+        if item.url in profile.blocked_urls:
+            continue
+        haystack = f"{item.title} {item.snippet or ''}"
+        if candidate_matches_negative_themes(haystack, profile.negative_themes):
+            continue
+        filtered.append(item)
+    return filtered
+
+
+def _feedback_examples(profile: FeedbackProfile, *, limit: int = 15) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    off_topic: list[dict[str, str]] = []
+    disliked: list[dict[str, str]] = []
+    for example in profile.examples[:limit]:
+        compact = {
+            "title": example.title,
+            "summary": example.summary[:240],
+            "reason": example.feedback,
+        }
+        if example.feedback == "off_topic":
+            off_topic.append(compact)
+        else:
+            disliked.append(compact)
+    return off_topic, disliked
 
 
 def _filter_with_llm(
     candidates: list[SearchResult],
     *,
     max_articles: int,
+    feedback_profile: FeedbackProfile | None,
+    profile_name: DigestProfileName,
+    tier_by_query: dict[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     if not candidates:
         return []
 
-    llm = DigestLLMClient()
-    if not llm.is_configured():
-        raise AIUnavailableError("Digest LLM is not configured")
-
-    system_prompt = DIGEST_FILTER_PROMPT.format(max_articles=max_articles)
+    digest_profile = get_digest_profile(profile_name)
+    profile = feedback_profile or FeedbackProfile()
+    off_topic, disliked = _feedback_examples(profile)
+    feedback_section = digest_profile.format_feedback_section(
+        off_topic_examples=off_topic,
+        disliked_examples=disliked,
+    )
+    system_prompt = digest_profile.filter_prompt_template.format(
+        max_articles=max_articles,
+        feedback_section=feedback_section,
+    )
     user_prompt = (
         "Select the best articles from these candidates:\n"
-        f"{_serialize_candidates(candidates)}"
+        f"{_serialize_candidates(candidates, tier_by_query=tier_by_query)}"
     )
-    payload = llm.complete_json(system_prompt=system_prompt, user_prompt=user_prompt)
+
+    if profile_name == "psychology" and settings.psych_digest_use_llm_filter:
+        from app.services.agent.psych_llm import PsychDigestLLMClient
+
+        llm = PsychDigestLLMClient()
+        payload = llm.complete_json(system_prompt=system_prompt, user_prompt=user_prompt)
+    else:
+        llm = DigestLLMClient()
+        if not llm.is_configured():
+            raise AIUnavailableError("Digest LLM is not configured")
+        payload = llm.complete_json(system_prompt=system_prompt, user_prompt=user_prompt)
+
     articles = payload.get("articles")
     if not isinstance(articles, list):
         return []
     return [item for item in articles if isinstance(item, dict)]
+
+
+def _direct_filter(
+    candidates: list[SearchResult],
+    *,
+    max_articles: int,
+    tier_by_query: dict[str, str] | None = None,
+) -> list[dict[str, Any]]:
+    tier_by_query = tier_by_query or {}
+    selected: list[dict[str, Any]] = []
+    for item in candidates[:max_articles]:
+        selected.append(
+            {
+                "title": item.title,
+                "url": item.url,
+                "snippet": item.snippet or item.title,
+                "query": item.query,
+                "published_at": item.published_at,
+                "source_site": item.source_site,
+                "article_tier": tier_by_query.get(item.query),
+            }
+        )
+    return selected
 
 
 def _fallback_filter(
@@ -258,16 +279,22 @@ def _save_articles(
     candidate_index: dict[str, SearchResult],
     search_period_from: str,
     search_period_to: str,
+    digest_profile_name: DigestProfileName,
 ) -> tuple[int, int]:
+    digest_profile = get_digest_profile(digest_profile_name)
     saved = 0
     skipped = 0
 
     for article in articles:
-        title = str(article.get("title") or "").strip()
+        is_psych = digest_profile_name == "psychology"
+        title = str(article.get("title") or article.get("title_ru") or "").strip()
         url = str(article.get("url") or "").strip()
-        summary = str(article.get("summary_ru") or article.get("snippet") or title).strip()
+        if is_psych:
+            summary = str(article.get("snippet") or article.get("title") or "").strip()
+        else:
+            summary = str(article.get("summary_ru") or article.get("snippet") or title).strip()
         query = str(article.get("query") or "").strip()
-        if not title or not url:
+        if not title or not url or not summary:
             skipped += 1
             continue
         if url in existing_urls:
@@ -281,28 +308,35 @@ def _save_articles(
             published_at = published_at or candidate.published_at
             source_site = source_site or candidate.source_site
 
-        metadata = normalize_metadata(
-            EntryType.resource,
-            {
-                "kind": "article",
-                "url": url,
-                "source": "daily_digest",
-                "discovered_at": discovered_at,
-                "query": query or None,
-                "summary_ru": summary or None,
-                "description": summary or None,
-                "published_at": published_at,
-                "source_site": source_site,
-                "search_period_from": search_period_from,
-                "search_period_to": search_period_to,
-            },
-        )
+        metadata: dict[str, Any] = {
+            "kind": "article",
+            "collection": digest_profile.metadata_collection,
+            "url": url,
+            "source": digest_profile.metadata_source,
+            "discovered_at": discovered_at,
+            "query": query or None,
+            "description": summary or None,
+            "published_at": published_at,
+            "source_site": source_site,
+            "search_period_from": search_period_from,
+            "search_period_to": search_period_to,
+        }
+        if is_psych:
+            metadata["source_language"] = "en"
+            metadata["snippet_en"] = summary or None
+            metadata["article_access_checked"] = True
+            article_tier = str(article.get("article_tier") or "").strip()
+            if article_tier:
+                metadata["article_tier"] = article_tier
+        else:
+            metadata["summary_ru"] = summary or None
+
         entry = Entry(
             user_id=user_id,
             type=EntryType.resource.value,
             title=title[:160],
             content=summary or title,
-            metadata_=metadata,
+            metadata_=normalize_metadata(EntryType.resource, metadata),
         )
         db.add(entry)
         existing_urls.add(url)
@@ -321,21 +355,25 @@ def run_daily_digest(
     topics: list[str] | None = None,
     max_articles: int | None = None,
     skip_health_check: bool = False,
+    force: bool = False,
+    profile: DigestProfileName = "ai",
 ) -> DigestResult:
-    if not settings.digest_enabled:
+    digest_profile = get_digest_profile(profile)
+    if not digest_profile.enabled:
         result = DigestResult(
             status="disabled",
             articles_saved=0,
             articles_skipped=0,
-            topics=topics or list(settings.digest_topics),
-            message="Daily digest is disabled in configuration",
+            topics=topics or digest_profile.default_topic_list(),
+            message=f"Digest profile '{profile}' is disabled in configuration",
+            profile=profile,
         )
-        save_digest_state(status=result.status, error=result.message, topics=result.topics)
+        save_digest_state(profile=profile, status=result.status, error=result.message, topics=result.topics)
         return result
 
-    selected_topics = topics or list(settings.digest_topics)
-    article_limit = max_articles or settings.digest_max_articles
-    digest_state = load_digest_state()
+    selected_topics = topics or digest_profile.default_topic_list()
+    article_limit = max_articles or digest_profile.max_articles
+    digest_state = load_digest_state(profile)
     today = _user_today()
     date_range = compute_search_date_range(
         today=today,
@@ -344,55 +382,101 @@ def run_daily_digest(
     )
 
     if date_range is None:
-        result = DigestResult(
-            status="up_to_date",
-            articles_saved=0,
-            articles_skipped=0,
-            topics=selected_topics,
-            message="Digest is already up to date for today",
-            search_period_from=None,
-            search_period_to=today.isoformat(),
-        )
-        save_digest_state(status=result.status, topics=selected_topics)
-        return result
+        if force:
+            date_range = compute_force_refresh_date_range(
+                today=today,
+                lookback_days=settings.digest_first_run_lookback_days,
+            )
+        else:
+            result = DigestResult(
+                status="up_to_date",
+                articles_saved=0,
+                articles_skipped=0,
+                topics=selected_topics,
+                message="Digest is already up to date for today",
+                search_period_from=None,
+                search_period_to=today.isoformat(),
+                profile=profile,
+            )
+            save_digest_state(profile=profile, status=result.status, topics=selected_topics)
+            return result
 
     period_from = date_range.date_from.isoformat()
     period_to = date_range.date_to.isoformat()
+    tier_by_query: dict[str, str] = {}
 
     try:
         user = _resolve_user(db, user_id, user_email)
-        if not skip_health_check and not check_ollama_health():
+        if (
+            not skip_health_check
+            and digest_profile.requires_ollama_health
+            and not check_ollama_health()
+        ):
             raise AIUnavailableError("Ollama is not reachable. Start Ollama before running digest.")
 
-        candidates = _collect_candidates(
-            selected_topics,
-            date_from=date_range.date_from,
-            date_to=date_range.date_to,
+        if profile == "psychology":
+            candidates, tier_by_query = collect_psychology_candidates(selected_topics)
+        else:
+            candidates = collect_ai_candidates(
+                selected_topics,
+                date_from=date_range.date_from,
+                date_to=date_range.date_to,
+            )
+
+        feedback_profile = load_feedback_profile(
+            db,
+            user.id,
+            collection=digest_profile.metadata_collection,
         )
+        candidates = _prefilter_candidates(candidates, feedback_profile)
+        existing_urls = _existing_article_urls(db, user.id)
+        if force:
+            candidates = [item for item in candidates if item.url not in existing_urls]
         if not candidates:
             result = DigestResult(
                 status="empty",
                 articles_saved=0,
                 articles_skipped=0,
                 topics=selected_topics,
-                message="No search results were found for the selected date range",
+                message=(
+                    "No new articles were found: search results are already saved or filtered out"
+                    if force
+                    else "No search results were found for the selected date range"
+                ),
                 search_period_from=period_from,
                 search_period_to=period_to,
+                profile=profile,
             )
             save_digest_state(
+                profile=profile,
                 status=result.status,
                 topics=selected_topics,
-                last_search_until=period_to,
+                last_search_until=period_to if not force else digest_state.last_search_until,
             )
             return result
 
-        try:
-            filtered = _filter_with_llm(candidates, max_articles=article_limit)
-        except (AIUnavailableError, Exception):
-            filtered = _fallback_filter(candidates, max_articles=article_limit)
+        if digest_profile.use_llm_filter:
+            try:
+                filtered = _filter_with_llm(
+                    candidates,
+                    max_articles=article_limit,
+                    feedback_profile=feedback_profile,
+                    profile_name=profile,
+                    tier_by_query=tier_by_query,
+                )
+            except (AIUnavailableError, Exception):
+                if digest_profile.allow_llm_fallback:
+                    filtered = _fallback_filter(candidates, max_articles=article_limit)
+                else:
+                    raise
+        else:
+            filtered = _direct_filter(
+                candidates,
+                max_articles=article_limit,
+                tier_by_query=tier_by_query,
+            )
 
         discovered_at = _today_for_user()
-        existing_urls = _existing_article_urls(db, user.id)
         candidate_index = _candidate_by_url(candidates)
         saved, skipped = _save_articles(
             db,
@@ -403,18 +487,25 @@ def run_daily_digest(
             candidate_index=candidate_index,
             search_period_from=period_from,
             search_period_to=period_to,
+            digest_profile_name=profile,
         )
+
+        message = f"Saved {saved} articles, skipped {skipped}"
+        if force and saved == 0:
+            message = "No new articles were found: search results are already saved or filtered out"
 
         result = DigestResult(
             status="ok",
             articles_saved=saved,
             articles_skipped=skipped,
             topics=selected_topics,
-            message=f"Saved {saved} articles, skipped {skipped}",
+            message=message,
             search_period_from=period_from,
             search_period_to=period_to,
+            profile=profile,
         )
         save_digest_state(
+            profile=profile,
             status=result.status,
             articles_saved=result.articles_saved,
             topics=selected_topics,
@@ -423,5 +514,5 @@ def run_daily_digest(
         return result
     except Exception as exc:
         message = str(exc) or exc.__class__.__name__
-        save_digest_state(status="error", error=message, topics=selected_topics)
+        save_digest_state(profile=profile, status="error", error=message, topics=selected_topics)
         raise

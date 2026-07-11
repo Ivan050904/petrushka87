@@ -17,8 +17,11 @@ def _format_job_error(exc: Exception) -> str:
     if "429" in msg or "Too Many Requests" in msg:
         return (
             "Превышен лимит запросов GitHub Models. "
-            "Подожди 1–2 минуты и нажми «Попробовать снова»."
+            "Подожди 1–2 минуты и нажми «Попробовать снова», "
+            "или укажи OPENAI_API_KEY для другого провайдера."
         )
+    if "youtube" in msg.lower() and ("timed out" in msg.lower() or "timeout" in msg.lower()):
+        return f"YouTube: {msg}"
     if msg.startswith("Превышен лимит"):
         return msg
     if len(msg) > 500:

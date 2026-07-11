@@ -34,8 +34,28 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan",
     )
+    therapy_session_jobs = relationship(
+        "TherapySessionJob",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
     assistant_conversations = relationship(
         "AssistantConversation",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    exercise_catalog_items = relationship(
+        "ExerciseCatalog",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    workout_sessions = relationship(
+        "WorkoutSession",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    personal_records = relationship(
+        "PersonalRecord",
         back_populates="user",
         cascade="all, delete-orphan",
     )

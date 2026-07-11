@@ -54,3 +54,8 @@ class Entry(Base):
         back_populates="entry",
         uselist=False,
     )
+    therapy_session_job = relationship(
+        "TherapySessionJob",
+        back_populates="entry",
+        uselist=False,
+    )

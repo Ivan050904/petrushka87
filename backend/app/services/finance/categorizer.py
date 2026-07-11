@@ -15,8 +15,11 @@ Return JSON only:
 Rules:
 - Use only provided categories for expense/income rows.
 - Internal transfers between the user's own accounts must be kind=transfer and category=null.
+- If direction=income or description mentions salary/stipend/cashback/refund/credit, use kind=income.
+- Income rows should use category "Доход" when available.
 - If unsure, category="Прочее" and lower confidence.
 - Do not invent new categories.
+- Never classify stipends, salary, refunds, or cashback as expense.
 """
 
 
@@ -27,6 +30,7 @@ class CategorizeInputItem(BaseModel):
     direction: str
     counterparty: str | None = None
     bank: str | None = None
+    parser_note: str | None = None
 
 
 class CategorizeOutputItem(BaseModel):
@@ -69,6 +73,7 @@ def categorize_transactions(
                 direction=item.direction,
                 counterparty=item.counterparty,
                 bank=None,
+                parser_note=item.parser_note,
             )
             for index, item in enumerate(chunk)
         ]
@@ -84,7 +89,13 @@ def categorize_transactions(
             if suggestion is None:
                 continue
             kind = suggestion.kind if suggestion.kind in {"expense", "income", "transfer"} else item.kind
+            if item.direction == "income" and kind == "expense":
+                kind = "income"
+            if _looks_like_income(item.description, item.parser_note) and kind == "expense":
+                kind = "income"
             category = suggestion.category if kind != "transfer" else None
+            if kind == "income" and (not category or category == "Прочее") and "Доход" in category_list:
+                category = "Доход"
             updated[offset + index] = ParsedTransaction(
                 transaction_date=item.transaction_date,
                 amount=item.amount,
@@ -99,6 +110,14 @@ def categorize_transactions(
                 parser_note=item.parser_note,
             )
     return updated
+
+
+def _looks_like_income(description: str, parser_note: str | None = None) -> bool:
+    haystack = f"{description} {parser_note or ''}".lower()
+    return any(
+        token in haystack
+        for token in ("стипенд", "зарплат", "зачислен", "поступлен", "cashback", "кэшбэк", "возврат")
+    )
 
 
 def _call_categorizer(

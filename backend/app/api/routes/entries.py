@@ -37,6 +37,7 @@ def _apply_metadata_filters(
     kind: str | None,
     entry_date_from: str | None,
     entry_date_to: str | None,
+    exclude_hidden: bool = False,
 ):
     if collection:
         statement = statement.where(_metadata_text("collection") == collection)
@@ -55,6 +56,15 @@ def _apply_metadata_filters(
         statement = statement.where(_metadata_text("entry_date") >= entry_date_from)
     if entry_date_to:
         statement = statement.where(_metadata_text("entry_date") <= entry_date_to)
+    if exclude_hidden:
+        statement = statement.where(
+            or_(
+                _metadata_text("article_hidden").is_(None),
+                _metadata_text("article_hidden") == 0,
+                func.lower(func.coalesce(func.cast(_metadata_text("article_hidden"), String), ""))
+                == "false",
+            )
+        )
     return statement
 
 
@@ -212,6 +222,7 @@ def list_entries(
     entry_date_from: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
     entry_date_to: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
     sort: str | None = Query(default=None),
+    exclude_hidden: bool = Query(default=False),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
 ) -> EntryList:
@@ -230,6 +241,7 @@ def list_entries(
         kind=kind,
         entry_date_from=entry_date_from,
         entry_date_to=entry_date_to,
+        exclude_hidden=exclude_hidden,
     )
 
     if q:
@@ -255,6 +267,15 @@ def list_entries(
             _metadata_text("entry_date").asc(),
             Entry.created_at.asc(),
             Entry.updated_at.asc(),
+        )
+    elif sort == "discovered_at_desc":
+        order_clause = (
+            func.coalesce(
+                _metadata_text("discovered_at"),
+                _metadata_text("published_at"),
+                Entry.created_at,
+            ).desc(),
+            Entry.created_at.desc(),
         )
     else:
         order_clause = (Entry.updated_at.desc(), Entry.created_at.desc())

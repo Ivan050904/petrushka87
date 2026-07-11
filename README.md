@@ -16,9 +16,9 @@ The repository is organized as a small monorepo:
 - Universal `Entry` entity
 - Entry CRUD
 - SQLite schema and Alembic migration
-The frontend uses scenario-based navigation: **Сегодня**, **Входящие**, **Журнал**, **Планы**, **Трекинг**, **Справочник**, plus global search. Legacy routes (`/tasks`, `/events`, `/habits`, etc.) redirect to the new sections.
+The frontend uses scenario-based navigation: **Сегодня**, **Входящие**, **Канбан**, **Заметки**, **Статьи**, **Планы**, **Привычки**, **Финансы**, **Питание**, **Зал**, **Транскрибация** (вкладки «Голос» и «Видео»), **Сессии**, **Чат с контекстом**, **Справочник**, plus global search. Legacy routes (`/tasks`, `/events`, `/habits`, `/journal`, etc.) redirect to the new sections.
 
-- Typed Tasks, Habits, Finance, People, Journal, and Resources screens
+- Typed Tasks, Habits, Finance, People, Notes, and Resources screens
 - Search UI with type filters
 - Dashboard summary for active tasks, latest entries, recent expenses, and notes
 - Draft persistence for daily input forms
@@ -40,7 +40,62 @@ The frontend uses scenario-based navigation: **Сегодня**, **Входящ�
 | Sprint 9: search by title, content, metadata, and type | Implemented |
 | Sprint 10: daily dashboard | Implemented |
 
-Deferred by design: knowledge graph, vector DB, RAG, agents, complex workflows, calendar, food tracking, Telegram bot, and dedicated media/book trackers.
+Deferred by design: knowledge graph, vector DB, complex workflows, Telegram bot, and dedicated media/book trackers.
+
+Implemented beyond original MVP notes: food tracking, gym workouts (`/tracking?tab=workouts`), therapy sessions, embedded transcription with voice tab, plans calendar, dual assistant modes (dashboard agent actions vs `/assistant` context chat).
+
+## Hybrid RAG architecture
+
+«Чат с контекстом» uses a **hybrid retriever** (not a standalone vector DB):
+
+1. **Query router** ([`query_intent.py`](backend/app/services/context/query_intent.py)) — keyword + structured signals → one or more scopes: `notes`, `plans`, `finance`, `people`, `transcription`, `kanban`, or `all`.
+2. **Per-module retrievers** ([`retrievers/`](backend/app/services/context/retrievers/)) — SQL pins (dates, months, weeks) + BM25 + scoped embeddings.
+3. **Orchestrator** ([`orchestrator.py`](backend/app/services/context/orchestrator.py)) — merge, dedupe, rerank, optional entry-link boost.
+4. **Single index** — `entries` + `entry_embeddings` with `scope`, `entry_type`, `entry_date` metadata.
+
+Config:
+
+```powershell
+CONTEXT_ROUTER_MULTI_SCOPE=true
+CONTEXT_EMBEDDINGS_ENABLED=true
+CONTEXT_EMBEDDINGS_PROVIDER=auto   # hash fallback without API key
+```
+
+Backfill after schema/import changes:
+
+```powershell
+cd backend
+alembic upgrade head
+python scripts/reindex_embeddings.py --user-email demo@folio-one.local
+```
+
+## Assistant modes
+
+| UI entry | Backend | LLM config | Purpose |
+| --- | --- | --- | --- |
+| Dashboard panel | `/assistant/agent/chat` | `ASSISTANT_*` | Agent actions on entries (create task/event) |
+| Nav «Чат с контекстом» | `/assistant/conversations/*` | `NOTES_AI_*` → fallback `OPENAI_COMPATIBLE_*` | RAG chat over notes, plans, finance, transcriptions |
+
+### RAG context settings
+
+Tune retrieval for «Чат с контекстом» in `backend/.env`:
+
+```powershell
+CONTEXT_CANDIDATE_LIMIT=1500
+CONTEXT_SNIPPET_LIMIT=40
+CONTEXT_MAX_CHARS=24000
+CONTEXT_DATE_LOOKUP_ENABLED=true
+CONTEXT_DEBUG=false
+```
+
+After changing indexing logic, backfill embeddings:
+
+```powershell
+cd backend
+python scripts/reindex_embeddings.py --user-email demo@folio-one.local
+```
+
+Use `--dry-run` to count records without writing.
 
 ## Run locally
 
@@ -76,7 +131,7 @@ Backend API: http://localhost:8000/docs
 
 ## Demo account
 
-A demo user with pre-filled tasks, events, finance, habits, food, people, journal, and resources is created automatically by `start-dev.bat`. You can also seed it manually:
+A demo user with pre-filled tasks, events, finance, habits, food, people, notes, and resources is created automatically by `start-dev.bat`. You can also seed it manually:
 
 ```powershell
 cd backend
@@ -94,9 +149,16 @@ Credentials:
 - Email: `demo@folio-one.local`
 - Password: `demo12345`
 
+Local dev account (Petr):
+
+- Email: `petr@petr.local`
+- Password: `petr12345`
+
+See `backend/LOCAL_ACCOUNTS.example.txt` for the full list.
+
 On the login screen, click **Войти в демо** for one-click access.
 
-The MVP uses a single SQLite database at `backend/storage/folio_one.db` and local files at `backend/storage/files`, so Docker/PostgreSQL is not required for local daily use yet.
+The MVP uses a **single** SQLite database at `backend/storage/folio_one.db` (not committed to git; bootstrap via `scripts/bootstrap_data.py`). Local files live at `backend/storage/files`. Legacy `letscore.db` and `transcription/jobs.db` are no longer used.
 
 Set `DATABASE_URL=sqlite:///./storage/folio_one.db` in `backend/.env` (this is the default in `.env.example`).
 

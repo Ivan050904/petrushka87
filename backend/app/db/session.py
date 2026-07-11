@@ -16,7 +16,7 @@ def _engine_kwargs() -> dict[str, object]:
             db_path = settings.database_url.replace("sqlite:///", "", 1)
             if db_path and db_path != ":memory:":
                 Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-        return {"connect_args": {"check_same_thread": False}}
+        return {"connect_args": {"check_same_thread": False, "timeout": 30}}
     return {"pool_pre_ping": True}
 
 
@@ -29,6 +29,7 @@ def _enable_sqlite_foreign_keys(dbapi_connection: object, connection_record: obj
         return
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.execute("PRAGMA journal_mode=WAL")
     cursor.close()
 
 

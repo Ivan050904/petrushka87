@@ -29,6 +29,7 @@ from app.services.finance.ai_config import resolve_finance_ai_config
 from app.services.finance.categorizer import FinanceAIUnavailableError, categorize_transactions
 from app.services.finance.models import DEFAULT_FINANCE_CATEGORIES, FinanceAccount, ParsedTransaction
 from app.services.finance.parser_registry import parser_registry
+from app.services.finance.dedup import build_transaction_fingerprint, fingerprint_from_metadata
 from app.services.finance.parsers.generic import build_external_id
 from app.services.finance.transfer_detector import apply_transfer_pairs, apply_transfer_rules
 
@@ -72,18 +73,34 @@ def _accounts_from_payload(accounts: list) -> list[FinanceAccount]:
     ]
 
 
-def _existing_external_ids(db: Session, user_id: uuid.UUID) -> set[str]:
+def _existing_dedup_keys(db: Session, user_id: uuid.UUID) -> tuple[set[str], set[str]]:
     statement = select(Entry.metadata_).where(
         Entry.user_id == user_id,
         Entry.type == EntryType.finance.value,
     )
     rows = db.execute(statement).scalars().all()
-    result: set[str] = set()
+    external_ids: set[str] = set()
+    fingerprints: set[str] = set()
     for metadata in rows:
         external_id = metadata.get("external_id")
         if isinstance(external_id, str) and external_id:
-            result.add(external_id)
-    return result
+            external_ids.add(external_id)
+        fingerprint = fingerprint_from_metadata(metadata)
+        if fingerprint:
+            fingerprints.add(fingerprint)
+    return external_ids, fingerprints
+
+
+def _is_duplicate(
+    *,
+    external_id: str | None,
+    fingerprint: str,
+    existing_external_ids: set[str],
+    existing_fingerprints: set[str],
+) -> bool:
+    if external_id and external_id in existing_external_ids:
+        return True
+    return fingerprint in existing_fingerprints
 
 
 @router.get("/ai-status", response_model=FinanceAIStatusRead)
@@ -136,13 +153,26 @@ async def finance_import_preview(
     parsed = apply_transfer_rules(parsed)
     parsed = apply_transfer_pairs(parsed)
 
-    existing = _existing_external_ids(db, current_user.id)
+    existing_external_ids, existing_fingerprints = _existing_dedup_keys(db, current_user.id)
     rows: list[FinanceImportRow] = []
     duplicates = 0
     for item in parsed:
-        if item.external_id in existing:
+        fingerprint = build_transaction_fingerprint(
+            bank=bank,
+            account_id=account_id,
+            transaction_date=item.transaction_date,
+            amount=item.amount,
+            description=item.description,
+        )
+        if _is_duplicate(
+            external_id=item.external_id,
+            fingerprint=fingerprint,
+            existing_external_ids=existing_external_ids,
+            existing_fingerprints=existing_fingerprints,
+        ):
             duplicates += 1
             continue
+        item.external_id = item.external_id or fingerprint
         rows.append(_row_from_parsed(item))
 
     return FinanceImportPreviewRead(
@@ -161,18 +191,27 @@ def finance_import_confirm(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> FinanceImportConfirmRead:
-    existing = _existing_external_ids(db, current_user.id)
+    existing_external_ids, existing_fingerprints = _existing_dedup_keys(db, current_user.id)
     import_batch_id = str(uuid.uuid4())
     created = 0
     skipped = 0
 
     for row in payload.rows:
-        external_id = row.external_id or build_external_id(
-            payload.bank,
-            payload.account_id,
-            _parsed_from_row(row),
+        parsed_row = _parsed_from_row(row)
+        fingerprint = build_transaction_fingerprint(
+            bank=payload.bank,
+            account_id=payload.account_id,
+            transaction_date=parsed_row.transaction_date,
+            amount=parsed_row.amount,
+            description=parsed_row.description,
         )
-        if external_id in existing:
+        external_id = row.external_id or fingerprint
+        if _is_duplicate(
+            external_id=external_id,
+            fingerprint=fingerprint,
+            existing_external_ids=existing_external_ids,
+            existing_fingerprints=existing_fingerprints,
+        ):
             skipped += 1
             continue
 
@@ -202,7 +241,8 @@ def finance_import_confirm(
             metadata_=metadata,
         )
         db.add(entry)
-        existing.add(external_id)
+        existing_external_ids.add(external_id)
+        existing_fingerprints.add(fingerprint)
         created += 1
 
     db.commit()

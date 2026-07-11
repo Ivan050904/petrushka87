@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import csv
-import hashlib
 import io
 import re
 from datetime import datetime
 from typing import Any
 
+from app.services.finance.dedup import build_transaction_fingerprint
 from app.services.finance.models import ParsedTransaction
-from app.services.finance.parsers.base import BankStatementParser
+from app.services.finance.parsers.base import BankStatementParser, ParserNotReadyError
 
 DATE_COLUMN_HINTS = ("дата", "date", "дата операции", "дата проведения")
 AMOUNT_COLUMN_HINTS = ("сумма", "amount", "сумма операции", "сумма в валюте")
@@ -28,16 +28,13 @@ DATE_FORMATS = (
 
 
 def build_external_id(bank: str, account_id: str, transaction: ParsedTransaction) -> str:
-    payload = "|".join(
-        [
-            bank,
-            account_id,
-            transaction.transaction_date,
-            f"{transaction.amount:.2f}",
-            transaction.description.strip().lower(),
-        ]
+    return build_transaction_fingerprint(
+        bank=bank,
+        account_id=account_id,
+        transaction_date=transaction.transaction_date,
+        amount=transaction.amount,
+        description=transaction.description,
     )
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def normalize_header(value: str) -> str:
@@ -88,7 +85,7 @@ def detect_direction(amount_text: str, description: str, explicit: str | None = 
     if amount_text.strip().startswith("-"):
         return "expense"
     lowered = description.lower()
-    if any(hint in lowered for hint in ("зарплат", "возврат", "cashback", "кэшбэк")):
+    if any(hint in lowered for hint in ("зарплат", "возврат", "cashback", "кэшбэк", "стипенд", "зачислен", "поступлен")):
         return "income"
     return "expense"
 

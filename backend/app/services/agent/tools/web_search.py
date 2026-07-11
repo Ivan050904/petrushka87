@@ -3,8 +3,8 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 
-from duckduckgo_search import DDGS
-from duckduckgo_search.exceptions import DuckDuckGoSearchException
+from ddgs import DDGS
+from ddgs.exceptions import DDGSException
 
 
 @dataclass(frozen=True)
@@ -38,7 +38,7 @@ def web_search(
         if timelimit:
             kwargs["timelimit"] = timelimit
         raw_results = DDGS().text(cleaned_query, **kwargs)
-    except DuckDuckGoSearchException:
+    except DDGSException:
         return []
 
     results: list[SearchResult] = []

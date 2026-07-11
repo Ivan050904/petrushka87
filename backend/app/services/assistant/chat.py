@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import uuid
 from collections.abc import Callable, Iterator
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from sqlalchemy import select
@@ -10,7 +11,15 @@ from sqlalchemy.orm import Session
 
 from app.models.assistant import AssistantConversation, AssistantMessage
 from app.services.ai.analyze import answer_stream
-from app.services.context.user_context import ContextScope, UserContext, build_user_context
+from app.services.ai.life_notes import _resolve_notes_ai_config
+from app.services.context.context_models import ContextScope, UserContext
+from app.services.context.user_context import build_user_context
+
+
+@dataclass
+class AssistantStreamMeta:
+    context: UserContext | None = None
+    model: str = ""
 
 
 def list_conversations(db: Session, user_id: uuid.UUID) -> list[AssistantConversation]:
@@ -64,14 +73,19 @@ def stream_assistant_reply(
     user_id: uuid.UUID,
     conversation: AssistantConversation,
     query: str,
+    meta: AssistantStreamMeta | None = None,
 ) -> Iterator[str]:
     context = build_user_context(
         db,
         user_id,
         query,
         scope=conversation.scope,  # type: ignore[arg-type]
-        limit=20,
     )
+    _, _, _, model = _resolve_notes_ai_config()
+    if meta is not None:
+        meta.context = context
+        meta.model = model
+
     history = [
         {"role": message.role, "content": message.content}
         for message in conversation.messages

@@ -7,6 +7,8 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+.coverage
+htmlcov/
 .venv/
 venv/
 
@@ -21,10 +23,7 @@ coverage/
 /storage/
 backend/storage/*
 !backend/storage/folio_one.db
-!backend/storage/transcription/
-!backend/storage/transcription/**
-!backend/storage/files/
-!backend/storage/files/**
+backend/storage/logs/
 *.log
 .DS_Store
 Thumbs.db

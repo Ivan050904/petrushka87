@@ -121,6 +121,39 @@ def test_finance_summary_splits_expense_and_income_categories(client: TestClient
     assert body["by_category"] == body["by_expense_category"]
 
 
+def test_finance_import_confirm_skips_overlapping_duplicates(client: TestClient) -> None:
+    token = _register(client)
+    headers = _auth_headers(token)
+
+    row = {
+        "transaction_date": "2026-07-05",
+        "amount": 3000,
+        "direction": "income",
+        "description": "Стипендия учащимся",
+        "currency": "RUB",
+        "kind": "income",
+        "category": "Доход",
+    }
+
+    first = client.post(
+        "/api/v1/finance/import/confirm",
+        headers=headers,
+        json={"bank": "sber", "account_id": "acc-1", "parser": "test", "rows": [row]},
+    )
+    assert first.status_code == 200
+    assert first.json()["created"] == 1
+
+    second = client.post(
+        "/api/v1/finance/import/confirm",
+        headers=headers,
+        json={"bank": "sber", "account_id": "acc-1", "parser": "test", "rows": [row]},
+    )
+    assert second.status_code == 200
+    body = second.json()
+    assert body["created"] == 0
+    assert body["skipped_duplicates"] == 1
+
+
 def test_finance_import_confirm_uses_custom_title_or_description(client: TestClient) -> None:
     token = _register(client)
     headers = _auth_headers(token)

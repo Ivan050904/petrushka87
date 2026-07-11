@@ -38,7 +38,7 @@ def test_config() -> None:
     check("config token loaded", bool(settings.llm_api_key), settings.llm_provider)
     check("config provider", settings.llm_provider == "github", settings.llm_provider)
     check("config model", bool(settings.llm_model), settings.llm_model)
-    check("config db path", settings.db_path.parent.exists(), str(settings.db_path.parent))
+    check("config data dir", settings.data_path.exists(), str(settings.data_path))
 
 
 def test_llm_generate() -> None:

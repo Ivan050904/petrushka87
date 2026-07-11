@@ -3,6 +3,8 @@
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.core.token_sources import is_github_token, read_desktop_token
+
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DATA_DIR = BACKEND_ROOT / "storage" / "transcription"
 
@@ -10,26 +12,6 @@ GITHUB_MODELS_BASE_URL = "https://models.github.ai/inference"
 OPENAI_BASE_URL = "https://api.openai.com/v1"
 GITHUB_DEFAULT_MODEL = "openai/gpt-4o-mini"
 OPENAI_DEFAULT_MODEL = "gpt-4o-mini"
-
-
-def _read_desktop_token() -> str:
-    desktop = Path.home() / "Desktop"
-    if not desktop.exists():
-        return ""
-
-    token_files = sorted(
-        (path for path in desktop.glob("*.txt") if path.stat().st_size <= 256),
-        key=lambda path: path.stat().st_size,
-    )
-    for path in token_files:
-        content = path.read_text(encoding="utf-8").strip()
-        if content.startswith(("sk-", "github_pat_", "ghp_", "gho_", "ghu_", "ghs_", "ghr_")):
-            return content
-    return ""
-
-
-def _is_github_token(token: str) -> bool:
-    return token.startswith(("github_pat_", "ghp_", "gho_", "ghu_", "ghs_", "ghr_"))
 
 
 class Settings(BaseSettings):
@@ -78,12 +60,12 @@ class Settings(BaseSettings):
             if self.openai_compatible_api_key:
                 self.llm_api_key = self.openai_compatible_api_key
             else:
-                desktop = _read_desktop_token()
+                desktop = read_desktop_token()
                 if desktop:
                     self.llm_api_key = desktop
 
         if not self.llm_provider:
-            if self.llm_api_key and _is_github_token(self.llm_api_key):
+            if self.llm_api_key and is_github_token(self.llm_api_key):
                 self.llm_provider = "github"
             else:
                 self.llm_provider = "openai"
@@ -112,10 +94,6 @@ class Settings(BaseSettings):
         path = Path(self.transcription_data_dir)
         path.mkdir(parents=True, exist_ok=True)
         return path
-
-    @property
-    def db_path(self) -> Path:
-        return self.data_path / "jobs.db"
 
     @property
     def tmp_path(self) -> Path:

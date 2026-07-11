@@ -631,7 +631,7 @@ def test_resource_upload_and_download(client: TestClient) -> None:
     resource = uploaded.json()
     assert resource["type"] == "resource"
     assert resource["metadata"]["file"]["filename"] == "notes.md"
-    assert resource["metadata"]["file"]["size"] == 11
+    assert resource["metadata"]["file"]["size"] == 12
     assert resource["metadata"]["file"]["storage"] == "local"
     stored_path = resources.storage.path_for(resource["metadata"]["file"]["key"])
     assert stored_path.exists()

@@ -107,7 +107,7 @@ class Settings:
     whisper_device: str = "cpu"
     whisper_compute_type: str = "int8"
     speech_language: str = "ru"
-    speech_max_bytes: int = 5 * 1024 * 1024
+    speech_max_bytes: int = 25 * 1024 * 1024
 
     digest_enabled: bool = True
     digest_topics: list[str] = field(
@@ -129,6 +129,31 @@ class Settings:
     digest_first_run_lookback_days: int = 7
     digest_scheduler_enabled: bool = True
 
+    psych_digest_enabled: bool = True
+    psych_digest_max_articles: int = 3
+    psych_digest_schedule_hour: int = 8
+    psych_digest_llm_provider: str = "auto"
+    psych_digest_llm_base_url: str = ""
+    psych_digest_llm_api_key: str = ""
+    psych_digest_llm_model: str = "openai/gpt-4o"
+    psych_digest_queries: list[str] = field(default_factory=list)
+    psych_digest_use_llm_filter: bool = False
+    psych_digest_tuned_queries_max_age_days: int = 7
+    psych_digest_tune_min_feedback: int = 3
+
+    context_candidate_limit: int = 1500
+    context_snippet_limit: int = 40
+    context_max_chars: int = 24000
+    context_date_lookup_enabled: bool = True
+    context_debug: bool = False
+    context_router_multi_scope: bool = True
+
+    context_embeddings_enabled: bool = True
+    context_embeddings_provider: str = "auto"
+    context_embeddings_model: str = "text-embedding-3-small"
+    context_embeddings_api_key: str = ""
+    context_embeddings_base_url: str = ""
+
     file_storage_provider: str = "local"
     local_storage_path: str = DEFAULT_LOCAL_STORAGE_PATH
     s3_bucket_name: str = ""
@@ -137,6 +162,19 @@ class Settings:
     s3_region: str = ""
     s3_access_key_id: str = ""
     s3_secret_access_key: str = ""
+
+    therapy_sessions_enabled: bool = True
+    therapy_max_upload_bytes: int = 524_288_000
+    therapy_llm_provider: str = "auto"
+    therapy_llm_base_url: str = ""
+    therapy_llm_api_key: str = ""
+    therapy_llm_model: str = "openai/gpt-4o"
+    therapy_whisper_model: str = "small"
+    therapy_whisper_device: str = "cpu"
+    therapy_whisper_compute_type: str = "int8"
+    therapy_diarization_enabled: bool = True
+    therapy_num_speakers: int = 2
+    hf_token: str = ""
 
 
 @lru_cache
@@ -208,7 +246,7 @@ def get_settings() -> Settings:
         whisper_device=_env(dotenv, "WHISPER_DEVICE", "cpu"),
         whisper_compute_type=_env(dotenv, "WHISPER_COMPUTE_TYPE", "int8"),
         speech_language=_env(dotenv, "SPEECH_LANGUAGE", "ru"),
-        speech_max_bytes=_env_int(dotenv, "SPEECH_MAX_BYTES", 5 * 1024 * 1024),
+        speech_max_bytes=_env_int(dotenv, "SPEECH_MAX_BYTES", 25 * 1024 * 1024),
         digest_enabled=_env_bool(dotenv, "DIGEST_ENABLED", True),
         digest_topics=_env_list(
             dotenv,
@@ -230,6 +268,30 @@ def get_settings() -> Settings:
         digest_search_provider=_env(dotenv, "DIGEST_SEARCH_PROVIDER", "habr"),
         digest_first_run_lookback_days=_env_int(dotenv, "DIGEST_FIRST_RUN_LOOKBACK_DAYS", 7),
         digest_scheduler_enabled=_env_bool(dotenv, "DIGEST_SCHEDULER_ENABLED", True),
+        psych_digest_enabled=_env_bool(dotenv, "PSYCH_DIGEST_ENABLED", True),
+        psych_digest_max_articles=_env_int(dotenv, "PSYCH_DIGEST_MAX_ARTICLES", 3),
+        psych_digest_schedule_hour=_env_int(dotenv, "PSYCH_DIGEST_SCHEDULE_HOUR", 8),
+        psych_digest_llm_provider=_env(dotenv, "PSYCH_DIGEST_LLM_PROVIDER", "auto"),
+        psych_digest_llm_base_url=_env(dotenv, "PSYCH_DIGEST_LLM_BASE_URL", ""),
+        psych_digest_llm_api_key=_env(dotenv, "PSYCH_DIGEST_LLM_API_KEY", ""),
+        psych_digest_llm_model=_env(dotenv, "PSYCH_DIGEST_LLM_MODEL", "openai/gpt-4o"),
+        psych_digest_queries=_env_list(dotenv, "PSYCH_DIGEST_QUERIES", []),
+        psych_digest_use_llm_filter=_env_bool(dotenv, "PSYCH_DIGEST_USE_LLM_FILTER", False),
+        psych_digest_tuned_queries_max_age_days=_env_int(
+            dotenv, "PSYCH_DIGEST_TUNED_QUERIES_MAX_AGE_DAYS", 7
+        ),
+        psych_digest_tune_min_feedback=_env_int(dotenv, "PSYCH_DIGEST_TUNE_MIN_FEEDBACK", 3),
+        context_candidate_limit=_env_int(dotenv, "CONTEXT_CANDIDATE_LIMIT", 1500),
+        context_snippet_limit=_env_int(dotenv, "CONTEXT_SNIPPET_LIMIT", 40),
+        context_max_chars=_env_int(dotenv, "CONTEXT_MAX_CHARS", 24000),
+        context_date_lookup_enabled=_env_bool(dotenv, "CONTEXT_DATE_LOOKUP_ENABLED", True),
+        context_debug=_env_bool(dotenv, "CONTEXT_DEBUG", False),
+        context_router_multi_scope=_env_bool(dotenv, "CONTEXT_ROUTER_MULTI_SCOPE", True),
+        context_embeddings_enabled=_env_bool(dotenv, "CONTEXT_EMBEDDINGS_ENABLED", True),
+        context_embeddings_provider=_env(dotenv, "CONTEXT_EMBEDDINGS_PROVIDER", "auto"),
+        context_embeddings_model=_env(dotenv, "CONTEXT_EMBEDDINGS_MODEL", "text-embedding-3-small"),
+        context_embeddings_api_key=_env(dotenv, "CONTEXT_EMBEDDINGS_API_KEY", ""),
+        context_embeddings_base_url=_env(dotenv, "CONTEXT_EMBEDDINGS_BASE_URL", ""),
         file_storage_provider=_env(dotenv, "FILE_STORAGE_PROVIDER", "local"),
         local_storage_path=_env(dotenv, "LOCAL_STORAGE_PATH", DEFAULT_LOCAL_STORAGE_PATH),
         s3_bucket_name=_env(dotenv, "S3_BUCKET_NAME", ""),
@@ -238,6 +300,18 @@ def get_settings() -> Settings:
         s3_region=_env(dotenv, "S3_REGION", ""),
         s3_access_key_id=_env(dotenv, "S3_ACCESS_KEY_ID", ""),
         s3_secret_access_key=_env(dotenv, "S3_SECRET_ACCESS_KEY", ""),
+        therapy_sessions_enabled=_env_bool(dotenv, "THERAPY_SESSIONS_ENABLED", True),
+        therapy_max_upload_bytes=_env_int(dotenv, "THERAPY_MAX_UPLOAD_BYTES", 524_288_000),
+        therapy_llm_provider=_env(dotenv, "THERAPY_LLM_PROVIDER", "auto"),
+        therapy_llm_base_url=_env(dotenv, "THERAPY_LLM_BASE_URL", ""),
+        therapy_llm_api_key=_env(dotenv, "THERAPY_LLM_API_KEY", ""),
+        therapy_llm_model=_env(dotenv, "THERAPY_LLM_MODEL", "openai/gpt-4o"),
+        therapy_whisper_model=_env(dotenv, "THERAPY_WHISPER_MODEL", "small"),
+        therapy_whisper_device=_env(dotenv, "THERAPY_WHISPER_DEVICE", "cpu"),
+        therapy_whisper_compute_type=_env(dotenv, "THERAPY_WHISPER_COMPUTE_TYPE", "int8"),
+        therapy_diarization_enabled=_env_bool(dotenv, "THERAPY_DIARIZATION_ENABLED", True),
+        therapy_num_speakers=_env_int(dotenv, "THERAPY_NUM_SPEAKERS", 2),
+        hf_token=_env(dotenv, "HF_TOKEN", ""),
     )
 
 

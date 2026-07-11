@@ -18,7 +18,7 @@ from app.core.config import settings as app_settings
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
-from app.services.agent.digest import DigestResult, compute_search_date_range
+from app.services.agent.digest import DigestResult, compute_force_refresh_date_range, compute_search_date_range
 from app.services.agent.scheduler import compute_next_run_at
 from app.services.agent.tools.habr_search import habr_search
 from app.storage.local import LocalFileStorage
@@ -94,6 +94,33 @@ def test_compute_search_date_range_up_to_date() -> None:
     today = date(2026, 7, 10)
     result = compute_search_date_range(today=today, last_search_until="2026-07-10", lookback_days=7)
     assert result is None
+
+
+def test_compute_force_refresh_date_range() -> None:
+    today = date(2026, 7, 11)
+    result = compute_force_refresh_date_range(today=today, lookback_days=7)
+    assert result.date_from == date(2026, 7, 4)
+    assert result.date_to == today
+
+
+@patch("app.api.routes.agent.run_daily_digest")
+def test_digest_run_endpoint_force(mock_run_digest, client: TestClient) -> None:
+    token = _register(client)
+    headers = _auth_headers(token)
+
+    mock_run_digest.return_value = DigestResult(
+        status="ok",
+        articles_saved=2,
+        articles_skipped=0,
+        topics=["cursor ai"],
+        message="Saved 2 articles, skipped 0",
+        search_period_from="2026-07-04",
+        search_period_to="2026-07-11",
+    )
+
+    response = client.post("/api/v1/agent/digest/run", headers=headers, json={"force": True})
+    assert response.status_code == 200
+    assert mock_run_digest.call_args.kwargs["force"] is True
 
 
 def test_compute_next_run_at_before_schedule_hour() -> None:
@@ -245,3 +272,4 @@ def test_digest_status_endpoint(_mock_health, client: TestClient) -> None:
     assert body["search_provider"] == "habr"
     assert "next_search_from" in body
     assert "scheduler_enabled" in body
+    assert "psychology" in body

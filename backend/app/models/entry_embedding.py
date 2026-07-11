@@ -33,6 +33,10 @@ class EntryEmbedding(Base):
     source_type: Mapped[str] = mapped_column(String(32), default="entry")
     text_snippet: Mapped[str] = mapped_column(Text, nullable=False)
     vector: Mapped[list[float] | None] = mapped_column(JSON, nullable=True)
+    entry_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    scope: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    collection: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    entry_date: Mapped[str | None] = mapped_column(String(10), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

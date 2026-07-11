@@ -53,11 +53,14 @@ if not exist "%PY%" (
 "%PY%" -c "import fastapi" >nul 2>&1
 if errorlevel 1 (
     echo [setup] Installing backend dependencies...
-    "%PIP%" install -q "alembic>=1.13.0" "bcrypt>=5.0.0" "fastapi>=0.115.0" "faster-whisper>=1.1.0" "httpx>=0.27.0" "itsdangerous>=2.2.0" "jinja2>=3.1.5" "pydantic-settings>=2.7.0" "python-jose[cryptography]>=3.3.0" "python-multipart>=0.0.9" "rank-bm25>=0.2.2" "requests>=2.32.0" "sqlalchemy>=2.0.0" "uvicorn[standard]>=0.30.0" "yt-dlp>=2026.7.4"
+    pushd "%ROOT%backend"
+    "%PIP%" install -q -e ".[dev]"
     if errorlevel 1 (
+        popd
         echo [error] Failed to install backend dependencies
         goto :done
     )
+    popd
 )
 
 echo [setup] Running database migrations...
@@ -68,9 +71,9 @@ if errorlevel 1 (
 )
 popd
 
-echo [setup] Seeding demo user...
+echo [setup] Bootstrapping data...
 pushd "%ROOT%backend"
-"%PY%" scripts\seed_demo.py
+"%PY%" scripts\bootstrap_data.py
 popd
 
 if not exist "%ROOT%frontend\node_modules" (
@@ -90,6 +93,12 @@ echo [cleanup] Freeing ports 3000 and 8000...
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":3000" ^| findstr "LISTENING"') do taskkill /F /PID %%a >nul 2>&1
 for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":8000" ^| findstr "LISTENING"') do taskkill /F /PID %%a >nul 2>&1
 ping 127.0.0.1 -n 2 >nul
+
+rem Stale .next cache causes 500 on /notes and other routes (ENOENT on page.js).
+if exist "%ROOT%frontend\.next" (
+    echo [cleanup] Removing stale frontend\.next build cache...
+    rmdir /s /q "%ROOT%frontend\.next"
+)
 
 echo.
 echo Starting servers in separate windows...

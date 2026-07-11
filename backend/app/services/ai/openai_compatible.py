@@ -10,6 +10,7 @@ from pydantic import ValidationError
 
 from app.core.config import settings
 from app.services.ai.analyze import analyze_text_with_context, answer_stream
+from app.services.ai.base import AIUnavailableError, EntryClassification, TaskParseResult
 from app.services.ai.life_notes import LifeNoteAnalyzeResult
 
 SYSTEM_PROMPT = """Classify one Folio-One personal note. Return JSON only:
