@@ -23,6 +23,7 @@ coverage/
 /storage/
 backend/storage/*
 !backend/storage/folio_one.db
+*.egg-info/
 backend/storage/logs/
 *.log
 .DS_Store
