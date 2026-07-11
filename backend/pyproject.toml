@@ -10,7 +10,6 @@ include = ["app*", "transcription*"]
 name = "folio-one-backend"
 version = "0.1.0"
 description = "FastAPI backend for Folio-One"
-readme = "../README.md"
 requires-python = ">=3.12"
 dependencies = [
     "alembic>=1.13.0",
