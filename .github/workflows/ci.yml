@@ -72,15 +72,22 @@ jobs:
         run: |
           cd ../backend
           uvicorn app.main:app --port 8000 &
-          sleep 3
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8000/health && break
+            sleep 1
+          done
       - name: Start frontend
         run: |
           npm run build
           npm run start -- -p 3000 &
-          sleep 5
+          for i in $(seq 1 60); do
+            curl -sf http://127.0.0.1:3000/login && break
+            sleep 1
+          done
         env:
           NEXT_PUBLIC_API_URL: http://127.0.0.1:8000/api/v1
       - name: Playwright smoke
         run: npm run test:e2e
         env:
           PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
+          CI: true
