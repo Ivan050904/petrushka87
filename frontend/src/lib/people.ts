@@ -229,8 +229,8 @@ export function readPersonContactItems(metadata: Record<string, unknown>): Perso
       const type = (["phone", "email", "telegram", "other"] as const).includes(typeRaw as PersonContactType)
         ? (typeRaw as PersonContactType)
         : "other";
-      const label = typeof record.label === "string" ? record.label : undefined;
-      parsed.push(label ? { type, value, label } : { type, value });
+      const label = typeof record.label === "string" ? record.label : null;
+      parsed.push({ type, value, label });
     }
     return parsed;
   }

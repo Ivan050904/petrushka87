@@ -13,8 +13,8 @@ from starlette.concurrency import run_in_threadpool
 from app.api.deps import get_current_user
 from app.core.config import settings
 from app.db.session import SessionLocal, get_db
-from app.models.user import User
 from app.models.assistant import AssistantMessage
+from app.models.user import User
 from app.services.ai.base import AIUnavailableError
 from app.services.assistant.agent import run_assistant_turn
 from app.services.assistant.chat import (

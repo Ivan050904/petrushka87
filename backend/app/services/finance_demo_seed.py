@@ -411,7 +411,7 @@ def _scale_sets(base_sets: list[tuple[int, int]], progress: float) -> list[dict[
 
 
 def seed_workout_demo(db: Session, user: User, *, days_back: int = 90) -> int:
-    from app.models.workout import ExerciseCatalog, PersonalRecord, WorkoutSession, WorkoutExercise
+    from app.models.workout import ExerciseCatalog, PersonalRecord, WorkoutExercise, WorkoutSession
     from app.services.workouts.entry_sync import sync_entry_for_session
 
     catalog_items: list[ExerciseCatalog] = []

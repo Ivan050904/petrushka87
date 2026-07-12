@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import uuid
 from collections.abc import Generator
 from pathlib import Path
 
@@ -16,6 +15,7 @@ from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
 from app.storage.local import LocalFileStorage
+from tests.auth_helpers import create_user_token as _register
 
 
 @pytest.fixture()
@@ -59,7 +59,6 @@ def _enable_foreign_keys(engine: Engine) -> None:
         cursor.close()
 
 
-from tests.auth_helpers import create_user_token as _register
 
 
 def _auth_headers(token: str) -> dict[str, str]:

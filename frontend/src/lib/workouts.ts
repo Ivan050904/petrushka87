@@ -495,6 +495,14 @@ function formatDateKey(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
+function sessionDateKey(isoDate: string): string {
+  const parsed = new Date(isoDate);
+  if (Number.isNaN(parsed.getTime())) {
+    return isoDate.slice(0, 10);
+  }
+  return formatDateKey(parsed);
+}
+
 function startOfWeekMonday(date: Date): Date {
   const copy = new Date(date);
   copy.setHours(0, 0, 0, 0);
@@ -519,7 +527,7 @@ export function workoutActivityHeatmap(sessions: WorkoutSession[], days = 90): W
 
   const volumeByDate = new Map<string, number>();
   for (const session of sessionsWithExercises(sessions)) {
-    const key = session.date.slice(0, 10);
+    const key = sessionDateKey(session.date);
     const volume = sessionTotalVolume(session.exercises);
     volumeByDate.set(key, (volumeByDate.get(key) ?? 0) + volume);
   }
@@ -537,7 +545,7 @@ export function workoutActivityHeatmap(sessions: WorkoutSession[], days = 90): W
 
 export function workoutStreak(sessions: WorkoutSession[]): WorkoutStreak {
   const workoutDates = new Set(
-    sessionsWithExercises(sessions).map((session) => session.date.slice(0, 10)),
+    sessionsWithExercises(sessions).map((session) => sessionDateKey(session.date)),
   );
   if (workoutDates.size === 0) {
     return { current: 0, best: 0 };

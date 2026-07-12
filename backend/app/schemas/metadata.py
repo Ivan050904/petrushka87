@@ -245,7 +245,7 @@ class PersonMetadata(BaseModel):
         raise ValueError("full_name or at least one name part is required")
 
     @model_validator(mode="after")
-    def normalize_contacts(self) -> "PersonMetadata":
+    def normalize_contacts(self) -> PersonMetadata:
         self.full_name = self._compose_full_name(
             self.last_name,
             self.first_name,

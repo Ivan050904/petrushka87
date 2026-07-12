@@ -1,26 +1,4 @@
-from __future__ import annotations
-
-import json
-from collections.abc import Iterator
-from typing import Any
-
-import httpx
-from pydantic import ValidationError
-
-from app.core.config import settings
-from app.services.ai.base import AIUnavailableError
-from app.services.ai.life_notes import (
-    LifeNoteAnalyzeResult,
-    LifeNoteDrySpot,
-    _extract_message_content,
-    _extract_usage,
-    _resolve_notes_ai_config,
-)
-from app.services.ai.prompts.life_notes_analyze import LIFE_NOTES_ANALYZE_SYSTEM_PROMPT
-from app.services.context.user_context import UserContext, format_context_for_prompt
-
-
-def analyze_text_with_context(
+from __future__ import annotationsimport jsonfrom collections.abc import Iteratorfrom typing import Anyimport httpxfrom pydantic import ValidationErrorfrom app.core.config import settingsfrom app.services.ai.base import AIUnavailableErrorfrom app.services.ai.life_notes import (    LifeNoteAnalyzeResult,    LifeNoteDrySpot,    _extract_message_content,    _extract_usage,    _resolve_notes_ai_config,)from app.services.ai.prompts.life_notes_analyze import LIFE_NOTES_ANALYZE_SYSTEM_PROMPTfrom app.services.context.user_context import UserContext, format_context_for_promptdef analyze_text_with_context(
     content: str,
     *,
     entry_date: str | None = None,

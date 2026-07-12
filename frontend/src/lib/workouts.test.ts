@@ -449,10 +449,12 @@ describe("workouts helpers", () => {
   });
 
   it("builds workout activity heatmap with volume aggregation", () => {
+    const today = new Date();
+    today.setHours(12, 0, 0, 0);
     const sessions: WorkoutSession[] = [
       {
         id: "1",
-        date: "2026-07-12T10:00:00Z",
+        date: today.toISOString(),
         body_weight: 76,
         mood: 5,
         muscle_readiness: 5,
@@ -465,9 +467,9 @@ describe("workouts helpers", () => {
     ];
     const heatmap = workoutActivityHeatmap(sessions, 7);
     expect(heatmap).toHaveLength(7);
-    const today = heatmap[heatmap.length - 1];
-    expect(today.hasWorkout).toBe(true);
-    expect(today.volume).toBe(1000);
+    const heatmapDay = heatmap[heatmap.length - 1];
+    expect(heatmapDay.hasWorkout).toBe(true);
+    expect(heatmapDay.volume).toBe(1000);
   });
 
   it("computes workout streak across consecutive days", () => {

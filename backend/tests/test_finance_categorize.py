@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import uuid
 from collections.abc import Generator
 from pathlib import Path
 
@@ -18,6 +17,7 @@ from app.main import app
 from app.services.finance.ai_config import FinanceAIConfig
 from app.services.finance.models import ParsedTransaction
 from app.storage.local import LocalFileStorage
+from tests.auth_helpers import create_user_token as _register
 
 
 @pytest.fixture()
@@ -52,7 +52,6 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[TestCli
         engine.dispose()
 
 
-from tests.auth_helpers import create_user_token as _register
 
 
 def test_finance_categorize_uses_mock(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:

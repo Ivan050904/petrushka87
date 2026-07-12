@@ -13,6 +13,7 @@ from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
 from app.models import workout  # noqa: F401
+from tests.auth_helpers import create_user_token as _register
 
 
 @pytest.fixture()
@@ -41,7 +42,6 @@ def client(tmp_path: Path) -> Generator[TestClient, None, None]:
         engine.dispose()
 
 
-from tests.auth_helpers import create_user_token as _register
 
 
 def _auth(token: str) -> dict[str, str]:

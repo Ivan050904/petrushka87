@@ -23,6 +23,7 @@ from app.models.entry import Entry
 from app.models.user import User
 from app.services.ai.base import AIUsage, EntryClassification, ParsedTaskCandidate, TaskParseResult
 from app.storage.local import LocalFileStorage
+from tests.auth_helpers import create_user_token as _register
 
 
 @pytest.fixture()
@@ -1060,7 +1061,6 @@ def test_task_ai_parse_endpoint_returns_task_candidates(
     assert body["tasks"][0]["priority"] == "high"
 
 
-from tests.auth_helpers import create_user_token as _register
 
 
 def _auth_headers(token: str) -> dict[str, str]:

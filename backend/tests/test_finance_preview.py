@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import uuid
 from collections.abc import Generator
 from io import BytesIO
 from pathlib import Path
@@ -17,6 +16,7 @@ from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
 from app.storage.local import LocalFileStorage
+from tests.auth_helpers import create_user_token as _register
 
 GENERIC_CSV = (
     "Дата;Сумма;Описание\n"
@@ -66,7 +66,6 @@ def _enable_foreign_keys(engine: Engine) -> None:
         cursor.close()
 
 
-from tests.auth_helpers import create_user_token as _register
 
 
 def test_finance_import_preview_generic_csv(client: TestClient) -> None:

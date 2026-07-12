@@ -27,9 +27,9 @@ from app.services.agent.digest_profiles import (
 )
 from app.services.agent.llm import DigestLLMClient, check_ollama_health
 from app.services.agent.state import load_digest_state, save_digest_state
-from app.services.embeddings.indexer import index_entry
 from app.services.agent.tools.web_search import SearchResult
 from app.services.ai.base import AIUnavailableError
+from app.services.embeddings.indexer import index_entry
 
 
 @dataclass

@@ -29,9 +29,9 @@ from app.schemas.workout import (
     WorkoutSessionUpdate,
     WorkoutSet,
 )
+from app.services.embeddings.indexer import index_entry
 from app.services.workouts.analytics import exercise_progress_points, muscle_group_progress_points
 from app.services.workouts.entry_sync import sync_entry_for_session
-from app.services.embeddings.indexer import index_entry
 
 router = APIRouter()
 

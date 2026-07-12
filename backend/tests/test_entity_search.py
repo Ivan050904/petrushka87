@@ -14,8 +14,8 @@ from app.models.entry import Entry
 from app.models.user import User
 from app.models.workout import ExerciseCatalog, WorkoutExercise, WorkoutSession
 from app.schemas.entry import EntryType
-from app.services.context.entity_search import ensure_entries_fts, search_entity_mentions
 from app.services.context.entity_query import extract_entity_name, is_entity_timeline_query
+from app.services.context.entity_search import ensure_entries_fts, search_entity_mentions
 from app.services.context.orchestrator import build_context
 from app.services.context.query_intent import route_query
 from app.services.workouts.entry_sync import build_workout_rag_text, sync_entry_for_session

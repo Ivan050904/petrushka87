@@ -38,14 +38,14 @@ def register(_payload: UserCreate) -> None:
 @router.post("/login", response_model=Token)
 @limiter.limit("5/minute")
 @limiter.limit("20/hour")
-def login(
+async def login(
     request: Request,
-    payload: UserLogin,
     db: Session = Depends(get_db),
 ) -> Token:
+    credentials = UserLogin.model_validate(await request.json())
     del request
-    user = db.scalar(select(User).where(User.email == payload.email.lower()))
-    if user is None or not verify_password(payload.password, user.hashed_password):
+    user = db.scalar(select(User).where(User.email == credentials.email.lower()))
+    if user is None or not verify_password(credentials.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",

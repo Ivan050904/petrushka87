@@ -25,6 +25,7 @@ from app.services.agent.article_feedback import (
 from app.services.agent.digest import _filter_with_llm, _prefilter_candidates
 from app.services.agent.tools.web_search import SearchResult
 from app.storage.local import LocalFileStorage
+from tests.auth_helpers import create_user_token as _register
 
 
 @pytest.fixture()
@@ -60,7 +61,6 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[TestCli
         engine.dispose()
 
 
-from tests.auth_helpers import create_user_token as _register
 
 
 def _auth_headers(token: str) -> dict[str, str]:

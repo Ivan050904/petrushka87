@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import uuid
 from collections.abc import Generator
 from pathlib import Path
 
@@ -16,6 +15,7 @@ from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
 from app.storage.local import LocalFileStorage
+from tests.auth_helpers import create_user_token as _register
 
 
 @pytest.fixture()
@@ -197,7 +197,6 @@ def test_finance_import_confirm_uses_custom_title_or_description(client: TestCli
     assert "Только описание банка" in titles
 
 
-from tests.auth_helpers import create_user_token as _register
 
 
 def _auth_headers(token: str) -> dict[str, str]:

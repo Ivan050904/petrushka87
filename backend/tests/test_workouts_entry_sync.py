@@ -11,7 +11,6 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import settings as app_settings
 from app.db.base import Base
-from app.models.entry import Entry
 from app.models.user import User
 from app.models.workout import ExerciseCatalog, WorkoutExercise, WorkoutSession
 from app.services.context.entity_search import ensure_entries_fts

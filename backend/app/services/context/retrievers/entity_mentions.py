@@ -1,20 +1,4 @@
-from __future__ import annotations
-
-import uuid
-
-from sqlalchemy.orm import Session
-
-from app.core.config import settings
-from app.models.entry import Entry
-from app.schemas.entry import EntryType
-from app.services.context.context_models import ContextScope, ContextSnippet
-from app.services.context.entity_excerpt import build_entity_excerpt, entry_matches_terms
-from app.services.context.entity_search import search_entity_mentions
-from app.services.context.entry_rag_text import build_entry_rag_text
-from app.services.context.query_intent import QueryIntent
-
-
-def _entry_sort_key(entry: Entry) -> tuple[str, str]:
+from __future__ import annotationsimport uuidfrom sqlalchemy.orm import Sessionfrom app.core.config import settingsfrom app.models.entry import Entryfrom app.schemas.entry import EntryTypefrom app.services.context.context_models import ContextSnippetfrom app.services.context.entity_excerpt import build_entity_excerpt, entry_matches_termsfrom app.services.context.entity_search import search_entity_mentionsfrom app.services.context.entry_rag_text import build_entry_rag_textfrom app.services.context.query_intent import QueryIntentdef _entry_sort_key(entry: Entry) -> tuple[str, str]:
     metadata = entry.metadata_ or {}
     entry_date = metadata.get("entry_date")
     if isinstance(entry_date, str) and entry_date.strip():

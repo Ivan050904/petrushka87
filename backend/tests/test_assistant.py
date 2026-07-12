@@ -25,6 +25,7 @@ from app.services.assistant.tools import (
     update_entry_record,
 )
 from app.storage.local import LocalFileStorage
+from tests.auth_helpers import create_user_token as _register
 
 
 class FakeAssistantLLM:
@@ -69,7 +70,6 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[TestCli
         engine.dispose()
 
 
-from tests.auth_helpers import create_user_token as _register
 
 
 def test_missing_fields_for_event() -> None:
