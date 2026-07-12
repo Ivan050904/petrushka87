@@ -1,6 +1,7 @@
 import type { Entry } from "@/lib/types";
 
 import { entryModuleHref, getString } from "@/lib/entry-helpers";
+import { birthdayNextOccurrence } from "@/lib/people";
 import { referenceHref } from "@/lib/navigation";
 import {
   defaultAgendaExpansionRange,
@@ -196,19 +197,6 @@ export function durationToAgendaHeight(
 
 function isTaskClosed(task: Entry) {
   return ["done", "cancelled"].includes(getString(task.metadata.status, "inbox"));
-}
-
-function birthdayNextOccurrence(value: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return null;
-  }
-  const today = new Date();
-  const [, month, day] = value.split("-").map(Number);
-  const birthday = new Date(today.getFullYear(), month - 1, day, 9, 0);
-  if (birthday < startOfDay(today)) {
-    birthday.setFullYear(today.getFullYear() + 1);
-  }
-  return birthday;
 }
 
 function entryAgendaItem(

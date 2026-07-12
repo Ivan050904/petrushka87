@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
 import { VoiceTranscribePanel } from "@/features/transcription/voice-transcribe-panel";
 import { useRequireAuth } from "@/hooks/use-auth";
+import { resolveApiBaseUrl } from "@/lib/api-base-url";
 import { ROUTES } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
@@ -17,8 +18,7 @@ type IframeStatus = "loading" | "ready" | "error";
 const IFRAME_TIMEOUT_MS = 15_000;
 
 function transcriptionBackendOrigin() {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
-  return apiUrl.replace(/\/api\/v1\/?$/, "");
+  return resolveApiBaseUrl().replace(/\/api\/v1\/?$/, "");
 }
 
 export function TranscriptionView() {
@@ -72,7 +72,7 @@ export function TranscriptionView() {
             Голос
           </TabButton>
           <TabButton active={tab === "legacy"} onClick={() => setTab("legacy")}>
-            Видео и файлы
+            YouTube (legacy)
           </TabButton>
         </div>
       </div>

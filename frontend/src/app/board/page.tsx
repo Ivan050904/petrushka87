@@ -3,7 +3,7 @@
 import { Suspense } from "react";
 
 import { AppShell } from "@/components/app-shell";
-import { DevKanbanView } from "@/features/board/dev-kanban-view";
+import { KanbanView } from "@/features/board/kanban-view";
 
 function BoardFallback() {
   return (
@@ -17,7 +17,7 @@ export default function BoardPage() {
   return (
     <AppShell contentClassName="p-0">
       <Suspense fallback={<BoardFallback />}>
-        <DevKanbanView />
+        <KanbanView />
       </Suspense>
     </AppShell>
   );

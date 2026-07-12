@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Notice } from "@/components/ui/notice";
 import {
   createColumnDefinition,
+  configToDefinition,
   definitionToConfig,
 } from "@/lib/kanban-board-store";
 import type { KanbanBoardDefinition } from "@/lib/kanban-boards";
@@ -23,27 +24,6 @@ type KanbanBoardSettingsProps = {
   onDeleteBoard?: () => Promise<void>;
   onClose: () => void;
 };
-
-function configToDefinition(board: KanbanBoardConfig): KanbanBoardDefinition {
-  return {
-    id: board.id,
-    mode: board.mode === "custom" ? undefined : board.mode,
-    label: board.label,
-    subtitle: board.subtitle,
-    emptyMessage: board.emptyMessage,
-    defaultCardType: board.defaultCardType,
-    cardTypes: board.cardTypes,
-    isBuiltin: board.isBuiltin,
-    configEntryId: board.configEntryId,
-    columns: board.columns.map((column) => ({
-      id: column.id,
-      label: column.label,
-      emptyHint: column.emptyHint,
-      accent: column.accent,
-      dotColor: column.dotColor,
-    })),
-  };
-}
 
 export function KanbanBoardSettings({
   board,
@@ -178,7 +158,7 @@ export function KanbanBoardSettings({
       <div className="kanban-panel flex h-[100dvh] w-full max-w-2xl flex-col sm:h-auto sm:max-h-[90vh]">
         <header className="flex items-start justify-between gap-3 border-b border-[var(--kanban-border)] px-5 py-4">
           <div>
-            <div className="flex items-center gap-2 text-sm font-medium text-[#1f2328]">
+            <div className="flex items-center gap-2 text-sm font-medium text-[var(--kanban-foreground)]">
               <Settings2 className="size-4" aria-hidden="true" />
               Настройки доски
             </div>
@@ -189,7 +169,7 @@ export function KanbanBoardSettings({
           <button
             type="button"
             onClick={onClose}
-            className="focus-ring rounded-md p-2 text-[var(--kanban-muted)] transition hover:bg-[#f6f8fa] hover:text-[#1f2328]"
+            className="focus-ring rounded-md p-2 text-[var(--kanban-muted)] transition hover:bg-[var(--kanban-hover)] hover:text-[var(--kanban-foreground)]"
             aria-label="Закрыть"
           >
             <X className="size-4" />
@@ -207,13 +187,13 @@ export function KanbanBoardSettings({
             {preview.columns.map((column, index) => (
               <div
                 key={column.id}
-                className="flex items-center gap-2 rounded-lg border border-[var(--kanban-border)] bg-white p-3"
+                className="flex items-center gap-2 rounded-lg border border-[var(--kanban-border)] bg-[var(--kanban-panel)] p-3"
               >
                 <span className={cn("size-2 shrink-0 rounded-full", column.dotColor)} aria-hidden="true" />
                 <Input
                   value={column.label}
                   onChange={(event) => updateColumn(index, event.target.value)}
-                  className="border-[var(--kanban-border)] bg-white"
+                  className="border-[var(--kanban-border)] bg-[var(--kanban-panel)]"
                 />
                 <span className="shrink-0 text-xs text-[var(--kanban-muted)]">
                   {cardsByStage.get(column.id) ?? 0}
@@ -223,7 +203,7 @@ export function KanbanBoardSettings({
                     type="button"
                     onClick={() => moveColumn(index, -1)}
                     disabled={index === 0}
-                    className="focus-ring rounded-md p-1.5 text-[var(--kanban-muted)] transition hover:bg-[#f6f8fa] disabled:opacity-40"
+                    className="focus-ring rounded-md p-1.5 text-[var(--kanban-muted)] transition hover:bg-[var(--kanban-hover)] disabled:opacity-40"
                     aria-label="Переместить влево"
                   >
                     <ArrowUp className="size-4" />
@@ -232,7 +212,7 @@ export function KanbanBoardSettings({
                     type="button"
                     onClick={() => moveColumn(index, 1)}
                     disabled={index === preview.columns.length - 1}
-                    className="focus-ring rounded-md p-1.5 text-[var(--kanban-muted)] transition hover:bg-[#f6f8fa] disabled:opacity-40"
+                    className="focus-ring rounded-md p-1.5 text-[var(--kanban-muted)] transition hover:bg-[var(--kanban-hover)] disabled:opacity-40"
                     aria-label="Переместить вправо"
                   >
                     <ArrowDown className="size-4" />
@@ -240,7 +220,7 @@ export function KanbanBoardSettings({
                   <button
                     type="button"
                     onClick={() => removeColumn(index)}
-                    className="focus-ring rounded-md p-1.5 text-rose-600 transition hover:bg-rose-50"
+                    className="focus-ring rounded-md p-1.5 text-destructive transition hover:bg-destructive/10"
                     aria-label="Удалить стадию"
                   >
                     <Trash2 className="size-4" />
@@ -255,7 +235,7 @@ export function KanbanBoardSettings({
               value={newColumnLabel}
               onChange={(event) => setNewColumnLabel(event.target.value)}
               placeholder="Название новой стадии"
-              className="border-[var(--kanban-border)] bg-white"
+              className="border-[var(--kanban-border)] bg-[var(--kanban-panel)]"
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
                   event.preventDefault();

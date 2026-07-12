@@ -16,6 +16,7 @@ import { useRequireAuth } from "@/hooks/use-auth";
 import {
   deleteEntry,
   downloadResourceFile,
+  fetchAllEntries,
   getErrorMessage,
   listEntries,
   updateEntry,
@@ -60,7 +61,7 @@ export function ResourcesPanel({ embedded = false }: { embedded?: boolean }) {
     let isMounted = true;
     setIsLoading(true);
     setLoadError(null);
-    listEntries(token, { type: "resource", limit: 100 })
+    fetchAllEntries(token, { type: "resource" })
       .then((result) => {
         if (isMounted) {
           setResources(result.items);

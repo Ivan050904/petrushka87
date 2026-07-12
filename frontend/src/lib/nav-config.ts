@@ -1,13 +1,14 @@
 import {
   Brain,
-  Bot,
   CalendarRange,
+  CloudSun,
   Dumbbell,
   Flame,
   Home,
   Inbox,
   Kanban,
   Library,
+  MessageSquareText,
   Mic,
   Newspaper,
   Repeat,
@@ -24,6 +25,7 @@ import {
 
 export type NavItemId =
   | "dashboard"
+  | "weather"
   | "inbox"
   | "board"
   | "notes"
@@ -49,6 +51,7 @@ export type NavItemConfig = {
 
 export const NAV_ITEMS: Record<NavItemId, NavItemConfig> = {
   dashboard: { id: "dashboard", href: ROUTES.dashboard, label: "Сегодня", icon: Home },
+  weather: { id: "weather", href: ROUTES.weather, label: "Погода", icon: CloudSun },
   inbox: { id: "inbox", href: ROUTES.inbox, label: "Входящие", icon: Inbox, showInboxCount: true },
   board: { id: "board", href: ROUTES.board, label: "Канбан", icon: Kanban },
   notes: { id: "notes", href: ROUTES.notes, label: "Заметки", icon: StickyNote },
@@ -89,12 +92,13 @@ export const NAV_ITEMS: Record<NavItemId, NavItemConfig> = {
     label: "Сессии",
     icon: Brain,
   },
-  assistant: { id: "assistant", href: ROUTES.assistant, label: "Чат с контекстом", icon: Bot },
+  assistant: { id: "assistant", href: ROUTES.assistant, label: "Чат с контекстом", icon: MessageSquareText },
   reference: { id: "reference", href: ROUTES.reference, label: "Справочник", icon: Library },
 };
 
 export const DEFAULT_NAV_ORDER: NavItemId[] = [
   "dashboard",
+  "weather",
   "inbox",
   "board",
   "notes",
@@ -110,6 +114,7 @@ export const DEFAULT_NAV_ORDER: NavItemId[] = [
   "reference",
 ];
 
+/** @deprecated Bottom tab bar removed — mobile uses full sidebar drawer. Kept for migration reference. */
 export const MOBILE_TAB_NAV_IDS: NavItemId[] = ["dashboard", "inbox", "plans", "tracking-habits"];
 
 export const NAV_ORDER_STORAGE_PREFIX = "folio_one_sidebar_nav_order";

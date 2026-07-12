@@ -19,7 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Notice } from "@/components/ui/notice";
 import { Select } from "@/components/ui/select";
 import { useRequireAuth } from "@/hooks/use-auth";
-import { createEntry, getErrorMessage, listEntries, updateEntry } from "@/lib/api";
+import { createEntry, fetchAllEntries, getErrorMessage, listEntries, updateEntry } from "@/lib/api";
 import {
   formatDateKey,
   habitMetadataPayload,
@@ -106,7 +106,7 @@ export function HabitsPanel({ embedded = false, compact = false }: { embedded?: 
 
     setIsLoading(true);
     setLoadError(null);
-    listEntries(token, { type: "habit", limit: 100 })
+    fetchAllEntries(token, { type: "habit" })
       .then((result) => setHabits(result.items))
       .catch((requestError) => {
         setLoadError(getErrorMessage(requestError, "Не удалось загрузить привычки."));
@@ -212,7 +212,7 @@ export function HabitsPanel({ embedded = false, compact = false }: { embedded?: 
                   }
                   setIsLoading(true);
                   setLoadError(null);
-                  listEntries(token, { type: "habit", limit: 100 })
+                  fetchAllEntries(token, { type: "habit" })
                     .then((result) => setHabits(result.items))
                     .catch((requestError) => {
                       setLoadError(getErrorMessage(requestError, "Не удалось загрузить привычки."));

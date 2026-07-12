@@ -1,13 +1,41 @@
 "use client";
 
+import { ArrowDownRight, ArrowUpRight, Minus } from "lucide-react";
+
 import { formatCurrency } from "@/lib/entry-helpers";
-import { getFinanceCategoryMeta } from "@/lib/finance-category-meta";
+import type { FinanceCategoryItem } from "@/lib/finance-aggregates";
+import { resolveCompareTotal } from "@/lib/finance-aggregates";
+import { computeCategoryDelta, getFinanceCategoryMeta } from "@/lib/finance-category-meta";
 import { cn } from "@/lib/utils";
 
-type ExpenseBarItem = {
-  category: string;
-  total: number;
-};
+function CategoryDeltaBadge({
+  current,
+  compareTotal,
+  compareMonthLabel,
+}: {
+  current: number;
+  compareTotal: number;
+  compareMonthLabel?: string;
+}) {
+  const delta = computeCategoryDelta(current, compareTotal);
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+        delta.trend === "up" && "bg-destructive/10 text-destructive",
+        delta.trend === "down" && "bg-success-soft",
+        delta.trend === "flat" && "bg-muted text-muted-foreground",
+        delta.trend === "new" && "bg-primary/10 text-primary",
+      )}
+      title={compareMonthLabel ? `Сравнение с ${compareMonthLabel}` : undefined}
+    >
+      {delta.trend === "up" ? <ArrowUpRight className="size-2.5" /> : null}
+      {delta.trend === "down" ? <ArrowDownRight className="size-2.5" /> : null}
+      {delta.trend === "flat" ? <Minus className="size-2.5" /> : null}
+      {delta.label}
+    </span>
+  );
+}
 
 export function FinanceExpenseBars({
   items,
@@ -15,12 +43,16 @@ export function FinanceExpenseBars({
   className,
   selectedCategory,
   onCategoryClick,
+  compareByCategory,
+  compareMonthLabel,
 }: {
-  items: ExpenseBarItem[];
+  items: FinanceCategoryItem[];
   total: number;
   className?: string;
   selectedCategory?: string | null;
-  onCategoryClick?: (category: string) => void;
+  onCategoryClick?: (category: string, sourceCategories?: string[]) => void;
+  compareByCategory?: Map<string, number>;
+  compareMonthLabel?: string;
 }) {
   const max = items.length > 0 ? Math.max(...items.map((item) => item.total)) : 0;
 
@@ -35,12 +67,15 @@ export function FinanceExpenseBars({
         const width = max > 0 ? (item.total / max) * 100 : 0;
         const share = total > 0 ? Math.round((item.total / total) * 100) : 0;
         const Icon = meta.icon;
+        const compareTotal = compareByCategory
+          ? resolveCompareTotal(item.category, compareByCategory, item.sourceCategories)
+          : 0;
 
         return (
           <li key={item.category}>
             <button
               type="button"
-              onClick={() => onCategoryClick?.(item.category)}
+              onClick={() => onCategoryClick?.(item.category, item.sourceCategories)}
               aria-pressed={selectedCategory === item.category}
               className={cn(
                 "group w-full rounded-md text-left transition",
@@ -54,7 +89,16 @@ export function FinanceExpenseBars({
                   <span className="truncate">{item.category}</span>
                   <span className="text-xs text-muted-foreground">{share}%</span>
                 </span>
-                <span className="shrink-0 font-mono text-sm font-medium">{formatCurrency(item.total, "RUB")}</span>
+                <span className="flex shrink-0 items-center gap-1.5">
+                  {compareByCategory ? (
+                    <CategoryDeltaBadge
+                      current={item.total}
+                      compareTotal={compareTotal}
+                      compareMonthLabel={compareMonthLabel}
+                    />
+                  ) : null}
+                  <span className="font-mono text-sm font-medium">{formatCurrency(item.total, "RUB")}</span>
+                </span>
               </div>
               <div className="relative h-7 overflow-hidden rounded-md bg-muted/60">
                 <div

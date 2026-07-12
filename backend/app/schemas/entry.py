@@ -21,6 +21,7 @@ class EntryType(str, Enum):
     resource = "resource"
     transcription = "transcription"
     therapy_session = "therapy_session"
+    workout = "workout"
 
 
 class EntryCreate(BaseModel):

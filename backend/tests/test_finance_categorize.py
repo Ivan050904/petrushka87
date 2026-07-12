@@ -52,17 +52,7 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[TestCli
         engine.dispose()
 
 
-def _register(client: TestClient) -> str:
-    response = client.post(
-        "/api/v1/auth/register",
-        json={
-            "email": f"categorize-{uuid.uuid4().hex[:8]}@example.com",
-            "password": "password12345",
-            "full_name": "Categorize User",
-        },
-    )
-    assert response.status_code == 201
-    return response.json()["access_token"]
+from tests.auth_helpers import create_user_token as _register
 
 
 def test_finance_categorize_uses_mock(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:

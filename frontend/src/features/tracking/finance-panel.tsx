@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { FilePenLine, Plus, Search, Trash2, TrendingDown, TrendingUp, Upload, WalletCards, X } from "lucide-react";
 
 import { LoadError } from "@/components/load-error";
@@ -23,9 +24,14 @@ import { createEntry, deleteEntry, getErrorMessage, getFinanceSummary, listEntri
 import { entryDescription, formatCurrency, formatDate, getNumber, getString } from "@/lib/entry-helpers";
 import { fingerprintFromEntryMetadata } from "@/lib/finance-dedup";
 import type { FinanceSummary } from "@/lib/finance-import";
-import { loadFinanceSettings, type FinanceAccount } from "@/lib/finance-import";
+import { loadFinanceSettings, saveFinanceSettings, type FinanceAccount } from "@/lib/finance-import";
+import {
+  applyRemoteFinanceSettings,
+  loadRemoteUserSettings,
+} from "@/lib/user-settings-sync";
 import { currentMonthValue, monthRange, shiftMonth } from "@/lib/finance-month";
 import { formatFinanceDirection } from "@/lib/labels";
+import { parseFinancePanelView, trackingTabHref } from "@/lib/navigation";
 import type { Entry } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { TRACKING_GRID, TRACKING_SCROLL_COL } from "@/features/tracking/tracking-layout";
@@ -71,6 +77,8 @@ export function FinancePanel({
   selectedId?: string | null;
   onSelectedChange?: (id: string | null) => void;
 }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { token, user } = useRequireAuth();
   const [entries, setEntries] = useState<Entry[]>([]);
   const [internalSelectedId, setInternalSelectedId] = useState<string | null>(null);
@@ -95,13 +103,35 @@ export function FinancePanel({
   const [financeAccounts, setFinanceAccounts] = useState<FinanceAccount[]>([]);
   const draftKey = user?.id ? `${FINANCE_DRAFT_STORAGE_KEY}:${user.id}` : null;
 
+  const financeViewFromUrl = parseFinancePanelView(searchParams.get("financeView"));
+
+  useEffect(() => {
+    if (financeViewFromUrl) {
+      setPanelTab(financeViewFromUrl);
+    }
+  }, [financeViewFromUrl]);
+
+  function changePanelTab(nextTab: FinancePanelTab) {
+    setPanelTab(nextTab);
+    router.replace(trackingTabHref("finance", selectedId ?? undefined, nextTab === "operations" ? undefined : nextTab));
+  }
+
   useEffect(() => {
     if (!user?.id) {
       setFinanceAccounts([]);
       return;
     }
-    setFinanceAccounts(loadFinanceSettings(user.id).accounts);
-  }, [user?.id]);
+    const local = loadFinanceSettings(user.id);
+    setFinanceAccounts(local.accounts);
+    if (!token) {
+      return;
+    }
+    void loadRemoteUserSettings(token).then((remote) => {
+      const merged = applyRemoteFinanceSettings(remote, local);
+      setFinanceAccounts(merged.accounts);
+      saveFinanceSettings(user.id, merged);
+    });
+  }, [user?.id, token]);
 
   function setSelectedId(id: string | null) {
     if (onSelectedChange) {
@@ -476,10 +506,10 @@ export function FinancePanel({
               <h1 className="text-2xl font-semibold leading-8">Финансы</h1>
               <p className="text-sm text-muted-foreground">Импорт выписок, операции и дашборд по категориям.</p>
             </div>
-            <FinancePanelTabs value={panelTab} onChange={setPanelTab} />
+            <FinancePanelTabs value={panelTab} onChange={changePanelTab} />
           </header>
         ) : (
-          <FinancePanelTabs value={panelTab} onChange={setPanelTab} compact />
+          <FinancePanelTabs value={panelTab} onChange={changePanelTab} compact />
         )}
 
         {panelTab === "import" ? (

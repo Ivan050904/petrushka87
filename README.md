@@ -76,6 +76,23 @@ python scripts/reindex_embeddings.py --user-email demo@folio-one.local
 | Dashboard panel | `/assistant/agent/chat` | `ASSISTANT_*` | Agent actions on entries (create task/event) |
 | Nav «Чат с контекстом» | `/assistant/conversations/*` | `NOTES_AI_*` → fallback `OPENAI_COMPATIBLE_*` | RAG chat over notes, plans, finance, transcriptions |
 
+Dashboard shows **«Агент действий»** (create tasks/events). Nav **«Чат с контекстом»** is memory search only — different icons and cross-links in UI.
+
+## Finance import parsers (F-06)
+
+Bank statement parsing uses **two stacks** by design:
+
+| Layer | Location | Banks supported |
+| --- | --- | --- |
+| **Primary (import UI)** | `frontend/src/features/tracking/bank-import/` | Tinkoff, Sber, Alfa, Yandex, Ozon — full client-side CSV parsers |
+| **Backend API** | `backend/app/services/finance/parser_registry.py` | Same bank IDs, but Tinkoff/Sber/Alfa/Yandex/Ozon are **stubs** that fall back to `generic` CSV |
+
+**Source of truth for user imports:** the frontend wizard (`FinanceImportWizard`). It parses locally and creates entries via `POST /entries`; `POST /finance/import/preview` on the backend is optional and not used by the main UI.
+
+When adding a new bank parser, implement it in the frontend bank-import module first. Port to backend only if server-side preview or headless import is required.
+
+User finance accounts and categories sync via `GET/PATCH /user/settings` (with localStorage fallback offline).
+
 ### RAG context settings
 
 Tune retrieval for «Чат с контекстом» in `backend/.env`:

@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FilePenLine, Flame, Plus, Trash2 } from "lucide-react";
@@ -12,12 +13,10 @@ import { Empty } from "@/components/ui/empty";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Notice } from "@/components/ui/notice";
-import { FinancePanel } from "@/features/tracking/finance-panel";
 import { HabitsPanel } from "@/features/tracking/habits-panel";
-import { WorkoutsPanel } from "@/features/tracking/workouts-panel";
 import { TRACKING_GRID, TRACKING_SCROLL_COL, TRACKING_SHELL } from "@/features/tracking/tracking-layout";
 import { useRequireAuth } from "@/hooks/use-auth";
-import { createEntry, deleteEntry, getErrorMessage, listEntries, updateEntry } from "@/lib/api";
+import { createEntry, deleteEntry, fetchAllEntries, getErrorMessage, listEntries, updateEntry } from "@/lib/api";
 import { formatDate, getNumber, getString } from "@/lib/entry-helpers";
 import { isSameDay } from "@/lib/agenda";
 import {
@@ -36,7 +35,12 @@ import {
   type NutritionTargets,
   type NutritionTargetsForm,
 } from "@/lib/food-tracking";
-import { parseTrackingTab, trackingTabHref, type TrackingTab } from "@/lib/navigation";
+import { parseTrackingTab, trackingTabHref } from "@/lib/navigation";
+import {
+  applyRemoteFoodTargets,
+  loadRemoteUserSettings,
+  syncFoodTargetsToBackend,
+} from "@/lib/user-settings-sync";
 import { buildNutritionSummary, foodEntryDate } from "@/lib/nutrition-summary";
 import type { Entry } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -76,6 +80,20 @@ const foodInputClass = "min-h-11 h-11 px-2.5 py-1 text-sm lg:min-h-8 lg:h-8 xl:m
 const foodMacroInputClass =
   "focus-ring min-h-11 w-full min-w-0 border-0 bg-transparent py-1 pr-1.5 text-sm font-mono outline-none placeholder:text-muted-foreground/70 lg:min-h-8 xl:min-h-10 xl:py-1.5 xl:text-base";
 
+const FinancePanel = dynamic(
+  () => import("@/features/tracking/finance-panel").then((mod) => mod.FinancePanel),
+  { ssr: false, loading: TrackingPanelSkeleton },
+);
+
+const WorkoutsPanel = dynamic(
+  () => import("@/features/tracking/workouts-panel").then((mod) => mod.WorkoutsPanel),
+  { ssr: false, loading: TrackingPanelSkeleton },
+);
+
+function TrackingPanelSkeleton() {
+  return <div className="min-h-72 flex-1 animate-pulse rounded-md bg-muted/60" aria-hidden="true" />;
+}
+
 export function TrackingView() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -88,7 +106,7 @@ export function TrackingView() {
 
   return (
     <div className={TRACKING_SHELL}>
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex min-h-0 flex-1 flex-col pb-[env(safe-area-inset-bottom)]">
         {tab === "habits" ? <HabitsPanel embedded compact /> : null}
         {tab === "finance" ? (
           <FinancePanel embedded compact selectedId={selectedId} onSelectedChange={changeSelected} />
@@ -135,7 +153,7 @@ function FoodPanel({
     setIsLoading(true);
     setLoadError(null);
     try {
-      const result = await listEntries(token, { type: "food", limit: 100 });
+      const result = await fetchAllEntries(token, { type: "food" });
       setEntries(result.items);
     } catch (requestError) {
       setLoadError(getErrorMessage(requestError, "Не удалось загрузить питание."));
@@ -156,10 +174,19 @@ function FoodPanel({
       const stored = parseNutritionTargets(window.localStorage.getItem(targetsKey));
       setTargets(stored);
       setTargetsForm(nutritionTargetsToForm(stored));
+      if (!token) {
+        return;
+      }
+      void loadRemoteUserSettings(token).then((remote) => {
+        const merged = applyRemoteFoodTargets(remote, stored);
+        setTargets(merged);
+        setTargetsForm(nutritionTargetsToForm(merged));
+        window.localStorage.setItem(targetsKey, JSON.stringify(merged));
+      });
     } catch {
       return;
     }
-  }, [targetsKey]);
+  }, [targetsKey, token]);
 
   useEffect(() => {
     setIsDraftLoaded(false);
@@ -251,6 +278,9 @@ function FoodPanel({
         setTargetsError("Не удалось сохранить цели на этом устройстве.");
         return;
       }
+    }
+    if (token) {
+      void syncFoodTargetsToBackend(token, parsed);
     }
     setTargetsError(null);
     setIsEditingTargets(false);
@@ -775,7 +805,7 @@ function FoodMacroStrip({
     <>
       <div
         className={cn(
-          "flex divide-x divide-border overflow-hidden rounded-md border bg-background",
+          "grid grid-cols-2 divide-border overflow-hidden rounded-md border bg-background sm:flex sm:divide-x",
           invalid ? "border-destructive" : "border-input",
         )}
         role="group"

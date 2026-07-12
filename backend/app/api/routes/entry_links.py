@@ -13,7 +13,6 @@ from app.services.entry_links import (
     create_link,
     delete_link,
     list_links_for_entry,
-    migrate_metadata_links_for_user,
 )
 
 router = APIRouter()
@@ -37,8 +36,6 @@ def get_entry_links(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[EntryLinkRead]:
-    migrate_metadata_links_for_user(db, current_user.id)
-    db.commit()
     links = list_links_for_entry(db, user_id=current_user.id, entry_id=entry_id)
     return [
         EntryLinkRead(

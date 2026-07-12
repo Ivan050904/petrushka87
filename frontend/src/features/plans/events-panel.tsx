@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  ArrowLeft,
   BellRing,
   CalendarRange,
   FilePenLine,
@@ -23,7 +24,7 @@ import { Notice } from "@/components/ui/notice";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useRequireAuth } from "@/hooks/use-auth";
-import { createEntry, deleteEntry, getErrorMessage, listEntries, updateEntry } from "@/lib/api";
+import { createEntry, deleteEntry, fetchAllEntries, getErrorMessage, listEntries, updateEntry } from "@/lib/api";
 import { formatDate, getString } from "@/lib/entry-helpers";
 import type { Entry } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -75,11 +76,18 @@ const eventStatusLabels: Record<EventStatus, string> = {
   cancelled: "Отменено",
 };
 
-export function EventsPanel({ embedded = false }: { embedded?: boolean }) {
+export function EventsPanel({
+  embedded = false,
+  initialSelectedId = null,
+}: {
+  embedded?: boolean;
+  initialSelectedId?: string | null;
+}) {
   const { token } = useRequireAuth();
   const [events, setEvents] = useState<Entry[]>([]);
   const [tasks, setTasks] = useState<Entry[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId);
+  const [mobileDetailView, setMobileDetailView] = useState(Boolean(initialSelectedId));
   const [eventQuery, setEventQuery] = useState("");
   const [scopeFilter, setScopeFilter] = useState<EventScopeFilter>("upcoming");
   const [form, setForm] = useState<EventForm>(emptyEventForm);
@@ -88,6 +96,13 @@ export function EventsPanel({ embedded = false }: { embedded?: boolean }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    setSelectedId(initialSelectedId);
+    if (initialSelectedId) {
+      setMobileDetailView(true);
+    }
+  }, [initialSelectedId]);
 
   const selectedEvent = useMemo(
     () => events.find((event) => event.id === selectedId) ?? null,
@@ -126,8 +141,8 @@ export function EventsPanel({ embedded = false }: { embedded?: boolean }) {
     setIsLoading(true);
     setLoadError(null);
     Promise.all([
-      listEntries(token, { type: "event", limit: 100 }),
-      listEntries(token, { type: "task", limit: 100 }),
+      fetchAllEntries(token, { type: "event" }),
+      fetchAllEntries(token, { type: "task" }),
     ])
       .then(([eventResult, taskResult]) => {
         if (isMounted) {
@@ -156,12 +171,21 @@ export function EventsPanel({ embedded = false }: { embedded?: boolean }) {
     setForm(eventToForm(event));
     setLinkedTaskCandidate("");
     setError(null);
+    setMobileDetailView(true);
   }
 
   function startNewEvent() {
     setSelectedId(null);
     setForm(emptyEventForm);
     setLinkedTaskCandidate("");
+    setError(null);
+    setMobileDetailView(true);
+  }
+
+  function closeMobileDetail() {
+    setMobileDetailView(false);
+    setSelectedId(null);
+    setForm(emptyEventForm);
     setError(null);
   }
 
@@ -175,7 +199,7 @@ export function EventsPanel({ embedded = false }: { embedded?: boolean }) {
       return;
     }
 
-    const result = await listEntries(token, { type: "event", limit: 100 });
+    const result = await fetchAllEntries(token, { type: "event" });
     setEvents(result.items);
     if (nextSelected) {
       setSelectedId(nextSelected.id);
@@ -323,9 +347,15 @@ export function EventsPanel({ embedded = false }: { embedded?: boolean }) {
         {loadError ? <Notice variant="error">{loadError}</Notice> : null}
 
         <section className="grid gap-4 xl:grid-cols-[0.82fr_1.18fr]">
-          <Card>
+          <Card className={cn(mobileDetailView ? undefined : "hidden xl:block")}>
             <CardHeader className="flex-row items-center justify-between gap-3">
-              <CardTitle>{selectedEvent ? "Событие" : "Новое событие"}</CardTitle>
+              <div className="flex min-w-0 flex-1 flex-col gap-2">
+                <Button type="button" variant="ghost" size="sm" className="w-fit min-h-11 xl:hidden" onClick={closeMobileDetail}>
+                  <ArrowLeft data-icon="inline-start" />
+                  К списку
+                </Button>
+                <CardTitle>{selectedEvent ? "Событие" : "Новое событие"}</CardTitle>
+              </div>
               {selectedEvent ? (
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge variant="secondary">Событие</Badge>
@@ -482,10 +512,14 @@ export function EventsPanel({ embedded = false }: { embedded?: boolean }) {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className={cn(mobileDetailView && "hidden xl:block")}>
             <CardHeader className="flex-row items-center justify-between gap-3">
               <CardTitle>Лента событий</CardTitle>
               <div className="flex items-center gap-2">
+                <Button type="button" size="sm" className="min-h-11 xl:hidden" onClick={startNewEvent}>
+                  <Plus data-icon="inline-start" />
+                  Новое
+                </Button>
                 {hasActiveFilters ? (
                   <Button variant="ghost" size="sm" onClick={resetEventFilters}>
                     <X data-icon="inline-start" />

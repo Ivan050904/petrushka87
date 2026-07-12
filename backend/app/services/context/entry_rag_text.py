@@ -67,10 +67,20 @@ def build_entry_rag_text(entry: Entry) -> str:
     for key in ("description", "project", "category", "url", "collection", "mode", "kind"):
         _append_str(parts, metadata.get(key))
 
-    for key in ("board_id", "kanban_column", "column_id", "column_label"):
+    for key in ("board_id", "board", "kanban_column", "column_id", "column_label", "stage"):
         value = metadata.get(key)
         if isinstance(value, str) and value.strip():
             parts.append(f"kanban {key}: {value.strip()}")
+
+    board_key = metadata.get("board") or metadata.get("board_id")
+    if isinstance(board_key, str):
+        board_key = board_key.strip()
+        if board_key:
+            from app.services.context.context_models import KANBAN_BOARD_LABELS
+
+            label = KANBAN_BOARD_LABELS.get(board_key)
+            if label:
+                parts.append(f"kanban board label: {label}")
 
     cards = metadata.get("cards")
     if isinstance(cards, list):
@@ -126,7 +136,7 @@ def build_entry_rag_text(entry: Entry) -> str:
         _append_metadata_fields(
             parts,
             metadata,
-            ("full_name", "notes", "birthday", "description"),
+            ("last_name", "first_name", "middle_name", "full_name", "notes", "birthday", "description"),
         )
         contacts = metadata.get("contacts")
         if isinstance(contacts, list):
@@ -144,6 +154,19 @@ def build_entry_rag_text(entry: Entry) -> str:
                 parts.append(format_russian_date(session_date.strip()[:10]))
             except ValueError:
                 pass
+    elif entry_type == "workout":
+        _append_metadata_fields(
+            parts,
+            metadata,
+            (
+                "body_weight",
+                "mood",
+                "muscle_readiness",
+                "sleep_quality",
+                "general_fatigue",
+                "workout_session_id",
+            ),
+        )
 
     transaction_date = metadata.get("transaction_date")
     if isinstance(transaction_date, str) and transaction_date.strip():

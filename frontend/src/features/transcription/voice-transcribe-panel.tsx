@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
 import { useRequireAuth } from "@/hooks/use-auth";
 import { formatRecordingDuration, useVoiceInput } from "@/hooks/use-voice-input";
-import { getAssistantAgentStatus } from "@/lib/api";
+import { createEntry, getAssistantAgentStatus, getErrorMessage, listEntries } from "@/lib/api";
+import { getString } from "@/lib/entry-helpers";
 
 const ACCEPTED_AUDIO = "audio/webm,audio/ogg,audio/mp4,audio/mpeg,audio/wav,audio/x-wav,.webm,.ogg,.mp3,.m4a,.wav";
 
@@ -18,6 +19,7 @@ type TranscriptMessage = {
   createdAt: Date;
   source: "recording" | "file";
   label?: string;
+  entryId?: string;
 };
 
 const timeFormatter = new Intl.DateTimeFormat("ru-RU", {
@@ -35,6 +37,40 @@ export function VoiceTranscribePanel() {
   const [copyNotice, setCopyNotice] = useState<string | null>(null);
   const [speechReady, setSpeechReady] = useState<boolean | null>(null);
   const [whisperModel, setWhisperModel] = useState("");
+
+  useEffect(() => {
+    if (!token) {
+      setMessages([]);
+      return;
+    }
+    let mounted = true;
+    void listEntries(token, { type: "note", kind: "voice_transcript", limit: 100 })
+      .then((result) => {
+        if (!mounted) {
+          return;
+        }
+        setMessages(
+          [...result.items]
+            .sort((left, right) => new Date(left.created_at).getTime() - new Date(right.created_at).getTime())
+            .map((entry) => ({
+              id: entry.id,
+              entryId: entry.id,
+              text: entry.content,
+              createdAt: new Date(entry.created_at),
+              source: getString(entry.metadata.source_file) ? ("file" as const) : ("recording" as const),
+              label: getString(entry.metadata.source_file) || undefined,
+            })),
+        );
+      })
+      .catch(() => {
+        if (mounted) {
+          setMessages([]);
+        }
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [token]);
 
   useEffect(() => {
     if (!token) {
@@ -60,7 +96,41 @@ export function VoiceTranscribePanel() {
     };
   }, [token]);
 
-  function appendTranscript(value: string, source: TranscriptMessage["source"], label?: string) {
+  async function persistTranscript(value: string, source: TranscriptMessage["source"], label?: string) {
+    if (!token) {
+      appendTranscriptLocal(value, source, label);
+      return;
+    }
+    try {
+      const created = await createEntry(token, {
+        type: "note",
+        title: source === "file" ? `Транскрипт · ${label ?? "аудио"}` : "Голосовая транскрипция",
+        content: value,
+        metadata: {
+          kind: "voice_transcript",
+          source: "transcription",
+          source_file: label ?? null,
+        },
+      });
+      setMessages((current) => [
+        ...current,
+        {
+          id: created.id,
+          entryId: created.id,
+          text: value,
+          createdAt: new Date(created.created_at),
+          source,
+          label,
+        },
+      ]);
+      setError(null);
+    } catch (requestError) {
+      setError(getErrorMessage(requestError, "Не удалось сохранить транскрипт."));
+      appendTranscriptLocal(value, source, label);
+    }
+  }
+
+  function appendTranscriptLocal(value: string, source: TranscriptMessage["source"], label?: string) {
     const trimmed = value.trim();
     if (!trimmed) {
       return;
@@ -76,6 +146,14 @@ export function VoiceTranscribePanel() {
       },
     ]);
     setError(null);
+  }
+
+  function appendTranscript(value: string, source: TranscriptMessage["source"], label?: string) {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return;
+    }
+    void persistTranscript(trimmed, source, label);
   }
 
   const {

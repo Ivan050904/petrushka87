@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
@@ -80,8 +81,8 @@ def _tuned_queries_fresh(state_tuned_at: str | None) -> bool:
     return datetime.now(UTC) - tuned_at.astimezone(UTC) < max_age
 
 
-def get_active_psych_query_source() -> str:
-    state = load_digest_state("psychology")
+def get_active_psych_query_source(user_id: uuid.UUID) -> str:
+    state = load_digest_state(user_id, "psychology")
     if state.tuned_queries and _tuned_queries_fresh(state.tuned_at):
         return "ollama"
     if settings.psych_digest_queries:
@@ -89,7 +90,7 @@ def get_active_psych_query_source() -> str:
     return "static"
 
 
-def tune_psych_queries(feedback_profile: FeedbackProfile) -> PsychQueryTuneResult:
+def tune_psych_queries(feedback_profile: FeedbackProfile, *, user_id: uuid.UUID) -> PsychQueryTuneResult:
     if len(feedback_profile.examples) < settings.psych_digest_tune_min_feedback:
         return PsychQueryTuneResult(
             status="skipped",
@@ -106,7 +107,7 @@ def tune_psych_queries(feedback_profile: FeedbackProfile) -> PsychQueryTuneResul
             status="unavailable",
             queries=[],
             message="Ollama is not reachable for query tuning",
-            source=get_active_psych_query_source(),
+            source=get_active_psych_query_source(user_id),
         )
 
     llm = DigestLLMClient()
@@ -115,7 +116,7 @@ def tune_psych_queries(feedback_profile: FeedbackProfile) -> PsychQueryTuneResul
             status="unavailable",
             queries=[],
             message="Digest LLM is not configured for query tuning",
-            source=get_active_psych_query_source(),
+            source=get_active_psych_query_source(user_id),
         )
 
     system_prompt = PSYCH_QUERY_TUNER_PROMPT.format(
@@ -132,7 +133,7 @@ def tune_psych_queries(feedback_profile: FeedbackProfile) -> PsychQueryTuneResul
             status="error",
             queries=[],
             message=str(exc) or exc.__class__.__name__,
-            source=get_active_psych_query_source(),
+            source=get_active_psych_query_source(user_id),
         )
 
     raw_queries = payload.get("queries")
@@ -141,7 +142,7 @@ def tune_psych_queries(feedback_profile: FeedbackProfile) -> PsychQueryTuneResul
             status="error",
             queries=[],
             message="LLM response did not contain queries array",
-            source=get_active_psych_query_source(),
+            source=get_active_psych_query_source(user_id),
         )
 
     selections_by_tier: dict[str, PsychQuerySelection] = {}
@@ -161,11 +162,11 @@ def tune_psych_queries(feedback_profile: FeedbackProfile) -> PsychQueryTuneResul
             status="error",
             queries=[],
             message="LLM returned invalid queries outside the allowed sources or topics",
-            source=get_active_psych_query_source(),
+            source=get_active_psych_query_source(user_id),
         )
 
     queries = [selections_by_tier[tier].query for tier in ("guides", "popsci", "science")]
-    save_psych_tuned_queries(queries)
+    save_psych_tuned_queries(user_id, queries)
     return PsychQueryTuneResult(
         status="ok",
         queries=queries,

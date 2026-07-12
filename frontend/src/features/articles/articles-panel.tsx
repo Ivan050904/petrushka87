@@ -1,17 +1,26 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { Ban, Brain, ExternalLink, Newspaper, Play, RefreshCw, Search, ThumbsDown } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Brain, Newspaper, RefreshCw } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Empty } from "@/components/ui/empty";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Notice } from "@/components/ui/notice";
-import { Select } from "@/components/ui/select";
+import { ArticleCardSkeleton } from "@/features/articles/article-card-skeleton";
+import { ArticlesDigestStatus } from "@/features/articles/articles-digest-status";
+import { ArticlesFeed } from "@/features/articles/articles-feed";
+import { ArticlesFilterBar } from "@/features/articles/articles-filter-bar";
+import { ArticlesToolbar } from "@/features/articles/articles-toolbar";
+import { getArticlesEmptyState } from "@/features/articles/articles-empty-state";
+import {
+  getArticleQuery,
+  getArticleSummary,
+  getArticleTier,
+  getArticleUrl,
+  getDisplayTitle,
+  isAccessChecked,
+  type ArticlesTab,
+  type PsychTierFilter,
+} from "@/features/articles/articles-helpers";
 import { SegmentTabs } from "@/components/ui/segment-tabs";
+import { Notice } from "@/components/ui/notice";
 import { useRequireAuth } from "@/hooks/use-auth";
 import {
   getDigestStatus,
@@ -24,74 +33,55 @@ import {
   type DigestProfileStatus,
   type DigestStatus,
 } from "@/lib/api";
-import { formatDate, getString } from "@/lib/entry-helpers";
 import type { Entry } from "@/lib/types";
-import { getArticlesEmptyState } from "@/features/articles/articles-empty-state";
 
 const PAGE_SIZE = 200;
-
-type ArticlesTab = "ai" | "psychology";
-type PsychTierFilter = "all" | "guides" | "popsci" | "science";
-
-const TIER_LABELS: Record<Exclude<PsychTierFilter, "all">, string> = {
-  guides: "Практика",
-  popsci: "Научпоп",
-  science: "Наука",
-};
-
-function getArticleUrl(entry: Entry) {
-  return getString(entry.metadata.url);
-}
-
-function getArticleSummary(entry: Entry, tab: ArticlesTab) {
-  if (tab === "psychology") {
-    return getString(entry.metadata.snippet_en) || entry.content;
-  }
-  return getString(entry.metadata.summary_ru) || entry.content;
-}
-
-function getDisplayTitle(entry: Entry, tab: ArticlesTab) {
-  if (tab === "psychology") {
-    return entry.title;
-  }
-  return getString(entry.metadata.title_ru) || entry.title;
-}
-
-const QUERY_SOURCE_LABELS: Record<string, string> = {
-  ollama: "из Ollama",
-  config: "из конфига",
-  static: "статические",
-};
-
-function getArticleQuery(entry: Entry) {
-  return getString(entry.metadata.query);
-}
-
-function getPublishedAt(entry: Entry) {
-  return getString(entry.metadata.published_at);
-}
-
-function getDiscoveredAt(entry: Entry) {
-  return getString(entry.metadata.discovered_at) || entry.created_at;
-}
-
-function getArticleTier(entry: Entry) {
-  return getString(entry.metadata.article_tier);
-}
-
-function getSourceSite(entry: Entry) {
-  return getString(entry.metadata.source_site);
-}
-
-function isAccessChecked(entry: Entry) {
-  return entry.metadata.article_access_checked === true;
-}
 
 function profileStatus(status: DigestStatus | null, tab: ArticlesTab): DigestProfileStatus | null {
   if (!status) {
     return null;
   }
   return tab === "psychology" ? status.psychology : status;
+}
+
+function ArticlesEmptyState({
+  title,
+  description,
+  actionLabel,
+  onAction,
+  icon,
+}: {
+  title: string;
+  description?: string;
+  actionLabel?: string;
+  onAction?: () => void;
+  icon: "ai" | "psychology";
+}) {
+  return (
+    <div
+      role="status"
+      className="articles-empty-state flex flex-col items-center justify-center gap-4 px-6 py-12 text-center"
+    >
+      {icon === "psychology" ? (
+        <Brain className="size-10 text-[var(--articles-accent)]" aria-hidden="true" />
+      ) : (
+        <Newspaper className="size-10 text-[var(--articles-accent)]" aria-hidden="true" />
+      )}
+      <div className="space-y-1">
+        <h3 className="text-sm font-medium text-[var(--articles-foreground)]">{title}</h3>
+        {description ? <p className="text-xs text-[var(--articles-muted)]">{description}</p> : null}
+      </div>
+      {onAction && actionLabel ? (
+        <button
+          type="button"
+          onClick={onAction}
+          className="articles-btn-primary focus-ring inline-flex min-h-11 items-center rounded-md px-4 py-2 text-sm font-medium"
+        >
+          {actionLabel}
+        </button>
+      ) : null}
+    </div>
+  );
 }
 
 export function ArticlesPanel() {
@@ -261,11 +251,7 @@ export function ArticlesPanel() {
     try {
       const result = await tunePsychQueries(token);
       await loadArticles({ activeTab: tab });
-      if (result.status === "ok") {
-        setActionInfo(result.message);
-      } else {
-        setActionInfo(result.message);
-      }
+      setActionInfo(result.message);
     } catch (requestError) {
       setActionError(getErrorMessage(requestError, "Не удалось обновить запросы поиска."));
     } finally {
@@ -317,270 +303,111 @@ export function ArticlesPanel() {
   });
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            {tab === "psychology" ? (
-              <Brain className="h-5 w-5 text-primary" />
-            ) : (
-              <Newspaper className="h-5 w-5 text-primary" />
-            )}
-            <h1 className="text-2xl font-semibold tracking-tight">Статьи</h1>
+    <div className="articles-surface flex min-h-0 flex-1 flex-col" data-tab={tab}>
+      <div className="mx-auto w-full max-w-6xl flex-1 space-y-6 px-4 py-4 lg:px-6 lg:py-6">
+        <ArticlesToolbar
+          tab={tab}
+          isRunning={isRunning}
+          isTuning={isTuning}
+          runButtonLabel={runButtonLabel}
+          onRunDigest={() => void handleRunDigest()}
+          onTuneQueries={() => void handleTuneQueries()}
+        />
+
+        <SegmentTabs
+          value={tab}
+          onChange={setTab}
+          className="grid-cols-2 sm:max-w-xs"
+          options={[
+            { value: "ai", label: "ИИ" },
+            { value: "psychology", label: "Психология" },
+          ]}
+        />
+
+        <ArticlesDigestStatus tab={tab} status={status} profileStatus={currentProfileStatus} />
+
+        {actionInfo ? (
+          <Notice variant="info" className="articles-notice">
+            {actionInfo}
+          </Notice>
+        ) : null}
+        {actionError ? (
+          <Notice variant="error" className="articles-notice">
+            {actionError}
+          </Notice>
+        ) : null}
+        {loadError ? (
+          <Notice variant="error" className="articles-notice">
+            {loadError}
+          </Notice>
+        ) : null}
+
+        <ArticlesFilterBar
+          tab={tab}
+          query={query}
+          onQueryChange={setQuery}
+          topicFilter={topicFilter}
+          onTopicChange={setTopicFilter}
+          topicOptions={topicOptions}
+          tierFilter={tierFilter}
+          onTierChange={setTierFilter}
+        />
+
+        {!isLoading && total > 0 ? (
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-[var(--articles-muted)]">
+            <span>
+              {hasActiveFilter
+                ? `Показано ${filteredArticles.length} из ${articles.length} загруженных · всего ${total}`
+                : `Показано ${filteredArticles.length} из ${total}`}
+            </span>
+            {tab === "psychology" ? <span>Проверено доступных ссылок: {checkedLinks}</span> : null}
           </div>
-          <p className="max-w-2xl text-sm text-muted-foreground">
-            {tab === "psychology"
-              ? "Англоязычные материалы по CBT, самоценности, схемам, отношениям и ACT из NHS, CCI, APA и научных баз."
-              : "Свежие статьи про ИИ-агентов, Cursor, Claude и Codex с Habr."}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {tab === "psychology" ? (
-            <Button variant="outline" onClick={() => void handleTuneQueries()} disabled={isTuning}>
-              {isTuning ? <RefreshCw className="h-4 w-4 animate-spin" /> : null}
-              Обновить запросы
-            </Button>
-          ) : null}
-          <Button onClick={() => void handleRunDigest()} disabled={isRunning}>
-            {isRunning ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-            {runButtonLabel}
-          </Button>
-        </div>
-      </div>
+        ) : null}
 
-      <SegmentTabs
-        value={tab}
-        onChange={setTab}
-        className="grid-cols-2 sm:max-w-xs"
-        options={[
-          { value: "ai", label: "ИИ" },
-          { value: "psychology", label: "Психология" },
-        ]}
-      />
-
-      {currentProfileStatus ? (
-        <Card>
-          <CardContent className="flex flex-wrap gap-x-6 gap-y-2 py-4 text-sm">
-            <div>
-              <span className="text-muted-foreground">Последнее обновление: </span>
-              <span>
-                {currentProfileStatus.last_run_at
-                  ? formatDate(currentProfileStatus.last_run_at)
-                  : "ещё не было"}
-              </span>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Следующий поиск: </span>
-              <span>
-                {currentProfileStatus.next_search_from
-                  ? `с ${formatDate(currentProfileStatus.next_search_from)}`
-                  : "актуально на сегодня"}
-              </span>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Автообновление: </span>
-              <span>
-                {status?.scheduler_enabled
-                  ? `каждый день в ${status.schedule_hour}:00`
-                  : "выключено"}
-              </span>
-            </div>
-            {tab === "psychology" && currentProfileStatus.query_source ? (
-              <div>
-                <span className="text-muted-foreground">Запросы: </span>
-                <span>
-                  {QUERY_SOURCE_LABELS[currentProfileStatus.query_source] ??
-                    currentProfileStatus.query_source}
-                </span>
-              </div>
-            ) : null}
-            {tab === "psychology" && currentProfileStatus.last_error ? (
-              <div className="text-destructive">
-                Последняя ошибка: {currentProfileStatus.last_error}
-              </div>
-            ) : null}
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {actionInfo ? <Notice variant="info">{actionInfo}</Notice> : null}
-      {actionError ? <Notice variant="error">{actionError}</Notice> : null}
-      {loadError ? <Notice variant="error">{loadError}</Notice> : null}
-
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <div className="relative flex-1">
-          <FieldLabel htmlFor="articles-search" className="sr-only">
-            Поиск статей
-          </FieldLabel>
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            id="articles-search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Поиск по заголовку, описанию или ссылке"
-            className="pl-9"
-          />
-        </div>
-        {tab === "psychology" ? (
-          <Select
-            value={tierFilter}
-            onChange={(event) => setTierFilter(event.target.value as PsychTierFilter)}
-          >
-            <option value="all">Все уровни</option>
-            <option value="guides">Практика</option>
-            <option value="popsci">Научпоп</option>
-            <option value="science">Наука</option>
-          </Select>
-        ) : (
-          <Select value={topicFilter} onChange={(event) => setTopicFilter(event.target.value)}>
-            {topicOptions.map((topic) => (
-              <option key={topic} value={topic}>
-                {topic === "all" ? "Все темы" : topic}
-              </option>
+        {emptyStateKind === "loading" ? (
+          <div className="grid gap-4 xl:grid-cols-2">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <ArticleCardSkeleton key={index} />
             ))}
-          </Select>
+          </div>
+        ) : emptyStateKind === "filtered-empty" ? (
+          <ArticlesEmptyState
+            icon={tab}
+            title="Ничего не найдено"
+            description="Попробуйте другой запрос или сбросьте фильтры."
+            actionLabel="Сбросить фильтры"
+            onAction={resetFilters}
+          />
+        ) : emptyStateKind === "true-empty" ? (
+          <ArticlesEmptyState
+            icon={tab}
+            title={emptyTitle}
+            actionLabel={emptyActionLabel}
+            onAction={() => void handleRunDigest()}
+          />
+        ) : (
+          <ArticlesFeed
+            articles={filteredArticles}
+            tab={tab}
+            feedbackPendingId={feedbackPendingId}
+            onFeedback={(entryId, feedback) => void handleFeedback(entryId, feedback)}
+          />
         )}
+
+        {hasMore && !isLoading ? (
+          <div className="flex justify-center pb-2">
+            <button
+              type="button"
+              disabled={isLoadingMore}
+              onClick={() => void loadArticles({ append: true, offset: articles.length, activeTab: tab })}
+              className="articles-btn-ghost focus-ring inline-flex min-h-11 items-center gap-2 rounded-md border border-[var(--articles-border)] px-4 py-2 text-sm font-medium"
+            >
+              {isLoadingMore ? <RefreshCw className="size-4 animate-spin" /> : null}
+              Показать ещё
+            </button>
+          </div>
+        ) : null}
       </div>
-
-      {!isLoading && total > 0 ? (
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-          <span>
-            {hasActiveFilter
-              ? `Показано ${filteredArticles.length} из ${articles.length} загруженных · всего ${total}`
-              : `Показано ${filteredArticles.length} из ${total}`}
-          </span>
-          {tab === "psychology" ? <span>Проверено доступных ссылок: {checkedLinks}</span> : null}
-        </div>
-      ) : null}
-
-      {emptyStateKind === "loading" ? (
-        <div className="grid gap-4">
-          {Array.from({ length: 3 }).map((_, index) => (
-            <div key={index} className="h-32 animate-pulse rounded-md bg-muted" />
-          ))}
-        </div>
-      ) : emptyStateKind === "filtered-empty" ? (
-        <Empty
-          title="Ничего не найдено"
-          description="Попробуйте другой запрос или сбросьте фильтры."
-          actionLabel="Сбросить фильтры"
-          onAction={resetFilters}
-        />
-      ) : emptyStateKind === "true-empty" ? (
-        <Empty
-          title={emptyTitle}
-          actionLabel={emptyActionLabel}
-          onAction={() => void handleRunDigest()}
-        />
-      ) : (
-        <div className="grid gap-4">
-          {filteredArticles.map((article) => {
-            const url = getArticleUrl(article);
-            const topic = getArticleQuery(article);
-            const tier = getArticleTier(article);
-            const sourceSite = getSourceSite(article);
-            const isPending = feedbackPendingId === article.id;
-            const primaryBadges: Array<{ key: string; node: React.ReactNode }> = [];
-            if (tab === "psychology" && tier && tier in TIER_LABELS) {
-              primaryBadges.push({
-                key: "tier",
-                node: (
-                  <Badge variant="secondary">
-                    {TIER_LABELS[tier as Exclude<PsychTierFilter, "all">]}
-                  </Badge>
-                ),
-              });
-            }
-            if (tab === "psychology" && sourceSite) {
-              primaryBadges.push({ key: "source", node: <Badge variant="outline">{sourceSite}</Badge> });
-            } else if (tab === "psychology") {
-              primaryBadges.push({ key: "en", node: <Badge variant="outline">EN</Badge> });
-            }
-            const visibleBadges = primaryBadges.slice(0, 2);
-            const metaParts = [
-              tab === "psychology" && isAccessChecked(article) ? "Ссылка проверена" : null,
-              topic ? `Запрос: ${topic}` : null,
-              getPublishedAt(article)
-                ? `Опубликовано: ${formatDate(getPublishedAt(article))}`
-                : `Найдено: ${formatDate(getDiscoveredAt(article))}`,
-            ].filter(Boolean);
-            return (
-              <Card key={article.id}>
-                <CardHeader className="gap-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    {visibleBadges.map((badge) => (
-                      <span key={badge.key}>{badge.node}</span>
-                    ))}
-                  </div>
-                  <CardTitle className="text-lg leading-snug">{getDisplayTitle(article, tab)}</CardTitle>
-                  {metaParts.length > 0 ? (
-                    <p className="text-xs text-muted-foreground">{metaParts.join(" · ")}</p>
-                  ) : null}
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <p className="line-clamp-3 text-sm text-muted-foreground">{getArticleSummary(article, tab)}</p>
-                  <div className="flex flex-wrap items-center gap-2">
-                    {url ? (
-                      <a
-                        href={url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
-                      >
-                        {tab === "psychology" ? "Открыть статью (EN)" : "Открыть статью"}
-                        <ExternalLink className="h-4 w-4" />
-                      </a>
-                    ) : null}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={isPending}
-                      title={
-                        tab === "psychology"
-                          ? "Статья в теме, но не интересна — скрыть и не предлагать похожие"
-                          : "Статья в теме, но не интересна — скрыть и не предлагать похожие"
-                      }
-                      onClick={() => void handleFeedback(article.id, "dislike")}
-                    >
-                      <ThumbsDown className="h-4 w-4" />
-                      Не нравится
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={isPending}
-                      title={
-                        tab === "psychology"
-                          ? "Не про CBT и когнитивные искажения — скрыть и не предлагать похожие темы"
-                          : "Не про ИИ-агентов и инструменты — скрыть и не предлагать похожие темы"
-                      }
-                      onClick={() => void handleFeedback(article.id, "off_topic")}
-                    >
-                      <Ban className="h-4 w-4" />
-                      Не в тему
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
-
-      {hasMore && !isLoading ? (
-        <div className="flex justify-center">
-          <Button
-            variant="outline"
-            disabled={isLoadingMore}
-            onClick={() => void loadArticles({ append: true, offset: articles.length, activeTab: tab })}
-          >
-            {isLoadingMore ? <RefreshCw className="h-4 w-4 animate-spin" /> : null}
-            Показать ещё
-          </Button>
-        </div>
-      ) : null}
     </div>
   );
 }

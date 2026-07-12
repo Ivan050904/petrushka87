@@ -16,7 +16,7 @@ export function NotesFab({ onClick, className }: NotesFabProps) {
       onClick={onClick}
       aria-label="Создать заметку"
       className={cn(
-        "notes-fab focus-ring fixed bottom-[calc(var(--shell-mobile-tab)+1rem+env(safe-area-inset-bottom))] right-4 z-30 flex size-14 items-center justify-center rounded-full lg:bottom-8 lg:right-8",
+        "notes-fab focus-ring fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-4 z-50 flex size-14 items-center justify-center rounded-full lg:bottom-8 lg:right-8",
         className,
       )}
     >

@@ -197,23 +197,7 @@ def test_finance_import_confirm_uses_custom_title_or_description(client: TestCli
     assert "Только описание банка" in titles
 
 
-def _register(client: TestClient) -> str:
-    response = client.post(
-        "/api/v1/auth/register",
-        json={
-            "email": f"finance-{uuid.uuid4().hex[:8]}@example.com",
-            "password": "password123",
-            "full_name": "Finance User",
-        },
-    )
-    assert response.status_code == 201
-
-    login = client.post(
-        "/api/v1/auth/login",
-        json={"email": response.json()["user"]["email"], "password": "password123"},
-    )
-    assert login.status_code == 200
-    return login.json()["access_token"]
+from tests.auth_helpers import create_user_token as _register
 
 
 def _auth_headers(token: str) -> dict[str, str]:

@@ -15,6 +15,7 @@ export function FinanceCategoryCard({
   compareMonthLabel,
   selected = false,
   onClick,
+  side = "expense",
 }: {
   category: string;
   total: number;
@@ -23,11 +24,20 @@ export function FinanceCategoryCard({
   compareMonthLabel: string;
   selected?: boolean;
   onClick?: () => void;
+  side?: "expense" | "income";
 }) {
   const meta = getFinanceCategoryMeta(category);
   const Icon = meta.icon;
   const share = expenseTotal > 0 ? Math.round((total / expenseTotal) * 100) : 0;
   const delta = computeCategoryDelta(total, compareTotal);
+  const deltaTrend =
+    side === "income"
+      ? delta.trend === "up"
+        ? "up-good"
+        : delta.trend === "down"
+          ? "down-bad"
+          : delta.trend
+      : delta.trend;
 
   return (
     <Card
@@ -58,10 +68,12 @@ export function FinanceCategoryCard({
           <div
             className={cn(
               "inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-medium",
-              delta.trend === "up" && "bg-destructive/10 text-destructive",
-              delta.trend === "down" && "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
-              delta.trend === "flat" && "bg-muted text-muted-foreground",
-              delta.trend === "new" && "bg-primary/10 text-primary",
+              deltaTrend === "up" && "bg-destructive/10 text-destructive",
+              deltaTrend === "down" && "bg-success-soft",
+              deltaTrend === "up-good" && "bg-success-soft",
+              deltaTrend === "down-bad" && "bg-destructive/10 text-destructive",
+              deltaTrend === "flat" && "bg-muted text-muted-foreground",
+              deltaTrend === "new" && "bg-primary/10 text-primary",
             )}
             title={`Сравнение с ${compareMonthLabel}`}
           >
@@ -78,7 +90,7 @@ export function FinanceCategoryCard({
         </div>
 
         <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-          <span>{share}% расходов</span>
+          <span>{share}% {side === "income" ? "доходов" : "расходов"}</span>
           <span>к {compareMonthLabel}</span>
         </div>
 

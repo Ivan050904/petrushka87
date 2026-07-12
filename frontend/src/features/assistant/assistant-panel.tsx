@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
-import { Bot, Check, SendHorizonal } from "lucide-react";
+import { Check, MessageSquareText, SendHorizonal, Sparkles } from "lucide-react";
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +14,7 @@ import { VoiceInputButton } from "@/features/assistant/voice-input-button";
 import { assistantAgentChat, getAssistantAgentStatus, getErrorMessage } from "@/lib/api";
 import type { AssistantAgentChatResponse } from "@/lib/api";
 import { entryModuleHref } from "@/lib/entry-helpers";
-import { plansHref } from "@/lib/navigation";
+import { plansHref, ROUTES } from "@/lib/navigation";
 import type { Entry } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -120,22 +120,34 @@ export function AssistantPanel({ token, onChanged, className }: AssistantPanelPr
         "flex min-w-0 flex-col overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm",
         className,
       )}
-      aria-label="ИИ-ассистент"
+      aria-label="Агент действий"
     >
       <header className="flex items-center gap-2 border-b border-border/70 px-4 py-3">
         <span className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          <Bot aria-hidden="true" className="size-4" />
+          <Sparkles aria-hidden="true" className="size-4" />
         </span>
         <div className="min-w-0 flex-1">
-          <h2 className="text-sm font-semibold">ИИ-агент</h2>
+          <h2 className="text-sm font-semibold">Агент действий</h2>
           <p className="text-xs text-muted-foreground">
             {!configured
               ? "Добавьте ASSISTANT_API_KEY в backend/.env"
               : providerReachable === false
                 ? "Модель недоступна — проверьте токен GitHub"
-                : "Создаёт задачи и встречи"}
+                : "Создаёт задачи и встречи. Для поиска по памяти — "}
+            {configured && providerReachable !== false ? (
+              <Link href={ROUTES.assistant} className="underline underline-offset-2">
+                чат с контекстом
+              </Link>
+            ) : null}
+            {configured && providerReachable !== false ? "." : null}
           </p>
         </div>
+        <Button asChild variant="ghost" size="sm" className="hidden shrink-0 lg:inline-flex">
+          <Link href={ROUTES.assistant}>
+            <MessageSquareText data-icon="inline-start" className="size-3.5" />
+            Чат
+          </Link>
+        </Button>
         {!configured ? <Badge variant="secondary">Не настроен</Badge> : null}
         {configured && providerReachable === false ? (
           <Badge variant="secondary">Нет связи</Badge>

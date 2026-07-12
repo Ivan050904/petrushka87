@@ -26,6 +26,7 @@ from app.services.agent.digest import (
 from app.services.agent.scheduler import compute_next_run_at
 from app.services.agent.tools.habr_search import habr_search
 from app.storage.local import LocalFileStorage
+from tests.auth_helpers import create_user_token as _register
 
 
 @pytest.fixture()
@@ -63,15 +64,6 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[TestCli
         resources.storage = original_storage
         Base.metadata.drop_all(bind=engine)
         engine.dispose()
-
-
-def _register(client: TestClient) -> str:
-    response = client.post(
-        "/api/v1/auth/register",
-        json={"email": "digest@test.local", "password": "secret12345", "full_name": "Digest User"},
-    )
-    assert response.status_code == 201
-    return response.json()["access_token"]
 
 
 def _auth_headers(token: str) -> dict[str, str]:

@@ -12,6 +12,7 @@ from app.core.config import settings as app_settings
 from app.db.base import Base
 from app.models.entry import Entry
 from app.models.user import User
+from app.services.context.entity_search import ensure_entries_fts
 from app.services.context.orchestrator import build_context
 
 
@@ -22,6 +23,7 @@ def db_session(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[Ses
         connect_args={"check_same_thread": False},
     )
     Base.metadata.create_all(bind=engine)
+    ensure_entries_fts(engine)
     session_factory = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     db = session_factory()
     test_settings = replace(
@@ -100,3 +102,39 @@ def test_orchestrator_dedupes_entries(db_session: Session) -> None:
     context = build_context(db_session, user.id, "Duplicate candidate", scope="all", limit=10)
     ids = [item.entry_id for item in context.snippets if item.entry_id is not None]
     assert len(ids) == len(set(ids))
+
+
+def test_orchestrator_includes_catalog_summary(db_session: Session) -> None:
+    user = _user(db_session)
+    db_session.add(
+        Entry(
+            user_id=user.id,
+            type="note",
+            title="Hello",
+            content="Test note",
+            metadata_={"entry_date": "2026-01-01"},
+        )
+    )
+    db_session.commit()
+
+    context = build_context(db_session, user.id, "test", scope="all")
+    assert context.catalog_summary is not None
+    assert "заметок" in context.catalog_summary.lower()
+
+
+def test_orchestrator_pins_conversation_scope(db_session: Session) -> None:
+    user = _user(db_session)
+    db_session.add(
+        Entry(
+            user_id=user.id,
+            type="note",
+            title="Kanban card",
+            content="Задача по психологии на доске",
+            metadata_={"board": "kanban_psych", "stage": "inbox"},
+        )
+    )
+    db_session.commit()
+
+    context = build_context(db_session, user.id, "че там на канбане по психологии?", scope="kanban")
+    assert context.searched_scopes == ["kanban"]
+    assert all(item.scope == "kanban" for item in context.snippets if item.scope is not None)

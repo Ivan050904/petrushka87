@@ -23,7 +23,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    secret_key: str = "change-me-to-a-long-random-string"
+    secret_key: str = Field(default="", validation_alias="SECRET_KEY")
     url_prefix: str = Field(default="/transcription", validation_alias="TRANSCRIPTION_URL_PREFIX")
 
     llm_provider: str = Field(default="", validation_alias="TRANSCRIPTION_LLM_PROVIDER")
@@ -45,6 +45,12 @@ class Settings(BaseSettings):
         default=str(DEFAULT_DATA_DIR),
         validation_alias="TRANSCRIPTION_DATA_DIR",
     )
+
+    ytdlp_cookies_from_browser: str = Field(
+        default="auto",
+        validation_alias="YTDLP_COOKIES_FROM_BROWSER",
+    )
+    ytdlp_cookies_file: str = Field(default="", validation_alias="YTDLP_COOKIES_FILE")
 
     eta_metadata_sec: int = 5
     eta_subtitles_sec: int = 20
@@ -78,6 +84,11 @@ class Settings(BaseSettings):
 
         if self.llm_provider == "github" and self.llm_request_pause_sec <= 0:
             self.llm_request_pause_sec = 2.5
+
+        if not self.secret_key:
+            from app.core.config import settings as app_settings
+
+            self.secret_key = app_settings.secret_key
 
         return self
 

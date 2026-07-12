@@ -3,19 +3,17 @@
 import { Suspense, useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { Eye, EyeOff, LogIn } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { BrandWordmark } from "@/components/brand-logo";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth, completeAuthRedirect } from "@/hooks/use-auth";
 import { getErrorMessage } from "@/lib/api";
 import { BRAND_NAME } from "@/lib/brand";
 import { DEMO_ACCOUNT } from "@/lib/demo-account";
-
-type AuthMode = "login" | "register";
 
 export default function LoginPage() {
   return (
@@ -33,40 +31,29 @@ export default function LoginPage() {
 }
 
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const { token, login, register, isLoading } = useAuth();
-  const [mode, setMode] = useState<AuthMode>("login");
+  const { token, user, login } = useAuth();
   const [email, setEmail] = useState("");
-  const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function switchMode(nextMode: AuthMode) {
-    setMode(nextMode);
-    setError(null);
-  }
-
   function redirectAfterAuth() {
     const next = searchParams.get("next");
-    if (next && next.startsWith("/") && !next.startsWith("//")) {
-      router.replace(next);
-      return;
-    }
-    router.replace("/dashboard");
+    const target = next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+    completeAuthRedirect(target);
   }
 
   useEffect(() => {
-    if (!isLoading && token) {
-      redirectAfterAuth();
+    if (!token || !user) {
+      return;
     }
+    redirectAfterAuth();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoading, router, token]);
+  }, [token, user]);
 
   async function loginAsDemo() {
-    setMode("login");
     setError(null);
     setIsSubmitting(true);
     try {
@@ -90,18 +77,12 @@ function LoginForm() {
     setIsSubmitting(true);
 
     const normalizedEmail = email.trim().toLowerCase();
-    const normalizedFullName = fullName.trim();
-    const fallbackError = mode === "login" ? "Не удалось войти." : "Не удалось создать аккаунт.";
 
     try {
-      if (mode === "login") {
-        await login(normalizedEmail, password);
-      } else {
-        await register(normalizedEmail, password, normalizedFullName || undefined);
-      }
+      await login(normalizedEmail, password);
       redirectAfterAuth();
     } catch (requestError) {
-      setError(getErrorMessage(requestError, fallbackError));
+      setError(getErrorMessage(requestError, "Не удалось войти."));
     } finally {
       setIsSubmitting(false);
     }
@@ -118,31 +99,6 @@ function LoginForm() {
         <CardContent>
           <form onSubmit={submit} aria-describedby={error ? "auth-error" : undefined}>
             <FieldGroup>
-              <div
-                className="grid grid-cols-2 gap-2 rounded-md border border-border bg-muted p-1"
-                role="group"
-                aria-label="Режим авторизации"
-              >
-                <Button
-                  type="button"
-                  variant={mode === "login" ? "secondary" : "ghost"}
-                  aria-pressed={mode === "login"}
-                  onClick={() => switchMode("login")}
-                  disabled={isSubmitting}
-                >
-                  Вход
-                </Button>
-                <Button
-                  type="button"
-                  variant={mode === "register" ? "secondary" : "ghost"}
-                  aria-pressed={mode === "register"}
-                  onClick={() => switchMode("register")}
-                  disabled={isSubmitting}
-                >
-                  Регистрация
-                </Button>
-              </div>
-
               <Field>
                 <FieldLabel htmlFor="email">Email</FieldLabel>
                 <Input
@@ -158,19 +114,6 @@ function LoginForm() {
                 />
               </Field>
 
-              {mode === "register" ? (
-                <Field>
-                  <FieldLabel htmlFor="full-name">Имя</FieldLabel>
-                  <Input
-                    id="full-name"
-                    value={fullName}
-                    onChange={(event) => setFullName(event.target.value)}
-                    autoComplete="name"
-                    disabled={isSubmitting}
-                  />
-                </Field>
-              ) : null}
-
               <Field>
                 <FieldLabel htmlFor="password">Пароль</FieldLabel>
                 <div className="relative">
@@ -179,8 +122,7 @@ function LoginForm() {
                     type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
-                    autoComplete={mode === "login" ? "current-password" : "new-password"}
-                    minLength={mode === "register" ? 8 : 1}
+                    autoComplete="current-password"
                     disabled={isSubmitting}
                     required
                     className="pr-14"
@@ -201,10 +143,10 @@ function LoginForm() {
 
               <Button type="submit" disabled={isSubmitting} className="w-full">
                 <LogIn data-icon="inline-start" />
-                {isSubmitting ? "Подождите" : mode === "login" ? "Войти" : "Создать аккаунт"}
+                {isSubmitting ? "Подождите" : "Войти"}
               </Button>
 
-              {mode === "login" && process.env.NODE_ENV !== "production" ? (
+              {process.env.NODE_ENV !== "production" ? (
                 <div className="space-y-2">
                   <Button
                     type="button"

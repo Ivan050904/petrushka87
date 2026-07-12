@@ -26,8 +26,8 @@ export function NotesHeader({
     .filter((value, index, array) => array.indexOf(value) === index);
 
   return (
-    <header className="sticky top-0 z-20 bg-[var(--notes-bg)]/95 px-4 pb-3 pt-4 backdrop-blur lg:px-6">
-      <div className="mb-4 flex items-end justify-between gap-3">
+    <header className="sticky top-0 z-20 bg-[var(--notes-bg)]/95 px-3 pb-2 pt-2 backdrop-blur lg:px-6 lg:pb-3 lg:pt-4">
+      <div className="mb-3 hidden items-end justify-between gap-3 lg:flex">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-[var(--notes-text)]">Заметки</h1>
           {total !== null ? (
@@ -36,7 +36,7 @@ export function NotesHeader({
         </div>
       </div>
 
-      <label className="notes-search mb-4 flex items-center gap-3 px-4 py-3">
+      <label className="notes-search mb-3 flex items-center gap-3 px-3 py-2.5 lg:mb-4 lg:px-4 lg:py-3">
         <Search className="size-5 shrink-0 text-[var(--notes-muted)]" />
         <input
           value={query}

@@ -12,6 +12,7 @@ describe("nav-config", () => {
       "inbox",
       "board",
       "dashboard",
+      "weather",
       "notes",
       "articles",
       "plans",

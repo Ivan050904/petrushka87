@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import random
+import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
@@ -51,8 +52,8 @@ def _tuned_queries_fresh(tuned_at: str | None) -> bool:
     return datetime.now(UTC) - parsed.astimezone(UTC) < max_age
 
 
-def _tuned_query_selections() -> list[PsychQuerySelection] | None:
-    state = load_digest_state("psychology")
+def _tuned_query_selections(user_id: uuid.UUID) -> list[PsychQuerySelection] | None:
+    state = load_digest_state(user_id, "psychology")
     if not state.tuned_queries or not _tuned_queries_fresh(state.tuned_at):
         return None
     tiers = ["guides", "popsci", "science"]
@@ -65,12 +66,12 @@ def _tuned_query_selections() -> list[PsychQuerySelection] | None:
     return selections or None
 
 
-def configured_psych_queries() -> list[PsychQuerySelection]:
+def configured_psych_queries(user_id: uuid.UUID) -> list[PsychQuerySelection]:
     override = [item.strip() for item in settings.psych_digest_queries if item.strip()]
     if override:
         return [PsychQuerySelection(query=item, tier="custom") for item in override]
 
-    tuned = _tuned_query_selections()
+    tuned = _tuned_query_selections(user_id)
     if tuned:
         return tuned
 

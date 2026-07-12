@@ -50,6 +50,7 @@ DEFAULT_DATABASE_URL = (
     f"sqlite:///{(Path(__file__).resolve().parents[2] / 'storage' / 'folio_one.db').as_posix()}"
 )
 DEFAULT_LOCAL_STORAGE_PATH = str(Path(__file__).resolve().parents[2] / "storage" / "files")
+WEAK_SECRET_KEYS = frozenset({"change-me", "change-me-in-local-env", "secret"})
 
 
 @dataclass(frozen=True)
@@ -62,6 +63,8 @@ class Settings:
     secret_key: str = "change-me"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24 * 7
+    registration_enabled: bool = False
+    trust_proxy_headers: bool = False
     cors_origins: list[str] = field(
         default_factory=lambda: [
             "http://localhost:3000",
@@ -147,6 +150,13 @@ class Settings:
     context_date_lookup_enabled: bool = True
     context_debug: bool = False
     context_router_multi_scope: bool = True
+    context_entity_match_limit: int = 200
+    context_entity_max_chars: int = 48000
+    context_entity_excerpt_chars: int = 700
+    context_llm_max_chars: int = 45000
+    context_llm_max_chars_github: int = 12000
+    context_entity_prompt_limit: int = 30
+    context_catalog_enabled: bool = True
 
     context_embeddings_enabled: bool = True
     context_embeddings_provider: str = "auto"
@@ -177,6 +187,14 @@ class Settings:
     hf_token: str = ""
 
 
+def _validate_production_settings(settings: Settings) -> None:
+    if settings.environment != "production":
+        return
+    secret = settings.secret_key.strip()
+    if secret in WEAK_SECRET_KEYS or len(secret) < 32:
+        raise RuntimeError("SECRET_KEY must be at least 32 characters in production")
+
+
 @lru_cache
 def get_settings() -> Settings:
     dotenv = _read_dotenv()
@@ -192,6 +210,8 @@ def get_settings() -> Settings:
         secret_key=_env(dotenv, "SECRET_KEY", "change-me"),
         jwt_algorithm=_env(dotenv, "JWT_ALGORITHM", "HS256"),
         access_token_expire_minutes=_env_int(dotenv, "ACCESS_TOKEN_EXPIRE_MINUTES", 60 * 24 * 7),
+        registration_enabled=_env_bool(dotenv, "REGISTRATION_ENABLED", False),
+        trust_proxy_headers=_env_bool(dotenv, "TRUST_PROXY_HEADERS", False),
         cors_origins=_env_list(
             dotenv,
             "CORS_ORIGINS",
@@ -287,6 +307,13 @@ def get_settings() -> Settings:
         context_date_lookup_enabled=_env_bool(dotenv, "CONTEXT_DATE_LOOKUP_ENABLED", True),
         context_debug=_env_bool(dotenv, "CONTEXT_DEBUG", False),
         context_router_multi_scope=_env_bool(dotenv, "CONTEXT_ROUTER_MULTI_SCOPE", True),
+        context_entity_match_limit=_env_int(dotenv, "CONTEXT_ENTITY_MATCH_LIMIT", 200),
+        context_entity_max_chars=_env_int(dotenv, "CONTEXT_ENTITY_MAX_CHARS", 48000),
+        context_entity_excerpt_chars=_env_int(dotenv, "CONTEXT_ENTITY_EXCERPT_CHARS", 700),
+        context_llm_max_chars=_env_int(dotenv, "CONTEXT_LLM_MAX_CHARS", 45000),
+        context_llm_max_chars_github=_env_int(dotenv, "CONTEXT_LLM_MAX_CHARS_GITHUB", 12000),
+        context_entity_prompt_limit=_env_int(dotenv, "CONTEXT_ENTITY_PROMPT_LIMIT", 30),
+        context_catalog_enabled=_env_bool(dotenv, "CONTEXT_CATALOG_ENABLED", True),
         context_embeddings_enabled=_env_bool(dotenv, "CONTEXT_EMBEDDINGS_ENABLED", True),
         context_embeddings_provider=_env(dotenv, "CONTEXT_EMBEDDINGS_PROVIDER", "auto"),
         context_embeddings_model=_env(dotenv, "CONTEXT_EMBEDDINGS_MODEL", "text-embedding-3-small"),
@@ -313,6 +340,8 @@ def get_settings() -> Settings:
         therapy_num_speakers=_env_int(dotenv, "THERAPY_NUM_SPEAKERS", 2),
         hf_token=_env(dotenv, "HF_TOKEN", ""),
     )
+    _validate_production_settings(settings)
+    return settings
 
 
 settings = get_settings()

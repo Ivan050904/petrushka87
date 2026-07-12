@@ -22,6 +22,22 @@ def _format_job_error(exc: Exception) -> str:
         )
     if "youtube" in msg.lower() and ("timed out" in msg.lower() or "timeout" in msg.lower()):
         return f"YouTube: {msg}"
+    if "sign in to confirm" in msg.lower() or "not a bot" in msg.lower():
+        return (
+            "YouTube заблокировал автоматический доступ. "
+            "Войдите в YouTube в Edge на этом компьютере, перезапустите backend и попробуйте снова. "
+            "Либо экспортируйте cookies в backend/storage/youtube-cookies.txt (см. .env.example)."
+        )
+    if "cookie" in msg.lower() and (
+        "could not copy" in msg.lower()
+        or "permission denied" in msg.lower()
+        or "being used by another process" in msg.lower()
+    ):
+        return (
+            "Не удалось прочитать cookies из браузера — закрой все окна Chrome/Edge и нажми «Попробовать снова». "
+            "Надёжнее: войди в YouTube в Edge (не Chrome) или положи cookies.txt в "
+            "backend/storage/youtube-cookies.txt."
+        )
     if msg.startswith("Превышен лимит"):
         return msg
     if len(msg) > 500:

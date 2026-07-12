@@ -1,25 +1,58 @@
 "use client";
 
-import { FormEvent, KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Bot, Check, Copy, Loader2, Send } from "lucide-react";
+import { Check, Copy, Loader2, MessageSquareText, Send, Sparkles, Trash2 } from "lucide-react";
 
 import { AppShell } from "@/components/app-shell";
+import { LoadError } from "@/components/load-error";
 import { Button } from "@/components/ui/button";
 import { FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { VoiceInputButton } from "@/features/assistant/voice-input-button";
 import { useAuth } from "@/hooks/use-auth";
 import {
   createAssistantConversation,
+  deleteAssistantConversation,
   getAssistantConversation,
   getErrorMessage,
   listAssistantConversations,
   streamAssistantChat,
+  updateAssistantConversation,
   type AssistantConversation,
 } from "@/lib/api";
 import { ROUTES } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
+
+const ASSISTANT_SCOPES = [
+  { value: "all", label: "Вся память" },
+  { value: "notes", label: "Заметки" },
+  { value: "plans", label: "Планы" },
+  { value: "finance", label: "Финансы" },
+  { value: "people", label: "Люди" },
+  { value: "transcription", label: "Транскрипции" },
+  { value: "therapy", label: "Сессии" },
+  { value: "kanban", label: "Канбан" },
+  { value: "workouts", label: "Зал" },
+] as const;
+
+const DEFAULT_CONVERSATION_TITLE = "Новый диалог";
+
+function deriveConversationTitle(text: string, maxLength = 80) {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  if (!normalized) {
+    return DEFAULT_CONVERSATION_TITLE;
+  }
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+  return `${normalized.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
+function scopeLabel(scope: string) {
+  return ASSISTANT_SCOPES.find((item) => item.value === scope)?.label ?? scope;
+}
 
 type ChatMessage = {
   id: string;
@@ -88,6 +121,12 @@ export default function AssistantPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(false);
+  const [conversationsLoading, setConversationsLoading] = useState(true);
+  const [listError, setListError] = useState<string | null>(null);
+  const [newScope, setNewScope] = useState<string>("all");
+  const [newChatTitle, setNewChatTitle] = useState("");
+  const [titleDraft, setTitleDraft] = useState("");
+  const [isSavingTitle, setIsSavingTitle] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [contextDebug, setContextDebug] = useState<string | null>(null);
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
@@ -102,47 +141,108 @@ export default function AssistantPage() {
     };
   }, []);
 
+  const reloadConversations = useCallback(async () => {
+    if (!token) {
+      return;
+    }
+    setConversationsLoading(true);
+    setListError(null);
+    try {
+      const items = await listAssistantConversations(token);
+      setConversations(items);
+      if (items.length > 0) {
+        const firstId = items[0].id;
+        setActiveConversationId(firstId);
+        const detail = await getAssistantConversation(token, firstId);
+        setMessages(
+          detail.messages.map((message) => ({
+            id: message.id,
+            role: message.role as "user" | "assistant",
+            content: message.content,
+          })),
+        );
+      } else {
+        setActiveConversationId(null);
+        setMessages([]);
+      }
+    } catch (err) {
+      setListError(getErrorMessage(err, "Не удалось загрузить диалоги."));
+    } finally {
+      setConversationsLoading(false);
+    }
+  }, [token]);
+
   useEffect(() => {
     if (!token) {
       return;
     }
-    void listAssistantConversations(token)
-      .then(async (items) => {
-        setConversations(items);
-        if (items.length > 0) {
-          setActiveConversationId(items[0].id);
-          const detail = await getAssistantConversation(token, items[0].id);
-          setMessages(
-            detail.messages.map((message) => ({
-              id: message.id,
-              role: message.role as "user" | "assistant",
-              content: message.content,
-            })),
-          );
-        }
-      })
-      .catch((err) => setError(getErrorMessage(err)));
-  }, [token]);
+    void reloadConversations();
+  }, [token, reloadConversations]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
   const activeConversation = useMemo(
-    () => conversations.find((item) => item.id === activeConversationId) ?? null,
+    () => conversations.find((conversation) => conversation.id === activeConversationId) ?? null,
     [conversations, activeConversationId],
   );
 
-  async function ensureConversation(): Promise<string> {
+  useEffect(() => {
+    setTitleDraft(activeConversation?.title ?? "");
+  }, [activeConversation?.id, activeConversation?.title]);
+
+  function applyConversationTitle(conversationId: string, title: string) {
+    setConversations((prev) =>
+      prev.map((conversation) =>
+        conversation.id === conversationId ? { ...conversation, title } : conversation,
+      ),
+    );
+    if (conversationId === activeConversationId) {
+      setTitleDraft(title);
+    }
+  }
+
+  async function renameConversation(conversationId: string, nextTitle: string) {
+    if (!token) {
+      return;
+    }
+    const trimmed = nextTitle.trim();
+    if (!trimmed) {
+      return;
+    }
+    const current = conversations.find((conversation) => conversation.id === conversationId);
+    if (current?.title === trimmed) {
+      return;
+    }
+
+    setIsSavingTitle(true);
+    try {
+      const updated = await updateAssistantConversation(token, conversationId, { title: trimmed });
+      applyConversationTitle(conversationId, updated.title);
+    } catch (err) {
+      setError(getErrorMessage(err, "Не удалось сохранить название."));
+      setTitleDraft(current?.title ?? "");
+    } finally {
+      setIsSavingTitle(false);
+    }
+  }
+
+  async function ensureConversation(seedTitle?: string): Promise<string> {
     if (!token) {
       throw new Error("Требуется вход");
     }
     if (activeConversationId) {
       return activeConversationId;
     }
-    const created = await createAssistantConversation(token);
+    const title =
+      newChatTitle.trim() ||
+      (seedTitle ? deriveConversationTitle(seedTitle) : DEFAULT_CONVERSATION_TITLE);
+    const created = await createAssistantConversation(token, { scope: newScope, title });
     setConversations((prev) => [created, ...prev]);
     setActiveConversationId(created.id);
+    setNewChatTitle("");
+    setTitleDraft(created.title);
     return created.id;
   }
 
@@ -172,10 +272,29 @@ export default function AssistantPage() {
     }
     setError(null);
     try {
-      const created = await createAssistantConversation(token);
+      const title = newChatTitle.trim() || DEFAULT_CONVERSATION_TITLE;
+      const created = await createAssistantConversation(token, { scope: newScope, title });
       setConversations((prev) => [created, ...prev]);
       setActiveConversationId(created.id);
       setMessages([]);
+      setTitleDraft(created.title);
+      setNewChatTitle("");
+    } catch (err) {
+      setError(getErrorMessage(err));
+    }
+  }
+
+  async function removeActiveConversation() {
+    if (!token || !activeConversationId) {
+      return;
+    }
+    setError(null);
+    try {
+      await deleteAssistantConversation(token, activeConversationId);
+      setConversations((prev) => prev.filter((item) => item.id !== activeConversationId));
+      setActiveConversationId(null);
+      setMessages([]);
+      await reloadConversations();
     } catch (err) {
       setError(getErrorMessage(err));
     }
@@ -190,6 +309,8 @@ export default function AssistantPage() {
     setDraft("");
     setError(null);
     setLoading(true);
+    const shouldRenameAfterSend =
+      activeConversation?.title === DEFAULT_CONVERSATION_TITLE && !newChatTitle.trim();
 
     const userMessage: ChatMessage = {
       id: `local-user-${Date.now()}`,
@@ -199,7 +320,9 @@ export default function AssistantPage() {
     setMessages((prev) => [...prev, userMessage]);
 
     try {
-      const conversationId = await ensureConversation();
+      const conversationId = await ensureConversation(
+        !activeConversationId && !newChatTitle.trim() ? question : undefined,
+      );
       let assistantText = "";
       const assistantId = `local-assistant-${Date.now()}`;
       setMessages((prev) => [...prev, { id: assistantId, role: "assistant", content: "" }]);
@@ -230,6 +353,10 @@ export default function AssistantPage() {
         },
         onError: (message) => setError(message),
       });
+
+      if (shouldRenameAfterSend) {
+        await renameConversation(conversationId, deriveConversationTitle(question));
+      }
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -268,6 +395,24 @@ export default function AssistantPage() {
     }
   }
 
+  function handleTitleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Enter") {
+      event.currentTarget.blur();
+    }
+  }
+
+  async function handleTitleBlur() {
+    if (!activeConversationId) {
+      return;
+    }
+    const trimmed = titleDraft.trim();
+    if (!trimmed) {
+      setTitleDraft(activeConversation?.title ?? DEFAULT_CONVERSATION_TITLE);
+      return;
+    }
+    await renameConversation(activeConversationId, trimmed);
+  }
+
   if (isLoading) {
     return (
       <AppShell>
@@ -294,48 +439,144 @@ export default function AssistantPage() {
 
   return (
     <AppShell contentClassName="flex min-h-0 flex-col">
-      <div className="flex min-h-0 flex-1 flex-col gap-4 p-4 md:p-6">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
-            <Bot className="h-5 w-5" />
+      <div className="flex min-h-0 flex-1 flex-col gap-4 p-4 md:flex-row md:p-6">
+        <aside className="flex w-full shrink-0 flex-col gap-3 md:w-64">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <MessageSquareText className="h-5 w-5" />
+            </div>
+            <div>
+              <h1 className="text-lg font-semibold">Чат с контекстом</h1>
+              <p className="text-xs text-muted-foreground">Поиск по памяти, не действия.</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl font-semibold">Чат с контекстом</h1>
-            <p className="text-sm text-muted-foreground">
-              RAG-чат по вашим данным ({activeConversation?.scope ?? "all"}). Агент-действия — на дашборде.
-            </p>
-            {contextDebug ? (
-              <p className="text-xs text-muted-foreground/80">{contextDebug}</p>
+
+          <details className="rounded-xl border border-border bg-card md:border-0 md:bg-transparent">
+            <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold marker:content-none md:hidden">
+              Чаты и настройки
+            </summary>
+            <div className="flex flex-col gap-3 border-t border-border p-4 md:border-0 md:p-0">
+              <p className="text-xs text-muted-foreground">
+                Для создания задач используйте{" "}
+                <Link href={ROUTES.dashboard} className="inline-flex items-center gap-1 underline underline-offset-2">
+                  <Sparkles className="size-3" />
+                  агента на «Сегодня»
+                </Link>
+                .
+              </p>
+
+          <FieldLabel htmlFor="assistant-scope" className="text-xs">
+            Область нового чата
+          </FieldLabel>
+          <Select id="assistant-scope" value={newScope} onChange={(event) => setNewScope(event.target.value)}>
+            {ASSISTANT_SCOPES.map((scope) => (
+              <option key={scope.value} value={scope.value}>
+                {scope.label}
+              </option>
+            ))}
+          </Select>
+
+          <FieldLabel htmlFor="assistant-new-title" className="text-xs">
+            Название чата
+          </FieldLabel>
+          <Input
+            id="assistant-new-title"
+            value={newChatTitle}
+            onChange={(event) => setNewChatTitle(event.target.value)}
+            placeholder="Необязательно — подставится из первого сообщения"
+            maxLength={200}
+          />
+
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" className="min-h-10 flex-1" onClick={() => void startNewConversation()}>
+              Новый чат
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="min-h-10 min-w-10"
+              disabled={!activeConversationId}
+              aria-label="Удалить диалог"
+              onClick={() => void removeActiveConversation()}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+
+          {listError ? <LoadError message={listError} onRetry={() => void reloadConversations()} /> : null}
+
+          <div className="hidden min-h-0 flex-1 flex-col gap-1 overflow-y-auto md:flex">
+            {conversationsLoading ? (
+              <p className="text-sm text-muted-foreground">Загрузка диалогов…</p>
+            ) : conversations.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Диалогов пока нет.</p>
+            ) : (
+              conversations.map((conversation) => (
+                <button
+                  key={conversation.id}
+                  type="button"
+                  onClick={() => void switchConversation(conversation.id)}
+                  className={cn(
+                    "rounded-lg px-3 py-2 text-left text-sm transition hover:bg-muted",
+                    conversation.id === activeConversationId && "bg-muted font-medium",
+                  )}
+                >
+                  <span className="block truncate">{conversation.title || DEFAULT_CONVERSATION_TITLE}</span>
+                  <span className="text-xs text-muted-foreground">{scopeLabel(conversation.scope)}</span>
+                </button>
+              ))
+            )}
+          </div>
+            </div>
+          </details>
+        </aside>
+
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+          <div className="flex flex-wrap items-end gap-2 md:hidden">
+            {conversations.length > 0 ? (
+              <div className="min-w-[220px] flex-1">
+                <FieldLabel htmlFor="assistant-conversation" className="sr-only">
+                  Диалог
+                </FieldLabel>
+                <Select
+                  id="assistant-conversation"
+                  value={activeConversationId ?? ""}
+                  onChange={(event) => void switchConversation(event.target.value)}
+                  className="min-h-11"
+                >
+                  {conversations.map((conversation) => (
+                    <option key={conversation.id} value={conversation.id}>
+                      {conversation.title || DEFAULT_CONVERSATION_TITLE} ({scopeLabel(conversation.scope)})
+                    </option>
+                  ))}
+                </Select>
+              </div>
             ) : null}
           </div>
-        </div>
 
-        <div className="flex flex-wrap items-end gap-2">
-          {conversations.length > 0 ? (
-            <div className="min-w-[220px] flex-1">
-              <FieldLabel htmlFor="assistant-conversation" className="sr-only">
-                Диалог
+          {contextDebug ? <p className="text-xs text-muted-foreground/80">{contextDebug}</p> : null}
+
+          <div className="flex min-h-0 flex-1 flex-col rounded-2xl border bg-card">
+          {activeConversation ? (
+            <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
+              <FieldLabel htmlFor="assistant-active-title" className="sr-only">
+                Название диалога
               </FieldLabel>
-              <Select
-                id="assistant-conversation"
-                value={activeConversationId ?? ""}
-                onChange={(event) => void switchConversation(event.target.value)}
-                className="min-h-11"
-              >
-                {conversations.map((conversation) => (
-                  <option key={conversation.id} value={conversation.id}>
-                    {conversation.title || "Диалог"}
-                  </option>
-                ))}
-              </Select>
+              <Input
+                id="assistant-active-title"
+                value={titleDraft}
+                onChange={(event) => setTitleDraft(event.target.value)}
+                onBlur={() => void handleTitleBlur()}
+                onKeyDown={handleTitleKeyDown}
+                disabled={isSavingTitle}
+                maxLength={200}
+                className="max-w-xl flex-1"
+                placeholder="Название чата"
+              />
+              <span className="text-xs text-muted-foreground">{scopeLabel(activeConversation.scope)}</span>
             </div>
           ) : null}
-          <Button type="button" variant="outline" className="min-h-11" onClick={() => void startNewConversation()}>
-            Новый чат
-          </Button>
-        </div>
-
-        <div className="flex min-h-0 flex-1 flex-col rounded-2xl border bg-card">
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4" aria-live="polite" aria-relevant="additions">
             {messages.length === 0 ? (
               <p className="text-sm text-muted-foreground">
@@ -357,7 +598,7 @@ export default function AssistantPage() {
 
           {error ? <p className="px-4 text-sm text-destructive">{error}</p> : null}
 
-          <form onSubmit={handleSubmit} className="flex items-end gap-2 border-t p-4">
+          <form onSubmit={handleSubmit} className="sticky bottom-0 flex items-end gap-2 border-t bg-card p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
             <VoiceInputButton
               token={token}
               disabled={loading}
@@ -389,6 +630,7 @@ export default function AssistantPage() {
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </Button>
           </form>
+        </div>
         </div>
       </div>
     </AppShell>

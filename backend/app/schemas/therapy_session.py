@@ -71,6 +71,12 @@ class TherapySessionJobSummary(BaseModel):
     updated_at: datetime
 
 
+class TherapySessionTextCreate(BaseModel):
+    text: str = Field(min_length=20, max_length=500_000)
+    title: str = Field(default="", max_length=500)
+    session_date: date | None = None
+
+
 class TherapySessionStatusRead(BaseModel):
     id: int
     status: str

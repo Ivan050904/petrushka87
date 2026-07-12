@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from collections.abc import Generator
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -40,6 +41,7 @@ from app.services.agent.psych_relevance import (
 from app.services.agent.tools.article_validator import filter_reachable_articles
 from app.services.agent.tools.web_search import SearchResult
 from app.storage.local import LocalFileStorage
+from tests.auth_helpers import create_user_in_db, create_user_token, open_test_db
 
 
 @pytest.fixture()
@@ -98,7 +100,7 @@ def test_configured_psych_queries_uses_tuned_queries(mock_load_state: MagicMock)
         ],
         tuned_at=datetime.now(UTC).isoformat(),
     )
-    selections = configured_psych_queries()
+    selections = configured_psych_queries(uuid.uuid4())
     assert [item.query for item in selections] == [
         "tuned guides query",
         "tuned popsci query",
@@ -203,7 +205,8 @@ def test_collect_psychology_candidates_filters_irrelevant_results(
     ]
     mock_reachable.side_effect = lambda items: list(items)
     candidates, _tier_by_query = collect_psychology_candidates(
-        ["CBT relationships site:cci.health.wa.gov.au"]
+        ["CBT relationships site:cci.health.wa.gov.au"],
+        user_id=uuid.uuid4(),
     )
     assert len(candidates) == 1
     assert "cci.health.wa.gov.au" in candidates[0].url
@@ -226,7 +229,8 @@ def test_collect_psychology_candidates_without_habr_lock(
     ]
     mock_reachable.side_effect = lambda items: list(items)
     candidates, tier_by_query = collect_psychology_candidates(
-        ['"cognitive distortions" workbook site:cci.health.wa.gov.au']
+        ['"cognitive distortions" workbook site:cci.health.wa.gov.au'],
+        user_id=uuid.uuid4(),
     )
     assert len(candidates) == 1
     assert candidates[0].source_site == "cci.health.wa.gov.au"
@@ -244,26 +248,22 @@ def test_run_psych_digest_saves_en_articles_directly(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    state_path = tmp_path / "logs" / "digest_state.json"
-    state_path.parent.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr("app.services.agent.state._state_path", lambda: state_path)
+    state_dir = tmp_path / "logs" / "digest_state"
+    state_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr("app.services.agent.state._state_path", lambda user_id: state_dir / f"{user_id}.json")
     monkeypatch.setattr(
         "app.services.agent.digest.settings",
         replace(app_settings, psych_digest_enabled=True, psych_digest_use_llm_filter=False),
     )
 
-    token_response = client.post(
-        "/api/v1/auth/register",
-        json={"email": "psych@test.local", "password": "secret12345", "full_name": "Psych User"},
-    )
-    assert token_response.status_code == 201
-
-    db = next(app.dependency_overrides[get_db]())
-    try:
-        user = db.query(User).filter(User.email == "psych@test.local").one()
+    with open_test_db() as db:
+        user = create_user_in_db(
+            db,
+            email="psych@test.local",
+            password="secret12345",
+            full_name="Psych User",
+        )
         user_id = user.id
-    finally:
-        db.close()
 
     mock_web_search.return_value = [
         SearchResult(
@@ -305,11 +305,12 @@ def test_run_psych_digest_saves_en_articles_directly(
 def test_digest_run_endpoint_psychology_profile(mock_run_digest, client: TestClient) -> None:
     from app.services.agent.digest import DigestResult
 
-    token_response = client.post(
-        "/api/v1/auth/register",
-        json={"email": "psych-run@test.local", "password": "secret12345", "full_name": "Psych Run"},
+    token = create_user_token(
+        client,
+        email="psych-run@test.local",
+        password="secret12345",
+        full_name="Psych Run",
     )
-    token = token_response.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
 
     mock_run_digest.return_value = DigestResult(
@@ -332,11 +333,12 @@ def test_digest_run_endpoint_psychology_profile(mock_run_digest, client: TestCli
 
 
 def test_digest_status_includes_psychology_section(client: TestClient) -> None:
-    token_response = client.post(
-        "/api/v1/auth/register",
-        json={"email": "psych-status@test.local", "password": "secret12345", "full_name": "Psych Status"},
+    token = create_user_token(
+        client,
+        email="psych-status@test.local",
+        password="secret12345",
+        full_name="Psych Status",
     )
-    token = token_response.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
 
     response = client.get("/api/v1/agent/digest/status", headers=headers)
@@ -349,11 +351,12 @@ def test_digest_status_includes_psychology_section(client: TestClient) -> None:
 
 
 def test_load_feedback_profile_filters_by_collection(client: TestClient) -> None:
-    token_response = client.post(
-        "/api/v1/auth/register",
-        json={"email": "feedback-coll@test.local", "password": "secret12345", "full_name": "Feedback Coll"},
+    token = create_user_token(
+        client,
+        email="feedback-coll@test.local",
+        password="secret12345",
+        full_name="Feedback Coll",
     )
-    token = token_response.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
 
     ai_article = client.post(
@@ -422,9 +425,10 @@ def test_tune_psych_queries_saves_tuned_queries(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    state_path = tmp_path / "digest_state.json"
+    user_id = uuid.uuid4()
+    state_path = tmp_path / "digest_state" / f"{user_id}.json"
     state_path.parent.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr("app.services.agent.state._state_path", lambda: state_path)
+    monkeypatch.setattr("app.services.agent.state._state_path", lambda uid: state_path)
 
     mock_llm = MagicMock()
     mock_llm.is_configured.return_value = True
@@ -449,11 +453,11 @@ def test_tune_psych_queries_saves_tuned_queries(
             for _ in range(3)
         ]
     )
-    result = tune_psych_queries(profile)
+    result = tune_psych_queries(profile, user_id=user_id)
     assert result.status == "ok"
     assert len(result.queries) == 3
 
-    selections = configured_psych_queries()
+    selections = configured_psych_queries(user_id)
     assert [item.query for item in selections] == result.queries
 
 
@@ -486,7 +490,7 @@ def test_tune_psych_queries_rejects_unapproved_llm_sources(
         ]
     )
 
-    result = tune_psych_queries(profile)
+    result = tune_psych_queries(profile, user_id=uuid.uuid4())
     assert result.status == "error"
     assert not result.queries
 
@@ -529,11 +533,12 @@ def test_scheduler_runs_both_profiles_and_tunes(
 
 
 def test_psych_tune_queries_endpoint(client: TestClient) -> None:
-    token_response = client.post(
-        "/api/v1/auth/register",
-        json={"email": "psych-tune@test.local", "password": "secret12345", "full_name": "Psych Tune"},
+    token = create_user_token(
+        client,
+        email="psych-tune@test.local",
+        password="secret12345",
+        full_name="Psych Tune",
     )
-    token = token_response.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
 
     with patch("app.api.routes.agent.tune_psych_queries") as mock_tune:

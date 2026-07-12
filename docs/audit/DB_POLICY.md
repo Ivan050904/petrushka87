@@ -16,16 +16,36 @@ DATABASE_URL=sqlite:///./storage/folio_one.db
 
 All application modules (main API, transcription sub-app, workouts, therapy) use this database via SQLAlchemy and Alembic migrations.
 
+## Committed database (dev sync)
+
+`backend/storage/folio_one.db` is tracked in git so the same users and data can move between machines during development.
+
+**Before `git push`:**
+
+1. Stop backend/frontend dev servers (SQLite WAL checkpoint).
+2. Ensure `folio_one.db-wal` / `folio_one.db-shm` are **not** staged (gitignored).
+3. Keep the repository **private** — the DB contains personal notes, finance, therapy, etc.
+4. Do not store real production passwords in the committed DB; use dev-only credentials until deploy.
+
+**Create a new user (registration is disabled via API):**
+
+```powershell
+cd backend
+python scripts/create_user.py --email user@example.com --password "..." --full-name "Name"
+```
+
+Then commit the updated `folio_one.db` if you want that account on other machines.
+
 ## Not committed (runtime data)
 
 These paths are gitignored:
 
 | Path | Purpose |
 | --- | --- |
-| `backend/storage/folio_one.db` | Local database (create via bootstrap) |
 | `backend/storage/files/` | Uploaded resource files |
 | `backend/storage/logs/` | Agent digest scheduler state |
 | `backend/storage/transcription/` | Transcription temp files only (not a separate DB) |
+| `*.db-wal`, `*.db-shm` | SQLite WAL sidecar files |
 
 After a fresh clone:
 

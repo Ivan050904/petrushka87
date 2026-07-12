@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -11,10 +12,18 @@ from app.core.config import settings
 DigestProfileName = Literal["ai", "psychology"]
 
 
-def _state_path() -> Path:
-    path = Path(__file__).resolve().parents[3] / "storage" / "logs" / "digest_state.json"
-    path.parent.mkdir(parents=True, exist_ok=True)
+def _legacy_state_path() -> Path:
+    return Path(__file__).resolve().parents[3] / "storage" / "logs" / "digest_state.json"
+
+
+def _user_state_dir() -> Path:
+    path = Path(__file__).resolve().parents[3] / "storage" / "logs" / "digest_state"
+    path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def _state_path(user_id: uuid.UUID) -> Path:
+    return _user_state_dir() / f"{user_id}.json"
 
 
 @dataclass
@@ -65,8 +74,7 @@ def _migrate_legacy_state(raw: dict) -> DigestStateStore:
     return DigestStateStore(ai=legacy)
 
 
-def load_digest_state_store() -> DigestStateStore:
-    path = _state_path()
+def _load_store_from_path(path: Path) -> DigestStateStore:
     if not path.exists():
         return DigestStateStore()
     try:
@@ -78,12 +86,27 @@ def load_digest_state_store() -> DigestStateStore:
         return DigestStateStore()
 
 
-def load_digest_state(profile: DigestProfileName = "ai") -> ProfileDigestState:
-    return getattr(load_digest_state_store(), profile)
+def load_digest_state_store(user_id: uuid.UUID) -> DigestStateStore:
+    path = _state_path(user_id)
+    if path.exists():
+        return _load_store_from_path(path)
+
+    legacy_path = _legacy_state_path()
+    if legacy_path.exists():
+        store = _load_store_from_path(legacy_path)
+        path.write_text(json.dumps(asdict(store), ensure_ascii=False, indent=2), encoding="utf-8")
+        return store
+
+    return DigestStateStore()
+
+
+def load_digest_state(user_id: uuid.UUID, profile: DigestProfileName = "ai") -> ProfileDigestState:
+    return getattr(load_digest_state_store(user_id), profile)
 
 
 def save_digest_state(
     *,
+    user_id: uuid.UUID,
     profile: DigestProfileName = "ai",
     status: str,
     articles_saved: int = 0,
@@ -93,7 +116,7 @@ def save_digest_state(
     tuned_queries: list[str] | None = None,
     tuned_at: str | None = None,
 ) -> ProfileDigestState:
-    store = load_digest_state_store()
+    store = load_digest_state_store(user_id)
     previous = getattr(store, profile)
     state = ProfileDigestState(
         last_run_at=datetime.now(UTC).isoformat(),
@@ -109,16 +132,17 @@ def save_digest_state(
         tuned_at=tuned_at if tuned_at is not None else previous.tuned_at,
     )
     setattr(store, profile, state)
-    _state_path().write_text(
+    _state_path(user_id).write_text(
         json.dumps(asdict(store), ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
     return state
 
 
-def save_psych_tuned_queries(queries: list[str]) -> ProfileDigestState:
-    previous = load_digest_state("psychology")
+def save_psych_tuned_queries(user_id: uuid.UUID, queries: list[str]) -> ProfileDigestState:
+    previous = load_digest_state(user_id, "psychology")
     return save_digest_state(
+        user_id=user_id,
         profile="psychology",
         status=previous.last_status,
         articles_saved=previous.last_articles_saved,

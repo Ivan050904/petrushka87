@@ -16,13 +16,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Empty } from "@/components/ui/empty";
 import { Notice } from "@/components/ui/notice";
+import { LoadError } from "@/components/load-error";
 import { CaptureDock } from "@/features/capture/capture-dock";
-import { AssistantPanel } from "@/features/assistant/assistant-panel";
+import { DashboardAgentPanel } from "@/features/assistant/dashboard-agent-panel";
 import { DashboardWidgets } from "@/features/dashboard/dashboard-widgets";
 import { TimeRail } from "@/features/dashboard/time-rail";
 import { filterInboxEntries } from "@/features/inbox/inbox-helpers";
 import { useRequireAuth } from "@/hooks/use-auth";
-import { getErrorMessage, listEntries, updateEntry } from "@/lib/api";
+import { fetchDashboardEntries } from "@/lib/entry-queries";
+import { getErrorMessage, getFinanceSummary, updateEntry } from "@/lib/api";
 import {
   type AgendaItem,
   type AgendaKind,
@@ -35,7 +37,9 @@ import {
   isSameDay,
 } from "@/lib/agenda";
 import { formatDateKey, habitMetadataPayload, readHabitMetadata, setHabitLog } from "@/lib/habits";
-import { plansHref } from "@/lib/navigation";
+import type { FinanceSummary } from "@/lib/finance-import";
+import { currentMonthValue, monthRange, shiftMonth } from "@/lib/finance-month";
+import { plansHref, notesNewHref } from "@/lib/navigation";
 import type { Entry } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -43,23 +47,28 @@ const DAY_SECTIONS: DaySection[] = ["now", "laterToday", "tomorrow"];
 const HABITS_PREVIEW_LIMIT = 6;
 
 export default function DashboardPage() {
-  const { token, user } = useRequireAuth();
+  const { token, user, isLoading: isAuthLoading } = useRequireAuth();
   const [entries, setEntries] = useState<Entry[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
   const [updatingHabitId, setUpdatingHabitId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [financeSummary, setFinanceSummary] = useState<FinanceSummary | null>(null);
+  const [financeCompareSummary, setFinanceCompareSummary] = useState<FinanceSummary | null>(null);
+  const [financeCompareMonth] = useState(() => shiftMonth(currentMonthValue(), -1));
+  const [isFinanceLoading, setIsFinanceLoading] = useState(true);
 
   const loadEntries = useCallback(async () => {
     if (!token) {
+      setIsLoading(false);
       return;
     }
     setIsLoading(true);
     setLoadError(null);
     try {
-      const result = await listEntries(token, { limit: 100 });
-      setEntries(result.items);
+      const result = await fetchDashboardEntries(token);
+      setEntries(result);
     } catch (requestError) {
       setLoadError(getErrorMessage(requestError, "Не удалось загрузить обзор."));
     } finally {
@@ -68,8 +77,41 @@ export default function DashboardPage() {
   }, [token]);
 
   useEffect(() => {
+    if (isAuthLoading || !token) {
+      if (!isAuthLoading && !token) {
+        setIsLoading(false);
+      }
+      return;
+    }
     void loadEntries();
-  }, [loadEntries]);
+  }, [isAuthLoading, loadEntries, token]);
+
+  const loadFinanceWidget = useCallback(async () => {
+    if (!token) {
+      return;
+    }
+    setIsFinanceLoading(true);
+    try {
+      const currentMonth = currentMonthValue();
+      const [from, to] = monthRange(currentMonth);
+      const [compareFrom, compareTo] = monthRange(financeCompareMonth);
+      const [current, compare] = await Promise.all([
+        getFinanceSummary(token, { from, to }),
+        getFinanceSummary(token, { from: compareFrom, to: compareTo }),
+      ]);
+      setFinanceSummary(current);
+      setFinanceCompareSummary(compare);
+    } catch {
+      setFinanceSummary(null);
+      setFinanceCompareSummary(null);
+    } finally {
+      setIsFinanceLoading(false);
+    }
+  }, [financeCompareMonth, token]);
+
+  useEffect(() => {
+    void loadFinanceWidget();
+  }, [loadFinanceWidget]);
 
   const agendaItems = useMemo(() => buildAgendaItems(entries), [entries]);
   const agendaGroups = useMemo(() => groupAgendaForDashboard(agendaItems), [agendaItems]);
@@ -136,10 +178,15 @@ export default function DashboardPage() {
 
   return (
     <AppShell>
+      {isAuthLoading && !token ? (
+        <div className="flex flex-1 items-center justify-center p-8 text-sm text-muted-foreground">
+          Проверяем сессию…
+        </div>
+      ) : (
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {loadError ? (
           <div className="shrink-0">
-            <Notice variant="error">{loadError}</Notice>
+            <LoadError message={loadError} onRetry={() => void loadEntries()} />
           </div>
         ) : null}
         {actionError ? (
@@ -158,6 +205,15 @@ export default function DashboardPage() {
             </header>
 
             <div className="scrollbar-hidden min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
+              <details className="mb-4 rounded-xl border border-border bg-card lg:hidden">
+                <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold marker:content-none">
+                  Лента дня
+                </summary>
+                <div className="border-t border-border p-3">
+                  <TimeRail items={agendaItems} className="min-h-0 min-w-0" />
+                </div>
+              </details>
+
               {isLoading ? (
                 <LoadingFeed />
               ) : !hasAgendaItems ? (
@@ -211,22 +267,34 @@ export default function DashboardPage() {
               userId={user?.id}
               updatingHabitId={updatingHabitId}
               onToggleHabit={(habit) => void toggleHabit(habit)}
+              financeSummary={financeSummary}
+              financeCompareSummary={financeCompareSummary}
+              financeCompareMonth={financeCompareMonth}
+              isFinanceLoading={isFinanceLoading}
             />
           </div>
 
           <TimeRail items={agendaItems} className="hidden min-h-0 min-w-0 lg:flex" />
         </div>
 
-        <div className="grid min-h-0 min-w-0 shrink-0 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(280px,34%)]">
-          <CaptureDock token={token} onSaved={loadEntries} className="min-w-0" />
+        <div className="sticky bottom-0 z-20 shrink-0 gap-3 border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] pt-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 lg:static lg:border-0 lg:bg-transparent lg:pb-0 lg:pt-0 lg:backdrop-blur-none">
+          <div className="mb-2 flex justify-end lg:hidden">
+            <Button asChild variant="outline" size="sm" className="h-9">
+              <Link href={notesNewHref()}>Дневник</Link>
+            </Button>
+          </div>
+          <div className="grid min-h-0 min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(280px,34%)]">
+            <CaptureDock token={token} onSaved={loadEntries} className="min-w-0" />
           <details className="min-w-0 rounded-xl border border-border bg-card lg:contents lg:border-0 lg:bg-transparent">
             <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold marker:content-none lg:hidden">
-              Чат с контекстом
+              Агент действий
             </summary>
-            <AssistantPanel token={token} onChanged={loadEntries} className="min-w-0 border-0 shadow-none lg:min-h-[280px]" />
+            <DashboardAgentPanel token={token} onChanged={loadEntries} className="min-w-0 border-0 shadow-none lg:min-h-[280px]" />
           </details>
+          </div>
         </div>
       </div>
+      )}
     </AppShell>
   );
 }

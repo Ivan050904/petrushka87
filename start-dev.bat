@@ -89,12 +89,13 @@ if not exist "%ROOT%frontend\node_modules" (
 )
 
 echo.
-echo [cleanup] Freeing ports 3000 and 8000...
-for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":3000" ^| findstr "LISTENING"') do taskkill /F /PID %%a >nul 2>&1
-for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":8000" ^| findstr "LISTENING"') do taskkill /F /PID %%a >nul 2>&1
+echo [cleanup] Freeing ports 3000-3002 and 8000...
+for %%P in (3000 3001 3002 8000) do (
+    for /f "tokens=5" %%a in ('netstat -ano ^| findstr ":%%P" ^| findstr "LISTENING"') do taskkill /F /PID %%a >nul 2>&1
+)
 ping 127.0.0.1 -n 2 >nul
 
-rem Stale .next cache causes 500 on /notes and other routes (ENOENT on page.js).
+rem Stale .next cache causes broken CSS (404 on layout.css) and 500 on routes.
 if exist "%ROOT%frontend\.next" (
     echo [cleanup] Removing stale frontend\.next build cache...
     rmdir /s /q "%ROOT%frontend\.next"
@@ -102,8 +103,8 @@ if exist "%ROOT%frontend\.next" (
 
 echo.
 echo Starting servers in separate windows...
-start "Folio-One Backend" /D "%ROOT%backend" cmd /k ".venv\Scripts\uvicorn.exe app.main:app --reload --port 8000"
-start "Folio-One Frontend" /D "%ROOT%frontend" cmd /k "npm run dev"
+start "Folio-One Backend" /D "%ROOT%backend" cmd /k ".venv\Scripts\uvicorn.exe app.main:app --reload --host 0.0.0.0 --port 8000"
+start "Folio-One Frontend" /D "%ROOT%frontend" cmd /k "npm run dev:lan"
 
 echo Waiting for startup...
 ping 127.0.0.1 -n 6 >nul

@@ -19,7 +19,7 @@ export function NotesGrid({ entries, onSelect }: NotesGridProps) {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-3 px-4 pb-28 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 lg:px-6">
+    <div className="grid grid-cols-1 gap-3 px-4 pb-24 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 lg:px-6 lg:pb-28">
       {entries.map((entry) => (
         <NoteCard key={entry.id} entry={entry} onClick={() => onSelect(entry.id)} />
       ))}

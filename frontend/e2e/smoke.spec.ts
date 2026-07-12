@@ -73,3 +73,67 @@ test("articles filter empty shows reset action", async ({ page }) => {
     }
   }
 });
+
+test("theme toggle switches html.dark class", async ({ page }) => {
+  test.skip(Boolean(process.env.CI), "Extended smoke — run locally");
+
+  await loginDemo(page);
+  await page.goto("/settings");
+  await expect(page.getByRole("heading", { name: /настройки/i })).toBeVisible();
+
+  await expect(page.locator("html")).not.toHaveClass(/dark/);
+
+  await page.getByRole("button", { name: /тёмная/i }).click();
+  await expect(page.locator("html")).toHaveClass(/dark/);
+  await expect(page.evaluate(() => localStorage.getItem("theme"))).resolves.toBe("dark");
+
+  await page.getByRole("button", { name: /светлая/i }).click();
+  await expect(page.locator("html")).not.toHaveClass(/dark/);
+  await expect(page.evaluate(() => localStorage.getItem("theme"))).resolves.toBe("light");
+});
+
+test("mobile nav drawer lists sidebar sections", async ({ page }) => {
+  test.skip(Boolean(process.env.CI), "Extended smoke — run locally");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await loginDemo(page);
+
+  await page.getByRole("button", { name: "Меню" }).click();
+  await expect(page.getByRole("dialog", { name: "Навигация" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Заметки" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Канбан" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Настройки" })).toBeVisible();
+});
+
+test("tracking sub-tabs switch on mobile", async ({ page }) => {
+  test.skip(Boolean(process.env.CI), "Extended smoke — run locally");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await loginDemo(page);
+
+  await page.goto("/tracking?tab=habits");
+  await expect(page.getByRole("link", { name: "Финансы" })).toBeVisible();
+  await page.getByRole("link", { name: "Финансы" }).click();
+  await expect(page).toHaveURL(/tab=finance/);
+});
+
+test("settings page is inside app shell on mobile", async ({ page }) => {
+  test.skip(Boolean(process.env.CI), "Extended smoke — run locally");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await loginDemo(page);
+
+  await page.goto("/settings");
+  await expect(page.getByRole("button", { name: "Меню" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /настройки/i })).toBeVisible();
+});
+
+test("notes new query opens editor on mobile", async ({ page }) => {
+  test.skip(Boolean(process.env.CI), "Extended smoke — run locally");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await loginDemo(page);
+
+  await page.goto("/notes?new=1");
+  await expect(page.getByLabel(/название/i).or(page.getByPlaceholder(/название/i))).toBeVisible({ timeout: 15_000 });
+});

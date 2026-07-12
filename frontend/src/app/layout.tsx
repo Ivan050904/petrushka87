@@ -3,6 +3,8 @@ import type { ReactNode } from "react";
 import { Inter } from "next/font/google";
 
 import { AuthProvider } from "@/hooks/use-auth";
+import { ThemeColorMeta } from "@/components/theme-color-meta";
+import { ThemeProvider } from "@/components/theme-provider";
 import { BRAND_NAME, BRAND_TAGLINE } from "@/lib/brand";
 import "./globals.css";
 
@@ -18,7 +20,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#2563EB",
+  themeColor: "#EFF6FF",
 };
 
 export default function RootLayout({
@@ -27,9 +29,19 @@ export default function RootLayout({
   children: ReactNode;
 }>) {
   return (
-    <html lang="ru" className={inter.variable}>
+    <html lang="ru" className={inter.variable} suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('theme');if(t==='dark')document.documentElement.classList.add('dark');}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body className={inter.className}>
-        <AuthProvider>{children}</AuthProvider>
+        <ThemeProvider>
+          <ThemeColorMeta />
+          <AuthProvider>{children}</AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

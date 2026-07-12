@@ -32,6 +32,7 @@ from app.schemas.therapy_session import (
     TherapySessionJobRead,
     TherapySessionJobSummary,
     TherapySessionStatusRead,
+    TherapySessionTextCreate,
 )
 from app.services.therapy_sessions.worker import process_therapy_session_job
 from app.storage import get_file_storage
@@ -193,6 +194,40 @@ async def upload_therapy_session(
     return _serialize_job(job)
 
 
+@router.post("/text", response_model=TherapySessionJobRead, status_code=status.HTTP_201_CREATED)
+async def upload_therapy_session_text(
+    payload: TherapySessionTextCreate,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> TherapySessionJobRead:
+    if not settings.therapy_sessions_enabled:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Therapy sessions disabled")
+
+    text = payload.text.strip()
+    if not text:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Text is empty")
+
+    job = TherapySessionJob(
+        user_id=current_user.id,
+        title=payload.title.strip() or _default_title(payload.session_date, "session.txt"),
+        session_date=payload.session_date,
+        status="queued",
+        stage="В очереди",
+        stage_key="upload",
+        progress=0,
+        source_filename="session.txt",
+        file_storage_key="",
+        transcription_source="text",
+        transcript=text,
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+    background_tasks.add_task(_run_process_job, job.id)
+    return _serialize_job(job)
+
+
 @router.get("/{job_id}", response_model=TherapySessionJobRead)
 def get_therapy_session(
     job_id: int,
@@ -229,6 +264,8 @@ async def retry_therapy_session(
     current_user: User = Depends(get_current_user),
 ) -> TherapySessionJobRead:
     job = _get_job(db, current_user.id, job_id)
+    if job.status == "processing":
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Job is already processing")
     if mode == "analysis" and not (job.diarized_transcript or job.transcript).strip():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No transcript to re-analyze")
 
@@ -239,7 +276,8 @@ async def retry_therapy_session(
     job.error = ""
     job.reprocess_mode = mode
     if mode == "full":
-        job.transcript = ""
+        if job.transcription_source != "text":
+            job.transcript = ""
         job.diarized_transcript = ""
         job.speakers_json = {}
         job.analysis_json = {}

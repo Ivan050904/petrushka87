@@ -11,6 +11,7 @@ type NoteAiPanelProps = {
   onAnalyze: () => void;
   onQuoteClick?: (quote: string) => void;
   className?: string;
+  compact?: boolean;
 };
 
 export function NoteAiPanel({
@@ -20,14 +21,17 @@ export function NoteAiPanel({
   onAnalyze,
   onQuoteClick,
   className,
+  compact = false,
 }: NoteAiPanelProps) {
   return (
     <aside className={cn("notes-ai-panel flex h-full flex-col gap-4 p-4", className)}>
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-semibold text-[var(--notes-text)]">Эмоциональный разбор</h2>
-          <p className="text-xs text-[var(--notes-muted)]">ИИ подскажет, где текст звучит сухо</p>
-        </div>
+      <div className={cn("flex items-center justify-between gap-3", compact && "justify-end")}>
+        {compact ? null : (
+          <div>
+            <h2 className="text-sm font-semibold text-[var(--notes-text)]">Эмоциональный разбор</h2>
+            <p className="text-xs text-[var(--notes-muted)]">ИИ подскажет, где текст звучит сухо</p>
+          </div>
+        )}
         <button
           type="button"
           onClick={onAnalyze}

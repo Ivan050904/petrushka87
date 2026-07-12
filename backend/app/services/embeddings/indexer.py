@@ -27,6 +27,15 @@ def _entry_index_metadata(entry: Entry) -> dict[str, str | None]:
     }
 
 
+def persist_entry_with_index(db: Session, entry: Entry) -> Entry:
+    db.add(entry)
+    db.commit()
+    db.refresh(entry)
+    index_entry(db, entry)
+    db.commit()
+    return entry
+
+
 def index_entry(db: Session, entry: Entry) -> int:
     db.execute(delete(EntryEmbedding).where(EntryEmbedding.entry_id == entry.id))
 

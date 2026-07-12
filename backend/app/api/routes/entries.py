@@ -24,6 +24,18 @@ router = APIRouter()
 LIFE_NOTES_MAX_LIMIT = 200
 
 
+def _merge_metadata_dict(existing: dict[str, Any] | None, patch: dict[str, Any]) -> dict[str, Any]:
+    merged = dict(existing or {})
+    for key, value in patch.items():
+        if value is None:
+            merged.pop(key, None)
+        elif isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = _merge_metadata_dict(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
+
+
 def _metadata_text(field: str):
     return func.json_extract(Entry.metadata_, f"$.{field}")
 
@@ -35,6 +47,8 @@ def _apply_metadata_filters(
     exclude_collection: str | None,
     category: str | None,
     kind: str | None,
+    metadata_status: str | None,
+    metadata_source: str | None,
     entry_date_from: str | None,
     entry_date_to: str | None,
     exclude_hidden: bool = False,
@@ -52,6 +66,10 @@ def _apply_metadata_filters(
         statement = statement.where(_metadata_text("category") == category)
     if kind:
         statement = statement.where(_metadata_text("kind") == kind.strip())
+    if metadata_status:
+        statement = statement.where(_metadata_text("status") == metadata_status.strip())
+    if metadata_source:
+        statement = statement.where(_metadata_text("source") == metadata_source.strip())
     if entry_date_from:
         statement = statement.where(_metadata_text("entry_date") >= entry_date_from)
     if entry_date_to:
@@ -219,6 +237,8 @@ def list_entries(
     exclude_collection: str | None = Query(default=None, min_length=1, max_length=64),
     category: str | None = Query(default=None, min_length=1, max_length=64),
     kind: str | None = Query(default=None, min_length=1),
+    metadata_status: str | None = Query(default=None, min_length=1, max_length=64),
+    metadata_source: str | None = Query(default=None, min_length=1, max_length=64),
     entry_date_from: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
     entry_date_to: str | None = Query(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
     sort: str | None = Query(default=None),
@@ -239,6 +259,8 @@ def list_entries(
         exclude_collection=exclude_collection,
         category=category,
         kind=kind,
+        metadata_status=metadata_status,
+        metadata_source=metadata_source,
         entry_date_from=entry_date_from,
         entry_date_to=entry_date_to,
         exclude_hidden=exclude_hidden,
@@ -386,7 +408,7 @@ def update_entry(
         if not entry.title:
             entry.title = _entry_title(None, entry.content)
     if "metadata" in update_data and update_data["metadata"] is not None:
-        next_metadata = update_data["metadata"]
+        next_metadata = _merge_metadata_dict(entry.metadata_, update_data["metadata"])
         should_validate_metadata = True
 
     if should_validate_metadata:

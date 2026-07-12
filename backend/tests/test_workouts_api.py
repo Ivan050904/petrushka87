@@ -41,17 +41,7 @@ def client(tmp_path: Path) -> Generator[TestClient, None, None]:
         engine.dispose()
 
 
-def _register(client: TestClient) -> str:
-    response = client.post(
-        "/api/v1/auth/register",
-        json={
-            "email": "gym@example.com",
-            "password": "password12345",
-            "full_name": "Gym User",
-        },
-    )
-    assert response.status_code == 201
-    return response.json()["access_token"]
+from tests.auth_helpers import create_user_token as _register
 
 
 def _auth(token: str) -> dict[str, str]:
@@ -59,7 +49,12 @@ def _auth(token: str) -> dict[str, str]:
 
 
 def test_workout_catalog_and_session_flow(client: TestClient) -> None:
-    token = _register(client)
+    token = _register(
+        client,
+        email="gym@example.com",
+        password="password12345",
+        full_name="Gym User",
+    )
     headers = _auth(token)
 
     create_resp = client.post(
@@ -67,16 +62,15 @@ def test_workout_catalog_and_session_flow(client: TestClient) -> None:
         headers=headers,
         json={"name": "Жим лёжа", "muscle_group": "chest"},
     )
-    # chest is not valid - should fail validation
-    assert create_resp.status_code == 422
+    assert create_resp.status_code == 201
+    catalog_id = create_resp.json()["id"]
 
-    create_resp = client.post(
+    duplicate_resp = client.post(
         "/api/v1/workouts/catalog",
         headers=headers,
         json={"name": "Жим лёжа", "muscle_group": "back"},
     )
-    assert create_resp.status_code == 201
-    catalog_id = create_resp.json()["id"]
+    assert duplicate_resp.status_code == 201
 
     session_resp = client.post(
         "/api/v1/workouts/sessions",
@@ -108,7 +102,7 @@ def test_workout_catalog_and_session_flow(client: TestClient) -> None:
     assert len(points) == 1
     assert points[0]["max_weight"] == 70
 
-    group_resp = client.get("/api/v1/workouts/analytics/muscle-group/back", headers=headers)
+    group_resp = client.get("/api/v1/workouts/analytics/muscle-group/chest", headers=headers)
     assert group_resp.status_code == 200
     assert group_resp.json()[0]["max_weight"] == 70
 

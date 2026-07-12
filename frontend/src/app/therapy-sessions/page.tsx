@@ -5,7 +5,7 @@ import { TherapySessionsView } from "@/features/therapy-sessions/therapy-session
 
 export default function TherapySessionsPage() {
   return (
-    <AppShell>
+    <AppShell contentClassName="min-h-0 overflow-y-auto p-0">
       <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Загрузка...</div>}>
         <TherapySessionsView />
       </Suspense>

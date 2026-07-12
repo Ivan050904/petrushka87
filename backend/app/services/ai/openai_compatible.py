@@ -23,7 +23,7 @@ Metadata:
 - task: status inbox|active|done|cancelled when possible; deadline as local YYYY-MM-DDTHH:mm for dates/times; optional project,parent_id.
 - event: starts_at required when known; optional ends_at,location,status tracking|attending|skipped|cancelled,source_url.
 - finance: amount, direction income|expense, currency default RUB, description.
-- person: full_name; optional description,birthday YYYY-MM-DD,contacts[],notes.
+- person: last_name,first_name,middle_name (or full_name); optional description,birthday YYYY-MM-DD,contacts[],notes.
 - diary: entry_date YYYY-MM-DD when implied.
 - resource: optional url,author,kind,description,source_person.
 Resolve relative dates from the provided current date/time/timezone.

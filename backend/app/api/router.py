@@ -9,9 +9,11 @@ from app.api.routes import (
     entry_links,
     finance,
     notes,
+    plans,
     resources,
     tasks,
     therapy_sessions,
+    user_settings,
     workouts,
 )
 
@@ -24,6 +26,8 @@ api_router.include_router(finance.router, prefix="/finance", tags=["finance"])
 api_router.include_router(notes.router, prefix="/notes", tags=["notes"])
 api_router.include_router(resources.router, prefix="/resources", tags=["resources"])
 api_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
+api_router.include_router(plans.router, prefix="/plans", tags=["plans"])
+api_router.include_router(user_settings.router, prefix="/user/settings", tags=["user-settings"])
 api_router.include_router(assistant.router, prefix="/assistant", tags=["assistant"])
 api_router.include_router(therapy_sessions.router, prefix="/therapy-sessions", tags=["therapy-sessions"])
 api_router.include_router(workouts.router, prefix="/workouts", tags=["workouts"])

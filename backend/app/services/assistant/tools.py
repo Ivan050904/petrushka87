@@ -11,6 +11,7 @@ from app.models.entry import Entry
 from app.schemas.entry import EntryType
 from app.schemas.metadata import normalize_metadata
 from app.services.assistant.schemas import AssistantActionResult, PendingAction
+from app.services.embeddings.indexer import persist_entry_with_index
 
 TASK_REQUIRED = ("title",)
 EVENT_REQUIRED = ("title", "starts_at")
@@ -100,9 +101,7 @@ def create_task_entry(
         content=content,
         metadata_=metadata,
     )
-    db.add(entry)
-    db.commit()
-    db.refresh(entry)
+    persist_entry_with_index(db, entry)
     return AssistantActionResult(
         type="task",
         title=entry.title,
@@ -137,9 +136,7 @@ def create_event_entry(
         content=content,
         metadata_=metadata,
     )
-    db.add(entry)
-    db.commit()
-    db.refresh(entry)
+    persist_entry_with_index(db, entry)
     return AssistantActionResult(
         type="event",
         title=entry.title,

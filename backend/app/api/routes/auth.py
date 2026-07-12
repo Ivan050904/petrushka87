@@ -2,16 +2,17 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.core.config import settings
+from app.core.rate_limit import limiter
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.auth import Token, UserCreate, UserLogin, UserRead
-from app.services.security import create_access_token, get_password_hash, verify_password
+from app.services.security import create_access_token, verify_password
 
 router = APIRouter()
 
@@ -26,29 +27,23 @@ def _token_for_user(user: User) -> Token:
     )
 
 
-@router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
-def register(payload: UserCreate, db: Session = Depends(get_db)) -> Token:
-    email = payload.email.lower()
-    existing_user = db.scalar(select(User).where(User.email == email))
-    if existing_user is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="User with this email already exists",
-        )
-
-    user = User(
-        email=email,
-        full_name=payload.full_name,
-        hashed_password=get_password_hash(payload.password),
+@router.post("/register", status_code=status.HTTP_403_FORBIDDEN)
+def register(_payload: UserCreate) -> None:
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Registration disabled",
     )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    return _token_for_user(user)
 
 
 @router.post("/login", response_model=Token)
-def login(payload: UserLogin, db: Session = Depends(get_db)) -> Token:
+@limiter.limit("5/minute")
+@limiter.limit("20/hour")
+def login(
+    request: Request,
+    payload: UserLogin,
+    db: Session = Depends(get_db),
+) -> Token:
+    del request
     user = db.scalar(select(User).where(User.email == payload.email.lower()))
     if user is None or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(

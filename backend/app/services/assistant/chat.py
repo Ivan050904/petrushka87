@@ -67,6 +67,31 @@ def add_message(
     return message
 
 
+def delete_conversation(db: Session, user_id: uuid.UUID, conversation_id: uuid.UUID) -> bool:
+    conversation = get_conversation(db, user_id, conversation_id)
+    if conversation is None:
+        return False
+    db.delete(conversation)
+    return True
+
+
+def update_conversation(
+    db: Session,
+    user_id: uuid.UUID,
+    conversation_id: uuid.UUID,
+    *,
+    title: str,
+) -> AssistantConversation | None:
+    conversation = get_conversation(db, user_id, conversation_id)
+    if conversation is None:
+        return None
+    conversation.title = title.strip() or conversation.title
+    conversation.updated_at = datetime.now(UTC)
+    db.add(conversation)
+    db.flush()
+    return conversation
+
+
 def stream_assistant_reply(
     db: Session,
     *,

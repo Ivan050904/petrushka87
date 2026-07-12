@@ -22,8 +22,10 @@ export function SessionAnalysisPanel({ analysis, markdown }: SessionAnalysisPane
   }
 
   return (
-    <div className="space-y-4">
-      <Section title="Краткий пересказ">{analysis.session_summary}</Section>
+    <div className="grid gap-4 xl:grid-cols-2 xl:gap-4">
+      <Section title="Краткий пересказ" className="xl:col-span-2">
+        {analysis.session_summary}
+      </Section>
 
       {analysis.key_topics.length > 0 ? (
         <Section title="Ключевые темы">
@@ -107,9 +109,17 @@ export function SessionAnalysisPanel({ analysis, markdown }: SessionAnalysisPane
   );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({
+  title,
+  children,
+  className,
+}: {
+  title: string;
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <Card>
+    <Card className={className}>
       <CardHeader>
         <CardTitle className="text-base">{title}</CardTitle>
       </CardHeader>

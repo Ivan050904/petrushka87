@@ -45,6 +45,8 @@ export function NoteEditor({
 }: NoteEditorProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const isSavingRef = useRef(false);
+  const entryIdRef = useRef<string | null>(entry?.id ?? null);
   const [title, setTitle] = useState(() => getEditableLifeNoteTitle(entry));
   const [content, setContent] = useState(entry?.content ?? "");
   const [entryDate, setEntryDate] = useState(
@@ -69,6 +71,7 @@ export function NoteEditor({
     setCategory(entry ? getLifeNoteCategory(entry) : defaultCategory ?? undefined);
     setReview(entry ? getStoredEmotionReview(entry) : null);
     setEntryId(entry?.id ?? null);
+    entryIdRef.current = entry?.id ?? null;
     setSaveState("idle");
     setSaveError(null);
     setAnalyzeError(null);
@@ -81,28 +84,20 @@ export function NoteEditor({
   }, [isNew]);
 
   useEffect(() => {
+    entryIdRef.current = entryId;
+  }, [entryId]);
+
+  useEffect(() => {
     if (!content.trim()) {
       return;
     }
 
     const timeoutId = window.setTimeout(() => {
-      void persistEntry(content);
+      void persistNote();
     }, 1500);
 
     return () => window.clearTimeout(timeoutId);
-  }, [content, title, entryDate, category]);
-
-  useEffect(() => {
-    if (!entryId || !content.trim()) {
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      void persistTitleAndMeta();
-    }, 1500);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [title, entryDate, category, entryId]);
+  }, [content, title, entryDate, category, review]);
 
   function buildMetadata() {
     return {
@@ -125,58 +120,42 @@ export function NoteEditor({
     return title.trim() || buildLifeNoteTitle(entryDate);
   }
 
-  async function persistEntry(nextContent: string) {
-    if (!nextContent.trim()) {
+  async function persistNote() {
+    if (!content.trim() || isSavingRef.current) {
       return;
     }
 
+    isSavingRef.current = true;
     setSaveState("saving");
     setSaveError(null);
 
     try {
-      const saved = entryId
-        ? await updateEntry(token, entryId, {
+      const currentEntryId = entryIdRef.current;
+      const saved = currentEntryId
+        ? await updateEntry(token, currentEntryId, {
             title: resolveTitle(),
-            content: nextContent,
+            content,
             metadata: buildMetadata(),
           })
         : await createEntry(token, {
             type: "diary",
             title: resolveTitle(),
-            content: nextContent,
+            content,
             metadata: buildLifeNoteMetadata({
               entryDate,
               category: category ?? undefined,
             }),
           });
 
+      entryIdRef.current = saved.id;
       setEntryId(saved.id);
       setSaveState("saved");
       onSaved(saved);
     } catch (error) {
       setSaveState("error");
       setSaveError(getErrorMessage(error, "Не удалось сохранить заметку."));
-    }
-  }
-
-  async function persistTitleAndMeta() {
-    if (!entryId) {
-      return;
-    }
-
-    setSaveState("saving");
-    setSaveError(null);
-
-    try {
-      const saved = await updateEntry(token, entryId, {
-        title: resolveTitle(),
-        metadata: buildMetadata(),
-      });
-      setSaveState("saved");
-      onSaved(saved);
-    } catch (error) {
-      setSaveState("error");
-      setSaveError(getErrorMessage(error, "Не удалось сохранить заметку."));
+    } finally {
+      isSavingRef.current = false;
     }
   }
 
@@ -203,8 +182,8 @@ export function NoteEditor({
       };
       setReview(nextReview);
 
-      if (entryId) {
-        const saved = await updateEntry(token, entryId, {
+      if (entryIdRef.current) {
+        const saved = await updateEntry(token, entryIdRef.current, {
           metadata: {
             ...buildLifeNoteMetadata({ entryDate, category: category ?? undefined }),
             ai_emotion_review: nextReview,
@@ -253,13 +232,13 @@ export function NoteEditor({
   const titlePlaceholder = formatLifeNoteCardTitle(entryDate);
 
   return (
-    <div className="notes-editor flex min-h-0 flex-1 flex-col lg:flex-row">
-      <section className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <div className="flex items-center justify-between gap-3 border-b border-[var(--notes-border)] px-4 py-3 lg:px-6">
+    <div className="notes-editor flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
+      <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[var(--notes-border)] px-3 py-2 lg:px-6 lg:py-3">
           <button
             type="button"
             onClick={onBack}
-            className="focus-ring inline-flex items-center gap-2 rounded-full px-2 py-1 text-sm text-[var(--notes-muted)]"
+            className="focus-ring inline-flex min-h-10 items-center gap-2 rounded-full px-2 py-1 text-sm text-[var(--notes-muted)]"
           >
             <ArrowLeft className="size-4" />
             Назад
@@ -278,7 +257,7 @@ export function NoteEditor({
               <button
                 type="button"
                 onClick={() => void handleDelete()}
-                className="focus-ring rounded-full p-2 text-[var(--notes-muted)] hover:text-red-400"
+                className="focus-ring flex min-h-10 min-w-10 items-center justify-center rounded-full text-[var(--notes-muted)] hover:text-red-400"
                 aria-label="Удалить заметку"
               >
                 <Trash2 className="size-4" />
@@ -287,57 +266,64 @@ export function NoteEditor({
           </div>
         </div>
 
-        <div className="border-b border-[var(--notes-border)] px-4 py-4 lg:px-6">
-          <label className="mb-2 block text-xs font-medium uppercase tracking-wide text-[var(--notes-muted)]">
-            Название
-          </label>
-          <input
-            ref={titleInputRef}
-            value={title}
-            onChange={(event) => {
-              setTitle(event.target.value);
-              setSaveState("idle");
-            }}
-            placeholder={titlePlaceholder}
-            aria-label="Название заметки"
-            className="focus-ring w-full rounded-xl border border-[var(--notes-border)] bg-[var(--notes-card)] px-3 py-2.5 text-xl font-semibold text-[var(--notes-text)] outline-none placeholder:text-[var(--notes-muted)]"
-          />
-          <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-[var(--notes-muted)]">
-            <label className="inline-flex items-center gap-2">
-              Дата
+        <div className="notes-editor-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <div className="border-b border-[var(--notes-border)] px-3 py-2 lg:px-6 lg:py-4">
+            <input
+              ref={titleInputRef}
+              value={title}
+              onChange={(event) => {
+                setTitle(event.target.value);
+                setSaveState("idle");
+              }}
+              placeholder={titlePlaceholder}
+              aria-label="Название заметки"
+              className="focus-ring w-full rounded-xl border border-[var(--notes-border)] bg-[var(--notes-card)] px-3 py-2 text-lg font-semibold text-[var(--notes-text)] outline-none placeholder:text-[var(--notes-muted)] lg:text-xl"
+            />
+            <label className="mt-2 inline-flex items-center gap-2 text-sm text-[var(--notes-muted)] lg:mt-3">
+              <span className="sr-only lg:not-sr-only">Дата</span>
               <input
                 type="date"
                 value={entryDate}
                 onChange={(event) => setEntryDate(event.target.value)}
-                className="rounded-lg border border-[var(--notes-border)] bg-[var(--notes-card)] px-2 py-1 text-[var(--notes-text)]"
-              />
-            </label>
-            <label className="inline-flex items-center gap-2">
-              Категория
-              <input
-                value={category ?? ""}
-                onChange={(event) => setCategory(event.target.value)}
-                className="min-w-[180px] rounded-lg border border-[var(--notes-border)] bg-[var(--notes-card)] px-2 py-1 text-[var(--notes-text)]"
+                aria-label="Дата заметки"
+                className="rounded-lg border border-[var(--notes-border)] bg-[var(--notes-card)] px-2 py-1 text-sm text-[var(--notes-text)]"
               />
             </label>
           </div>
-        </div>
 
-        <div className="min-h-0 flex-1 px-4 py-4 lg:px-6">
-          <textarea
-            ref={textareaRef}
-            value={content}
-            aria-label="Текст заметки"
-            onChange={(event) => {
-              setContent(event.target.value);
-              setSaveState("idle");
-            }}
-            placeholder="Напиши про свой день. Не только что сделал, но и что чувствовал..."
-            className="h-full min-h-[50vh] w-full text-base leading-7 outline-none lg:min-h-0"
-          />
-        </div>
+          <div className="px-3 py-3 pb-[env(safe-area-inset-bottom)] lg:px-6 lg:py-4">
+            <textarea
+              ref={textareaRef}
+              value={content}
+              aria-label="Текст заметки"
+              onChange={(event) => {
+                setContent(event.target.value);
+                setSaveState("idle");
+              }}
+              placeholder="Напиши про свой день. Не только что сделал, но и что чувствовал..."
+              className="min-h-[42vh] w-full text-base leading-7 outline-none lg:min-h-[50vh]"
+            />
+          </div>
 
-        {saveError ? <p className="px-4 pb-4 text-sm text-red-400 lg:px-6">{saveError}</p> : null}
+          {saveError ? <p className="px-3 pb-3 text-sm text-red-400 lg:px-6">{saveError}</p> : null}
+
+          <details className="border-t border-[var(--notes-border)] lg:hidden">
+            <summary className="focus-ring cursor-pointer list-none px-3 py-3 text-sm font-semibold text-[var(--notes-text)] marker:content-none">
+              Эмоциональный разбор
+            </summary>
+            <div className="max-h-[min(38vh,300px)] overflow-y-auto overscroll-contain px-3 pb-4">
+              <NoteAiPanel
+                review={review}
+                isLoading={isAnalyzing}
+                error={analyzeError}
+                onAnalyze={() => void handleAnalyze()}
+                onQuoteClick={handleQuoteClick}
+                compact
+                className="h-auto border-0 bg-transparent p-0"
+              />
+            </div>
+          </details>
+        </div>
       </section>
 
       <NoteAiPanel
@@ -346,7 +332,7 @@ export function NoteEditor({
         error={analyzeError}
         onAnalyze={() => void handleAnalyze()}
         onQuoteClick={handleQuoteClick}
-        className="border-t border-[var(--notes-border)] lg:max-w-[360px] lg:border-l lg:border-t-0"
+        className="hidden border-l border-[var(--notes-border)] lg:flex lg:max-w-[360px]"
       />
     </div>
   );

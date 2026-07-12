@@ -38,6 +38,12 @@ def _update(db, job: TherapySessionJob, **fields) -> None:
     db.commit()
 
 
+def _is_text_import_job(job: TherapySessionJob) -> bool:
+    return job.transcription_source == "text" or (
+        not job.file_storage_key and bool(job.transcript.strip())
+    )
+
+
 def process_therapy_session_job(job_id: int) -> None:
     db = SessionLocal()
     storage = get_file_storage()
@@ -51,55 +57,77 @@ def process_therapy_session_job(job_id: int) -> None:
         analysis_only = mode == "analysis" and bool((job.diarized_transcript or job.transcript).strip())
 
         def set_progress(pct: int, stage: str, stage_key: str, **extra) -> None:
+            db.flush()
             db.refresh(job)
             _update(db, job, progress=pct, stage=stage, stage_key=stage_key, **extra)
 
         if not analysis_only:
             set_progress(
                 5,
-                "Подготавливаю аудио",
+                "Подготавливаю" if _is_text_import_job(job) else "Подготавливаю аудио",
                 "upload",
                 status="processing",
                 processing_started_at=datetime.now(UTC),
             )
-            if not job.file_storage_key:
+
+            if _is_text_import_job(job):
+                if not job.transcript.strip():
+                    set_progress(0, "Ошибка", "upload", status="error", error="Текст сессии пуст.")
+                    return
+
+                set_progress(25, "Размечаю спикеров", "speakers")
+                sync_entry_for_job(db, job)
+                db.commit()
+                job.diarized_transcript = llm_diarize_plain_transcript(job.transcript)
+                job.speakers_json = {"mode": "text_import"}
+                if not job.diarized_transcript.strip():
+                    set_progress(
+                        0,
+                        "Ошибка",
+                        "transcribe",
+                        status="error",
+                        error="Не удалось обработать текст сессии.",
+                    )
+                    return
+                set_progress(55, "Текст готов", "speakers")
+            elif not job.file_storage_key:
                 set_progress(0, "Ошибка", "upload", status="error", error="Файл сессии не найден.")
                 return
-
-            stored = storage.open(job.file_storage_key)
-            suffix = Path(job.source_filename).suffix or ".mp3"
-            with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-                temp_path = Path(tmp.name)
-                while chunk := stored.read(1024 * 1024):
-                    tmp.write(chunk)
-            stored.close()
-
-            duration_sec = probe_audio_duration_sec(temp_path)
-            if duration_sec:
-                job.duration_sec = duration_sec
-
-            set_progress(15, "Распознаю речь", "transcribe")
-            sync_entry_for_job(db, job)
-            db.commit()
-
-            result = transcribe_with_diarization(temp_path)
-            job.transcript = result.transcript
-            job.transcription_source = result.source
-
-            set_progress(45, "Определяю спикеров", "speakers")
-            if result.source == "whisper" or len({segment.speaker_id for segment in result.segments}) <= 1:
-                job.diarized_transcript = llm_diarize_plain_transcript(result.transcript)
-                job.speakers_json = {"mode": "llm_fallback"}
             else:
-                speaker_roles = assign_speaker_roles(result.segments)
-                job.speakers_json = speaker_roles
-                job.diarized_transcript = format_diarized_transcript(result.segments, speaker_roles)
+                stored = storage.open(job.file_storage_key)
+                suffix = Path(job.source_filename).suffix or ".mp3"
+                with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+                    temp_path = Path(tmp.name)
+                    while chunk := stored.read(1024 * 1024):
+                        tmp.write(chunk)
+                stored.close()
 
-            if not job.diarized_transcript.strip():
-                set_progress(0, "Ошибка", "transcribe", status="error", error="Не удалось получить текст сессии.")
-                return
+                duration_sec = probe_audio_duration_sec(temp_path)
+                if duration_sec:
+                    job.duration_sec = duration_sec
 
-            set_progress(55, "Транскрипт готов", "speakers")
+                set_progress(15, "Распознаю речь", "transcribe")
+                sync_entry_for_job(db, job)
+                db.commit()
+
+                result = transcribe_with_diarization(temp_path)
+                job.transcript = result.transcript
+                job.transcription_source = result.source
+
+                set_progress(45, "Определяю спикеров", "speakers")
+                if result.source == "whisper" or len({segment.speaker_id for segment in result.segments}) <= 1:
+                    job.diarized_transcript = llm_diarize_plain_transcript(result.transcript)
+                    job.speakers_json = {"mode": "llm_fallback"}
+                else:
+                    speaker_roles = assign_speaker_roles(result.segments)
+                    job.speakers_json = speaker_roles
+                    job.diarized_transcript = format_diarized_transcript(result.segments, speaker_roles)
+
+                if not job.diarized_transcript.strip():
+                    set_progress(0, "Ошибка", "transcribe", status="error", error="Не удалось получить текст сессии.")
+                    return
+
+                set_progress(55, "Транскрипт готов", "speakers")
         else:
             set_progress(
                 55,

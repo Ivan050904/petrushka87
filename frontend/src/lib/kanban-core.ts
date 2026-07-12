@@ -15,6 +15,7 @@ export type KanbanCardTypeOption = {
   value: string;
   label: string;
   className: string;
+  dotColor?: string;
 };
 
 export type DevKanbanColumn = {
@@ -38,12 +39,55 @@ export type KanbanBoardConfig = {
   configEntryId?: string;
 };
 
-const LEGACY_STAGE_MAP: Record<string, DevKanbanStage> = {
-  raw: "inbox",
-  decision: "analysis",
+const LEGACY_STAGE_MAP: Record<string, string> = {
+  raw: "new",
+  inbox: "new",
+  decision: "waiting",
+  analysis: "waiting",
   doing: "in_progress",
+  in_progress: "in_progress",
+  waiting: "waiting",
+  review: "review",
   done: "done",
 };
+
+const CODE_COLUMNS: DevKanbanColumn[] = [
+  {
+    id: "new",
+    label: "Новое",
+    accent: "",
+    dotColor: "bg-slate-400",
+    emptyHint: "Новые задачи без статуса",
+  },
+  {
+    id: "in_progress",
+    label: "В процессе",
+    accent: "",
+    dotColor: "bg-blue-400",
+    emptyHint: "То, над чем работаешь прямо сейчас",
+  },
+  {
+    id: "waiting",
+    label: "В ожидании",
+    accent: "",
+    dotColor: "bg-amber-400",
+    emptyHint: "Задачи, которые ждут ответа или решения",
+  },
+  {
+    id: "review",
+    label: "На проверке",
+    accent: "",
+    dotColor: "bg-violet-400",
+    emptyHint: "Готово к ревью или приёмке",
+  },
+  {
+    id: "done",
+    label: "Готово",
+    accent: "",
+    dotColor: "bg-emerald-400",
+    emptyHint: "Закрытые и принятые задачи",
+  },
+];
 
 const SHARED_COLUMNS: DevKanbanColumn[] = [
   {
@@ -80,20 +124,12 @@ export const kanbanBoards: Record<KanbanBoardMode, KanbanBoardConfig> = {
   code: {
     id: "kanban_code",
     mode: "code",
-    label: "Код",
-    subtitle: "Разработка и технические задачи",
-    emptyMessage: "Доска пуста. Добавь первую карточку.",
-    defaultCardType: "card",
-    cardTypes: [{ value: "card", label: "Карточка", className: "bg-slate-100 text-slate-800 border-slate-200" }],
-    columns: SHARED_COLUMNS.map((column) =>
-      column.id === "inbox"
-        ? { ...column, emptyHint: "Новые идеи, баги и задачи по коду" }
-        : column.id === "in_progress"
-          ? { ...column, label: "В разработке", emptyHint: "То, что пишешь в коде прямо сейчас" }
-          : column.id === "done"
-            ? { ...column, emptyHint: "Реализовано и принято" }
-            : column,
-    ),
+    label: "Отдел разработки",
+    subtitle: "Задачи команды разработки",
+    emptyMessage: "Доска пуста. Создай первую задачу.",
+    defaultCardType: "",
+    cardTypes: [],
+    columns: CODE_COLUMNS,
   },
   tasks: {
     id: "kanban_tasks",
@@ -101,8 +137,8 @@ export const kanbanBoards: Record<KanbanBoardMode, KanbanBoardConfig> = {
     label: "Задачи",
     subtitle: "Личные и рабочие дела",
     emptyMessage: "Доска пуста. Добавь первую карточку.",
-    defaultCardType: "card",
-    cardTypes: [{ value: "card", label: "Карточка", className: "bg-slate-100 text-slate-800 border-slate-200" }],
+    defaultCardType: "",
+    cardTypes: [],
     columns: SHARED_COLUMNS.map((column) =>
       column.id === "inbox"
         ? { ...column, emptyHint: "Задачи, которые ещё не разобрал" }
@@ -117,8 +153,8 @@ export const kanbanBoards: Record<KanbanBoardMode, KanbanBoardConfig> = {
     label: "Психология",
     subtitle: "От сырой мысли до проработанного вывода",
     emptyMessage: "Доска пуста. Сбрось первую мысль через / или добавь карточку вручную.",
-    defaultCardType: "card",
-    cardTypes: [{ value: "card", label: "Карточка", className: "bg-violet-100 text-violet-800 border-violet-200" }],
+    defaultCardType: "",
+    cardTypes: [],
     columns: [
       {
         id: "inbox",
@@ -158,13 +194,8 @@ export const kanbanBoardList = kanbanBoardModes.map((mode) => kanbanBoards[mode]
 export const devKanbanColumns = kanbanBoards.code.columns;
 
 /** @deprecated use board-specific card types */
-export const devKanbanCardTypes = kanbanBoards.code.cardTypes.map((item) => item.value) as [
-  "feature",
-  "bug",
-  "idea",
-  "tech_debt",
-];
-export type DevKanbanCardType = (typeof devKanbanCardTypes)[number];
+export const devKanbanCardTypes = kanbanBoards.code.cardTypes.map((item) => item.value);
+export type DevKanbanCardType = string;
 
 /** @deprecated */
 export const devKanbanCardTypeOptions = kanbanBoards.code.cardTypes;
@@ -178,6 +209,14 @@ export function parseKanbanBoardMode(value: string | null): KanbanBoardMode {
 
 export function getKanbanBoardConfig(mode: KanbanBoardMode): KanbanBoardConfig {
   return kanbanBoards[mode];
+}
+
+export function kanbanBoardSupportsProjects(mode: KanbanBoardMode | "custom"): boolean {
+  return mode === "code";
+}
+
+export function kanbanProjects(config: Pick<KanbanBoardConfig, "mode" | "cardTypes">): KanbanCardTypeOption[] {
+  return kanbanBoardSupportsProjects(config.mode) ? config.cardTypes : [];
 }
 
 export function getKanbanBoardId(mode: KanbanBoardMode): string {
@@ -226,30 +265,26 @@ export function getKanbanStage(
   entry: Entry,
   config?: Pick<KanbanBoardConfig, "columns">,
 ): KanbanStage {
-  const stage = getString(entry.metadata.stage, "inbox");
+  const rawStage = getString(entry.metadata.stage, "new");
+  const mappedStage = LEGACY_STAGE_MAP[rawStage] ?? rawStage;
+
   if (config) {
     const columnIds = config.columns.map((column) => column.id);
-    if (columnIds.includes(stage)) {
-      return stage;
+    if (columnIds.includes(mappedStage)) {
+      return mappedStage;
     }
-    const legacyStage = LEGACY_STAGE_MAP[stage];
-    if (legacyStage && columnIds.includes(legacyStage)) {
-      return legacyStage;
+    const remapped = LEGACY_STAGE_MAP[mappedStage];
+    if (remapped && columnIds.includes(remapped)) {
+      return remapped;
     }
-    return columnIds[0] ?? "inbox";
+    return columnIds[0] ?? "new";
   }
-  if (devKanbanStages.includes(stage as DevKanbanStage)) {
-    return stage;
-  }
-  return LEGACY_STAGE_MAP[stage] ?? "inbox";
+
+  return mappedStage;
 }
 
 export function getDevKanbanStage(entry: Entry): DevKanbanStage {
-  const stage = getKanbanStage(entry);
-  if (devKanbanStages.includes(stage as DevKanbanStage)) {
-    return stage as DevKanbanStage;
-  }
-  return LEGACY_STAGE_MAP[stage] ?? "inbox";
+  return getKanbanStage(entry) as DevKanbanStage;
 }
 
 export function getDevKanbanPriority(entry: Entry) {
@@ -257,9 +292,9 @@ export function getDevKanbanPriority(entry: Entry) {
   return Math.min(5, Math.max(1, Math.round(priority)));
 }
 
-export function getKanbanCardType(entry: Entry, config: Pick<KanbanBoardConfig, "defaultCardType" | "cardTypes">): string {
-  const cardType = getString(entry.metadata.card_type, config.defaultCardType);
-  return config.cardTypes.some((option) => option.value === cardType) ? cardType : config.defaultCardType;
+export function getKanbanCardType(entry: Entry, config: Pick<KanbanBoardConfig, "cardTypes">): string {
+  const cardType = getString(entry.metadata.card_type, "");
+  return config.cardTypes.some((option) => option.value === cardType) ? cardType : "";
 }
 
 /** @deprecated use getKanbanCardType */
@@ -271,16 +306,19 @@ export function getDevKanbanCardType(entry: Entry): DevKanbanCardType {
 export function kanbanMetadata(
   boardId: string,
   stage: KanbanStage,
-  config: Pick<KanbanBoardConfig, "defaultCardType" | "cardTypes">,
+  config: Pick<KanbanBoardConfig, "cardTypes">,
   options?: { priority?: number; cardType?: string },
 ) {
-  const cardType = options?.cardType ?? config.defaultCardType;
-  return {
+  const metadata: Record<string, unknown> = {
     board: boardId,
     stage,
     priority: options?.priority ?? 3,
-    card_type: config.cardTypes.some((option) => option.value === cardType) ? cardType : config.defaultCardType,
   };
+  const cardType = options?.cardType ?? "";
+  if (cardType && config.cardTypes.some((option) => option.value === cardType)) {
+    metadata.card_type = cardType;
+  }
+  return metadata;
 }
 
 /** @deprecated use kanbanMetadata */
@@ -292,13 +330,19 @@ export function devKanbanMetadata(
 }
 
 export function priorityAccent(priority: number) {
-  if (priority >= 4) {
+  if (priority >= 5) {
     return "bg-rose-500";
+  }
+  if (priority >= 4) {
+    return "bg-orange-500";
   }
   if (priority === 3) {
     return "bg-amber-400";
   }
-  return "bg-slate-300";
+  if (priority === 2) {
+    return "bg-sky-500";
+  }
+  return "bg-slate-500";
 }
 
 export function priorityLabel(priority: number) {
@@ -317,8 +361,11 @@ export function priorityLabel(priority: number) {
   return "Минимальный";
 }
 
-export function cardTypeOption(config: Pick<KanbanBoardConfig, "cardTypes">, cardType: string) {
-  return config.cardTypes.find((option) => option.value === cardType) ?? config.cardTypes[0];
+export function cardTypeOption(
+  config: Pick<KanbanBoardConfig, "cardTypes">,
+  cardType: string,
+): KanbanCardTypeOption | undefined {
+  return config.cardTypes.find((option) => option.value === cardType);
 }
 
 export const KANBAN_MAX_FILE_BYTES = 15 * 1024 * 1024;

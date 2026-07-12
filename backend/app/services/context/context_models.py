@@ -8,7 +8,8 @@ from pydantic import BaseModel, Field
 from app.models.entry import Entry
 from app.schemas.entry import EntryType
 
-ContextScope = Literal["all", "notes", "plans", "finance", "people", "transcription", "therapy", "kanban"]
+ContextScope = Literal["all", "notes", "plans", "finance", "people", "transcription", "therapy", "kanban", "workouts"]
+RetrievalMode = Literal["ranked", "entity_timeline"]
 
 PINNED_SCORE = 10_000.0
 
@@ -21,9 +22,16 @@ SCOPE_TYPES: dict[ContextScope, set[str]] = {
     "transcription": {EntryType.transcription.value, EntryType.resource.value},
     "therapy": {EntryType.therapy_session.value},
     "kanban": {EntryType.task.value, EntryType.note.value},
+    "workouts": {EntryType.workout.value},
 }
 
 KANBAN_BOARD_CONFIG_COLLECTION = "kanban_board_config"
+
+KANBAN_BOARD_LABELS: dict[str, str] = {
+    "kanban_code": "Отдел разработки",
+    "kanban_tasks": "Задачи",
+    "kanban_psych": "Психология",
+}
 
 
 class ContextSnippet(BaseModel):
@@ -47,14 +55,26 @@ class UserContext(BaseModel):
     searched_scopes: list[ContextScope] = Field(default_factory=list)
     router_confidence: float = 0.0
     embedding_provider: str = "hash"
+    retrieval_mode: RetrievalMode = "ranked"
+    entity_terms: list[str] = Field(default_factory=list)
+    catalog_summary: str | None = None
+    entity_match_total: int | None = None
+    entity_year_counts: dict[str, int] = Field(default_factory=dict)
+
+
+def read_kanban_board_id(metadata: dict) -> str | None:
+    for key in ("board_id", "board"):
+        value = metadata.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
 
 
 def entry_has_kanban_metadata(entry: Entry) -> bool:
     metadata = entry.metadata_ or {}
     if metadata.get("collection") == KANBAN_BOARD_CONFIG_COLLECTION:
         return True
-    board_id = metadata.get("board_id")
-    return isinstance(board_id, str) and bool(board_id.strip())
+    return read_kanban_board_id(metadata) is not None
 
 
 def scope_for_entry(entry: Entry) -> ContextScope:
@@ -103,6 +123,8 @@ def infer_scopes_from_query(query: str) -> list[ContextScope]:
         scopes.append("therapy")
     if any(token in normalized for token in ("канбан", "доск", "board", "колонк")):
         scopes.append("kanban")
+    if any(token in normalized for token in ("трениров", "зал", "жим", "подход", "workout", "упражнен")):
+        scopes.append("workouts")
     if any(token in normalized for token in ("недел", "сводк", "итог", "обзор")):
         for item in ("notes", "plans", "finance"):
             if item not in scopes:

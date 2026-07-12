@@ -13,9 +13,11 @@ from app.services.context.context_models import (
     UserContext,
 )
 from app.services.context.date_query import lookup_entries_by_dates
+from app.services.context.entity_query import resolve_entity_terms
 from app.services.context.entry_rag_text import build_entry_rag_text
 from app.services.context.query_intent import QueryIntent, route_query
-from app.services.context.retrievers import retrieve_for_scope
+from app.services.context.retrievers import entity_mentions, retrieve_for_scope
+from app.services.context.user_catalog import build_user_data_catalog
 from app.services.embeddings.provider import get_embedding_provider_name
 from app.services.entry_links import list_links_for_entry
 
@@ -111,8 +113,44 @@ def build_context(
     snippet_limit = limit if limit is not None else settings.context_snippet_limit
     intent: QueryIntent = route_query(normalized_query, conversation_scope=scope)
 
+    catalog_summary = build_user_data_catalog(db, user_id) if settings.context_catalog_enabled else None
+
+    if intent.retrieval_mode == "entity_timeline" and intent.entity_name:
+        intent.entity_terms = resolve_entity_terms(db, user_id, intent.entity_name)
+        collected = entity_mentions.retrieve(
+            db,
+            user_id,
+            normalized_query,
+            intent=intent,
+            limit=settings.context_entity_match_limit,
+            primary_entry_id=primary_entry_id,
+        )
+        entity_match_total = len(collected)
+        year_counts: dict[str, int] = {}
+        for snippet in collected:
+            if snippet.entry_date and len(snippet.entry_date) >= 4:
+                year = snippet.entry_date[:4]
+                year_counts[year] = year_counts.get(year, 0) + 1
+        return UserContext(
+            scope=scope,
+            query=normalized_query,
+            snippets=collected[: settings.context_entity_match_limit],
+            primary_entry_id=primary_entry_id,
+            matched_dates=intent.matched_dates,
+            effective_scope="all",
+            searched_scopes=["all"],
+            router_confidence=intent.confidence,
+            embedding_provider=get_embedding_provider_name(),
+            retrieval_mode="entity_timeline",
+            entity_terms=intent.entity_terms,
+            catalog_summary=catalog_summary,
+            entity_match_total=entity_match_total,
+            entity_year_counts=year_counts,
+        )
+
     scopes = intent.scopes
-    if scope != "all" and scope not in scopes:
+    if scope != "all":
+        # Conversation scope pins the module; query keywords only rank within it.
         scopes = [scope]
 
     quotas = _quota_per_scope(scopes, snippet_limit)
@@ -157,4 +195,7 @@ def build_context(
         searched_scopes=scopes,
         router_confidence=intent.confidence,
         embedding_provider=get_embedding_provider_name(),
+        retrieval_mode=intent.retrieval_mode,
+        entity_terms=intent.entity_terms,
+        catalog_summary=catalog_summary,
     )

@@ -19,6 +19,17 @@ def test_format_job_error_github_429() -> None:
     assert "OPENAI_API_KEY" in message
 
 
+def test_format_job_error_cookie_database() -> None:
+    message = _format_job_error(Exception("Could not copy Chrome cookie database"))
+    assert "закрой все окна Chrome/Edge" in message
+
+
+def test_format_job_error_youtube_bot() -> None:
+    message = _format_job_error(Exception("Sign in to confirm you're not a bot"))
+    assert "YouTube заблокировал" in message
+    assert "youtube-cookies.txt" in message
+
+
 def test_format_job_error_youtube_timeout() -> None:
     message = _format_job_error(Exception("Unable to download webpage: youtube.com timed out"))
     assert "YouTube" in message

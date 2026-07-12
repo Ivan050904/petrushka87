@@ -1,9 +1,10 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, RefreshCw, Upload } from "lucide-react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Loader2, RefreshCw, Upload, FileText } from "lucide-react";
 
 import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
+import { LoadError } from "@/components/load-error";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +12,7 @@ import { Empty } from "@/components/ui/empty";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Notice } from "@/components/ui/notice";
+import { Textarea } from "@/components/ui/textarea";
 import { useRequireAuth } from "@/hooks/use-auth";
 import {
   deleteTherapySession,
@@ -20,6 +22,7 @@ import {
   listTherapySessions,
   retryTherapySession,
   uploadTherapySession,
+  uploadTherapySessionText,
   type TherapySessionAnalysis,
   type TherapySessionJob,
   type TherapySessionSummary,
@@ -32,6 +35,16 @@ import { SessionProgress } from "./session-progress";
 import { SessionTranscriptPanel } from "./session-transcript-panel";
 
 const acceptedFileTypes = ".mp3,.m4a,.wav,.ogg,.webm,.aac,.flac,.mp4";
+const MIN_TEXT_LENGTH = 20;
+
+type UploadMode = "audio" | "text";
+
+function formatSessionSource(job: TherapySessionJob) {
+  if (job.transcription_source === "text" || job.source_filename === "session.txt") {
+    return "Текст";
+  }
+  return job.source_filename;
+}
 
 export function TherapySessionsView() {
   const { token } = useRequireAuth();
@@ -41,8 +54,11 @@ export function TherapySessionsView() {
   const [title, setTitle] = useState("");
   const [sessionDate, setSessionDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [file, setFile] = useState<File | null>(null);
+  const [uploadMode, setUploadMode] = useState<UploadMode>("audio");
+  const [sessionText, setSessionText] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
+  const [listError, setListError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
@@ -52,9 +68,20 @@ export function TherapySessionsView() {
   useEffect(() => {
     if (!token) return;
     setIsLoading(true);
+    setListError(null);
     listTherapySessions(token)
       .then(setSessions)
-      .catch((err) => setError(getErrorMessage(err, "Не удалось загрузить сессии.")))
+      .catch((err) => setListError(getErrorMessage(err, "Не удалось загрузить сессии.")))
+      .finally(() => setIsLoading(false));
+  }, [token]);
+
+  const reloadSessions = useCallback(() => {
+    if (!token) return;
+    setIsLoading(true);
+    setListError(null);
+    listTherapySessions(token)
+      .then(setSessions)
+      .catch((err) => setListError(getErrorMessage(err, "Не удалось загрузить сессии.")))
       .finally(() => setIsLoading(false));
   }, [token]);
 
@@ -116,28 +143,39 @@ export function TherapySessionsView() {
 
   async function handleUpload(event: FormEvent) {
     event.preventDefault();
-    if (!token || !file) return;
+    if (!token) return;
 
     setIsUploading(true);
     setError(null);
     try {
-      const created = await uploadTherapySession(token, {
-        file,
-        title,
-        sessionDate,
-      });
+      const created =
+        uploadMode === "text"
+          ? await uploadTherapySessionText(token, {
+              text: sessionText.trim(),
+              title,
+              sessionDate,
+            })
+          : await uploadTherapySession(token, {
+              file: file!,
+              title,
+              sessionDate,
+            });
       setSessions((prev) => [created, ...prev]);
       setSelectedId(created.id);
       setSelectedJob(created);
       setFile(null);
+      setSessionText("");
       setTitle("");
       if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (err) {
-      setError(getErrorMessage(err, "Не удалось загрузить файл."));
+      setError(getErrorMessage(err, uploadMode === "text" ? "Не удалось отправить текст." : "Не удалось загрузить файл."));
     } finally {
       setIsUploading(false);
     }
   }
+
+  const canSubmit =
+    uploadMode === "text" ? sessionText.trim().length >= MIN_TEXT_LENGTH : Boolean(file);
 
   async function handleRetry(mode: "full" | "analysis") {
     if (!token || selectedId === null || isRetrying) return;
@@ -171,23 +209,46 @@ export function TherapySessionsView() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-4 md:p-6">
+    <div className="flex w-full min-w-0 flex-col gap-4 px-3 py-4 lg:gap-5 lg:px-5 lg:py-5">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Сессии с психологом</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Загрузите запись с диктофона — получите расшифровку с разметкой спикеров и психологический разбор.
+          Загрузите запись с диктофона или вставьте готовый текст — получите разметку спикеров и психологический разбор.
         </p>
       </div>
 
+      {listError ? <LoadError message={listError} onRetry={reloadSessions} /> : null}
       {error ? <Notice variant="error">{error}</Notice> : null}
 
-      <div className="grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
+      <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(220px,240px)_minmax(0,1fr)] lg:items-start lg:gap-5 xl:grid-cols-[minmax(240px,260px)_minmax(0,1fr)]">
         <div className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Новая сессия</CardTitle>
             </CardHeader>
             <CardContent>
+              <div className="mb-4 flex gap-2">
+                <Button
+                  type="button"
+                  variant={uploadMode === "audio" ? "default" : "outline"}
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => setUploadMode("audio")}
+                >
+                  <Upload className="mr-1 h-4 w-4" />
+                  Аудио
+                </Button>
+                <Button
+                  type="button"
+                  variant={uploadMode === "text" ? "default" : "outline"}
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => setUploadMode("text")}
+                >
+                  <FileText className="mr-1 h-4 w-4" />
+                  Текст
+                </Button>
+              </div>
               <form onSubmit={handleUpload}>
                 <FieldGroup>
                   <Field>
@@ -208,19 +269,41 @@ export function TherapySessionsView() {
                       onChange={(event) => setSessionDate(event.target.value)}
                     />
                   </Field>
-                  <Field>
-                    <FieldLabel htmlFor="therapy-file">Аудиофайл</FieldLabel>
-                    <Input
-                      ref={fileInputRef}
-                      id="therapy-file"
-                      type="file"
-                      accept={acceptedFileTypes}
-                      onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-                    />
-                  </Field>
-                  <Button type="submit" disabled={!file || isUploading} className="w-full">
-                    {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-                    Загрузить и обработать
+                  {uploadMode === "audio" ? (
+                    <Field>
+                      <FieldLabel htmlFor="therapy-file">Аудиофайл</FieldLabel>
+                      <Input
+                        ref={fileInputRef}
+                        id="therapy-file"
+                        type="file"
+                        accept={acceptedFileTypes}
+                        onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+                      />
+                    </Field>
+                  ) : (
+                    <Field>
+                      <FieldLabel htmlFor="therapy-text">Текст сессии</FieldLabel>
+                      <Textarea
+                        id="therapy-text"
+                        value={sessionText}
+                        onChange={(event) => setSessionText(event.target.value)}
+                        placeholder="Вставьте расшифровку или заметки по сессии. Можно без разметки спикеров — ИИ разметит сам."
+                        className="min-h-[180px] resize-y text-sm leading-6"
+                      />
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Минимум {MIN_TEXT_LENGTH} символов. Сейчас: {sessionText.trim().length}
+                      </p>
+                    </Field>
+                  )}
+                  <Button type="submit" disabled={!canSubmit || isUploading} className="w-full">
+                    {isUploading ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : uploadMode === "text" ? (
+                      <FileText className="mr-2 h-4 w-4" />
+                    ) : (
+                      <Upload className="mr-2 h-4 w-4" />
+                    )}
+                    {uploadMode === "text" ? "Отправить текст" : "Загрузить и обработать"}
                   </Button>
                 </FieldGroup>
               </form>
@@ -237,7 +320,7 @@ export function TherapySessionsView() {
                   <Loader2 className="h-4 w-4 animate-spin" /> Загрузка...
                 </div>
               ) : sessions.length === 0 ? (
-                <Empty title="Пока нет сессий" description="Загрузите первую запись с диктофона." />
+                <Empty title="Пока нет сессий" description="Загрузите аудио или вставьте текст сессии." />
               ) : (
                 sessions.map((session) => (
                   <button
@@ -268,7 +351,7 @@ export function TherapySessionsView() {
           {!selectedJob ? (
             <Card>
               <CardContent className="py-12">
-                <Empty title="Выберите сессию" description="Или загрузите новую запись слева." />
+                <Empty title="Выберите сессию" description="Или добавьте новую — аудио или текст слева." />
               </CardContent>
             </Card>
           ) : (
@@ -278,7 +361,7 @@ export function TherapySessionsView() {
                   <div>
                     <CardTitle>{selectedJob.title}</CardTitle>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      {selectedJob.source_filename}
+                      {formatSessionSource(selectedJob)}
                       {selectedJob.duration_sec > 0
                         ? ` · ${Math.round(selectedJob.duration_sec / 60)} мин`
                         : ""}

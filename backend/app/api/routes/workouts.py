@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.api.deps import get_current_user
 from app.db.session import get_db
+from app.models.entry import Entry
 from app.models.user import User
 from app.models.workout import ExerciseCatalog, PersonalRecord, WorkoutExercise, WorkoutSession
 from app.schemas.workout import (
@@ -29,6 +30,8 @@ from app.schemas.workout import (
     WorkoutSet,
 )
 from app.services.workouts.analytics import exercise_progress_points, muscle_group_progress_points
+from app.services.workouts.entry_sync import sync_entry_for_session
+from app.services.embeddings.indexer import index_entry
 
 router = APIRouter()
 
@@ -99,6 +102,11 @@ def _apply_exercises(session: WorkoutSession, exercises: list[WorkoutExerciseCre
                 sets=[s.model_dump() for s in item.sets],
             )
         )
+
+
+def _sync_session_entry(db: Session, session: WorkoutSession) -> None:
+    entry = sync_entry_for_session(db, session)
+    index_entry(db, entry)
 
 
 @router.get("/catalog", response_model=list[ExerciseCatalogRead])
@@ -174,6 +182,16 @@ def delete_catalog_item(
     current_user: User = Depends(get_current_user),
 ) -> Response:
     item = _get_catalog_item(db, current_user.id, catalog_id)
+    usage_count = db.scalar(
+        select(func.count())
+        .select_from(WorkoutExercise)
+        .where(WorkoutExercise.exercise_catalog_id == catalog_id)
+    )
+    if usage_count:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot delete exercise used in workout sessions",
+        )
     db.delete(item)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -198,7 +216,10 @@ def create_session(
     _apply_exercises(session, payload.exercises)
     db.add(session)
     db.commit()
-    return _serialize_session(_get_session(db, current_user.id, session.id))
+    full_session = _get_session(db, current_user.id, session.id)
+    _sync_session_entry(db, full_session)
+    db.commit()
+    return _serialize_session(full_session)
 
 
 @router.get("/sessions", response_model=WorkoutSessionListResponse)
@@ -265,7 +286,10 @@ def update_session(
         _validate_catalog_ids(db, current_user.id, payload.exercises)
         _apply_exercises(session, payload.exercises)
     db.commit()
-    return _serialize_session(_get_session(db, current_user.id, session_id))
+    full_session = _get_session(db, current_user.id, session_id)
+    _sync_session_entry(db, full_session)
+    db.commit()
+    return _serialize_session(full_session)
 
 
 @router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -275,6 +299,10 @@ def delete_session(
     current_user: User = Depends(get_current_user),
 ) -> Response:
     session = _get_session(db, current_user.id, session_id)
+    if session.entry_id is not None:
+        entry = db.get(Entry, session.entry_id)
+        if entry is not None and entry.user_id == current_user.id:
+            db.delete(entry)
     db.delete(session)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

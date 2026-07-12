@@ -7,7 +7,18 @@ from sqlalchemy.orm import Session
 from app.services.context.context_models import ContextScope, ContextSnippet
 from app.services.context.query_intent import QueryIntent
 
-from . import finance, kanban, notes, people, plans, therapy, transcription
+from . import finance, kanban, notes, people, plans, therapy, transcription, workouts
+
+ALL_SCOPES: tuple[ContextScope, ...] = (
+    "notes",
+    "plans",
+    "finance",
+    "people",
+    "transcription",
+    "therapy",
+    "kanban",
+    "workouts",
+)
 
 RETRIEVER_MAP = {
     "notes": notes.retrieve,
@@ -17,6 +28,7 @@ RETRIEVER_MAP = {
     "transcription": transcription.retrieve,
     "therapy": therapy.retrieve,
     "kanban": kanban.retrieve,
+    "workouts": workouts.retrieve,
     "all": notes.retrieve,
 }
 
@@ -33,8 +45,8 @@ def retrieve_for_scope(
 ) -> list[ContextSnippet]:
     if scope == "all":
         merged: list[ContextSnippet] = []
-        per_scope = max(5, limit // 5)
-        for module_scope in ("notes", "plans", "finance", "people", "transcription", "therapy", "kanban"):
+        per_scope = max(5, limit // len(ALL_SCOPES))
+        for module_scope in ALL_SCOPES:
             merged.extend(
                 retrieve_for_scope(
                     db,

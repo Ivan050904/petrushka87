@@ -8,7 +8,9 @@ import { WeekTimeGrid, type WeekTimeGridHandle } from "@/features/plans/week-tim
 import {
   type AgendaItem,
   buildAgendaItems,
+  formatAgendaTimeRange,
   formatMonthLabel,
+  isSameDay,
   startOfDay,
 } from "@/lib/agenda";
 import { addDays, getWeekMonday } from "@/lib/recurrence";
@@ -64,6 +66,21 @@ export function PlansWeekCalendar({
     [entries, weekRange.end, weekRange.start],
   );
 
+  const activeDay = selectedDay ?? startOfDay(new Date());
+  const dayItems = useMemo(
+    () =>
+      agendaItems
+        .filter((item) => isSameDay(item.date, activeDay))
+        .sort((a, b) => a.date.getTime() - b.date.getTime()),
+    [agendaItems, activeDay],
+  );
+
+  function shiftActiveDay(delta: number) {
+    const next = addDays(activeDay, delta);
+    onSelectDay(next);
+    setWeekStart(getWeekMonday(next));
+  }
+
   function goToToday() {
     const today = startOfDay(new Date());
     setWeekStart(getWeekMonday(today));
@@ -75,7 +92,7 @@ export function PlansWeekCalendar({
   }
 
   return (
-    <div className={cn("flex min-h-[640px] flex-col gap-3", className)}>
+    <div className={cn("flex min-h-0 flex-col gap-3 lg:min-h-[640px]", className)}>
       <div className="relative z-20 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <span className="flex size-9 items-center justify-center rounded-md bg-primary/10 text-primary">
@@ -111,17 +128,57 @@ export function PlansWeekCalendar({
         </div>
       </div>
 
-      <WeekTimeGrid
-        ref={gridRef}
-        items={agendaItems}
-        weekStart={weekStart}
-        selectedDay={selectedDay}
-        selectedItemId={selectedId}
-        onSelectDay={onSelectDay}
-        onSelectItem={onSelect}
-        onSlotClick={onSlotClick}
-        scrollToTodayToken={scrollToTodayToken}
-      />
+      <div className="flex flex-col gap-3 lg:hidden">
+        <div className="flex items-center justify-between gap-2">
+          <Button type="button" variant="outline" size="icon" className="size-10" onClick={() => shiftActiveDay(-1)} aria-label="Предыдущий день">
+            <ChevronLeft aria-hidden="true" />
+          </Button>
+          <div className="min-w-0 text-center">
+            <p className="text-sm font-semibold capitalize">
+              {new Intl.DateTimeFormat("ru-RU", { weekday: "long", day: "numeric", month: "long" }).format(activeDay)}
+            </p>
+          </div>
+          <Button type="button" variant="outline" size="icon" className="size-10" onClick={() => shiftActiveDay(1)} aria-label="Следующий день">
+            <ChevronRight aria-hidden="true" />
+          </Button>
+        </div>
+        {dayItems.length === 0 ? (
+          <p className="rounded-md border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+            На этот день событий нет
+          </p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {dayItems.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onSelect(item)}
+                className={cn(
+                  "focus-ring rounded-md border px-3 py-3 text-left transition",
+                  selectedId === item.id ? "border-primary/40 bg-primary/10" : "border-border bg-card hover:bg-muted/50",
+                )}
+              >
+                <div className="text-xs text-muted-foreground">{formatAgendaTimeRange(item.date, item.endDate, activeDay)}</div>
+                <div className="mt-1 text-sm font-medium">{item.title}</div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="hidden min-h-0 flex-1 lg:flex">
+        <WeekTimeGrid
+          ref={gridRef}
+          items={agendaItems}
+          weekStart={weekStart}
+          selectedDay={selectedDay}
+          selectedItemId={selectedId}
+          onSelectDay={onSelectDay}
+          onSelectItem={onSelect}
+          onSlotClick={onSlotClick}
+          scrollToTodayToken={scrollToTodayToken}
+        />
+      </div>
     </div>
   );
 }

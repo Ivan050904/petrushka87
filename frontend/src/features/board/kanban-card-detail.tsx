@@ -7,6 +7,7 @@ import {
   CalendarDays,
   CheckSquare,
   Flag,
+  FolderKanban,
   MessageSquare,
   Paperclip,
   Plus,
@@ -16,6 +17,7 @@ import {
 } from "lucide-react";
 
 import { ConfirmDeleteButton } from "@/components/confirm-delete-button";
+import { EntryLinksPanel } from "@/features/entries/entry-links-panel";
 import {
   Dialog,
   DialogContent,
@@ -26,6 +28,7 @@ import { Select } from "@/components/ui/select";
 import { useRequireAuth } from "@/hooks/use-auth";
 import {
   downloadResourceFile,
+  fetchAllEntries,
   getErrorMessage,
   listEntries,
   updateEntry,
@@ -38,6 +41,7 @@ import {
   formatKanbanDeadline,
   getDevKanbanPriority,
   getKanbanAttachmentIds,
+  getKanbanCardType,
   getKanbanComments,
   getKanbanDeadline,
   getKanbanHistory,
@@ -47,6 +51,8 @@ import {
   KANBAN_MAX_ATTACHMENTS,
   KANBAN_MAX_FILE_BYTES,
   kanbanMetadata,
+  kanbanBoardSupportsProjects,
+  kanbanProjects,
   priorityAccent,
   toDateInputValue,
   type KanbanBoardConfig,
@@ -65,6 +71,7 @@ type KanbanCardDraft = {
   title: string;
   content: string;
   priority: number;
+  cardType: string;
   deadline: string;
   subtasks: KanbanSubtask[];
   attachmentIds: string[];
@@ -81,11 +88,12 @@ type KanbanCardDetailProps = {
   onMoveStage: (stage: KanbanStage) => void | Promise<void>;
 };
 
-function entryToDraft(entry: Entry): KanbanCardDraft {
+function entryToDraft(entry: Entry, boardConfig: KanbanBoardConfig): KanbanCardDraft {
   return {
     title: entry.title,
     content: entry.content,
     priority: getDevKanbanPriority(entry),
+    cardType: getKanbanCardType(entry, boardConfig),
     deadline: toDateInputValue(getKanbanDeadline(entry)),
     subtasks: getKanbanSubtasks(entry),
     attachmentIds: getKanbanAttachmentIds(entry),
@@ -98,7 +106,7 @@ function draftsEqual(left: KanbanCardDraft, right: KanbanCardDraft) {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
-function buildHistoryEvents(previous: Entry, draft: KanbanCardDraft): KanbanHistoryEvent[] {
+function buildHistoryEvents(previous: Entry, draft: KanbanCardDraft, boardConfig: KanbanBoardConfig): KanbanHistoryEvent[] {
   const events: KanbanHistoryEvent[] = [];
   if (previous.title !== draft.title.trim()) {
     events.push(createKanbanHistoryEvent("updated", "Изменён заголовок"));
@@ -108,6 +116,14 @@ function buildHistoryEvents(previous: Entry, draft: KanbanCardDraft): KanbanHist
   }
   if (getDevKanbanPriority(previous) !== draft.priority) {
     events.push(createKanbanHistoryEvent("updated", `Приоритет: ${draft.priority}`));
+  }
+  if (
+    kanbanBoardSupportsProjects(boardConfig.mode) &&
+    getKanbanCardType(previous, boardConfig) !== draft.cardType &&
+    draft.cardType
+  ) {
+    const label = boardConfig.cardTypes.find((item) => item.value === draft.cardType)?.label ?? draft.cardType;
+    events.push(createKanbanHistoryEvent("updated", `Проект: ${label}`));
   }
   if (toDateInputValue(getKanbanDeadline(previous)) !== draft.deadline) {
     events.push(
@@ -152,7 +168,7 @@ export function KanbanCardDetail({
   const stageLabel = boardConfig.columns.find((column) => column.id === stage)?.label ?? stage;
 
   const [activeTab, setActiveTab] = useState<DetailTab>("details");
-  const [draft, setDraft] = useState<KanbanCardDraft>(() => entryToDraft(entry));
+  const [draft, setDraft] = useState<KanbanCardDraft>(() => entryToDraft(entry, boardConfig));
   const [resourceTitles, setResourceTitles] = useState<Record<string, string>>({});
   const [newSubtask, setNewSubtask] = useState("");
   const [newComment, setNewComment] = useState("");
@@ -170,13 +186,15 @@ export function KanbanCardDetail({
   draftRef.current = draft;
 
   const subtaskProgress = useMemo(() => getKanbanSubtaskProgress({ ...entry, metadata: { ...entry.metadata, subtasks: draft.subtasks } }), [draft.subtasks, entry]);
+  const showProjectSection =
+    kanbanBoardSupportsProjects(boardConfig.mode) && kanbanProjects(boardConfig).length > 0;
 
   const loadResourceTitles = useCallback(async () => {
     if (!token || draft.attachmentIds.length === 0) {
       return;
     }
     try {
-      const result = await listEntries(token, { type: "resource", limit: 100 });
+      const result = await fetchAllEntries(token, { type: "resource" });
       const titles = Object.fromEntries(
         result.items
           .filter((item) => draft.attachmentIds.includes(item.id))
@@ -193,9 +211,9 @@ export function KanbanCardDetail({
   }, [loadResourceTitles]);
 
   useEffect(() => {
-    setDraft(entryToDraft(entry));
+    setDraft(entryToDraft(entry, boardConfig));
     setSaveError(null);
-  }, [entry.id]);
+  }, [entry.id, boardConfig]);
 
   const persistDraft = useCallback(async () => {
     if (!token) {
@@ -204,7 +222,7 @@ export function KanbanCardDetail({
 
     const currentEntry = entryRef.current;
     const currentDraft = draftRef.current;
-    const baseline = entryToDraft(currentEntry);
+    const baseline = entryToDraft(currentEntry, boardConfig);
     if (draftsEqual(baseline, currentDraft)) {
       return;
     }
@@ -212,11 +230,14 @@ export function KanbanCardDetail({
     setIsSaving(true);
     setSaveError(null);
 
-    const historyEvents = buildHistoryEvents(currentEntry, currentDraft);
+    const historyEvents = buildHistoryEvents(currentEntry, currentDraft, boardConfig);
     const nextHistory = historyEvents.reduce(
       (history, event) => appendKanbanHistory(history, event),
       currentDraft.history,
     );
+
+    const supportsProjects =
+      kanbanBoardSupportsProjects(boardConfig.mode) && kanbanProjects(boardConfig).length > 0;
 
     try {
       const updated = await updateEntry(token, currentEntry.id, {
@@ -226,6 +247,7 @@ export function KanbanCardDetail({
           ...currentEntry.metadata,
           ...kanbanMetadata(boardConfig.id, getKanbanStage(currentEntry, boardConfig), boardConfig, {
             priority: currentDraft.priority,
+            cardType: supportsProjects ? currentDraft.cardType : undefined,
           }),
           deadline: currentDraft.deadline || null,
           subtasks: currentDraft.subtasks,
@@ -234,7 +256,7 @@ export function KanbanCardDetail({
           history: nextHistory,
         },
       });
-      setDraft(entryToDraft(updated));
+      setDraft(entryToDraft(updated, boardConfig));
       setLastSavedAt(new Date().toISOString());
       onUpdate(updated);
     } catch (requestError) {
@@ -245,7 +267,7 @@ export function KanbanCardDetail({
   }, [boardConfig, onUpdate, token]);
 
   useEffect(() => {
-    const baseline = entryToDraft(entry);
+    const baseline = entryToDraft(entry, boardConfig);
     if (draftsEqual(baseline, draft)) {
       return;
     }
@@ -540,6 +562,28 @@ export function KanbanCardDetail({
                 ) : null}
               </section>
 
+              {showProjectSection ? (
+              <section>
+                <SectionLabel icon={<FolderKanban className="size-3.5" />}>Проект</SectionLabel>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {boardConfig.cardTypes.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => updateDraft({ cardType: option.value })}
+                      className={cn(
+                        option.className,
+                        draft.cardType === option.value && "ring-2 ring-[var(--kanban-detail-accent)]",
+                      )}
+                      aria-pressed={draft.cardType === option.value}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </section>
+              ) : null}
+
               <section>
                 <SectionLabel icon={<Flag className="size-3.5" />}>Приоритет</SectionLabel>
                 <div className="mt-2 flex gap-2">
@@ -551,7 +595,7 @@ export function KanbanCardDetail({
                       className={cn(
                         "kanban-detail-priority-btn",
                         draft.priority === value && "kanban-detail-priority-btn-active",
-                        draft.priority === value && value >= 4 && priorityAccent(value),
+                        draft.priority === value && priorityAccent(value),
                       )}
                       aria-label={`Приоритет ${value}`}
                       aria-pressed={draft.priority === value}
@@ -631,6 +675,8 @@ export function KanbanCardDetail({
                   </button>
                 </div>
               </section>
+
+              <EntryLinksPanel token={token} entry={entry} className="border-t border-[var(--kanban-detail-border)] pt-4" />
             </div>
           ) : null}
 

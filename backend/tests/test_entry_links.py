@@ -59,17 +59,7 @@ def _enable_foreign_keys(engine: Engine) -> None:
         cursor.close()
 
 
-def _register(client: TestClient) -> str:
-    response = client.post(
-        "/api/v1/auth/register",
-        json={
-            "email": f"links-{uuid.uuid4().hex[:8]}@example.com",
-            "password": "password12345",
-            "full_name": "Links User",
-        },
-    )
-    assert response.status_code == 201
-    return response.json()["access_token"]
+from tests.auth_helpers import create_user_token as _register
 
 
 def _auth_headers(token: str) -> dict[str, str]:

@@ -48,7 +48,7 @@ def _maybe_tune_psych_queries(db) -> None:  # noqa: ANN001
     try:
         user = _resolve_user(db, None, settings.digest_user_email)
         feedback_profile = load_feedback_profile(db, user.id, collection="psychology")
-        result = tune_psych_queries(feedback_profile)
+        result = tune_psych_queries(feedback_profile, user_id=user.id)
         logger.info("Psych query tuning: status=%s message=%s", result.status, result.message)
     except Exception:
         logger.exception("Psych query tuning failed")

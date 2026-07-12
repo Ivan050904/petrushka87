@@ -99,6 +99,31 @@ def test_finance_retriever_pins_month(db_session: Session) -> None:
     assert any("Обед" in item.title for item in snippets)
 
 
+def test_kanban_retriever_finds_board_field_card(db_session: Session) -> None:
+    user = _user(db_session)
+    db_session.add(
+        Entry(
+            user_id=user.id,
+            type="note",
+            title="Мысль",
+            content="Страх перед конфликтом на работе",
+            metadata_={"board": "kanban_psych", "stage": "inbox"},
+        )
+    )
+    db_session.commit()
+
+    intent = QueryIntent(scopes=["kanban"], confidence=0.8)
+    snippets = kanban.retrieve(
+        db_session,
+        user.id,
+        "че там на канбане по психологии",
+        intent=intent,
+        limit=5,
+    )
+    assert len(snippets) >= 1
+    assert snippets[0].scope == "kanban"
+
+
 def test_kanban_retriever_finds_board_card(db_session: Session) -> None:
     user = _user(db_session)
     db_session.add(

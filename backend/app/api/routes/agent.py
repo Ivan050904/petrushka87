@@ -92,8 +92,8 @@ def _user_today() -> date:
     return digest_user_today()
 
 
-def _profile_status(profile: DigestProfileName) -> DigestProfileStatus:
-    state = load_digest_state(profile)
+def _profile_status(user_id: uuid.UUID, profile: DigestProfileName) -> DigestProfileStatus:
+    state = load_digest_state(user_id, profile)
     today = _user_today()
     date_range = compute_search_date_range(
         today=today,
@@ -104,7 +104,7 @@ def _profile_status(profile: DigestProfileName) -> DigestProfileStatus:
 
     if profile == "psychology":
         enabled = settings.psych_digest_enabled
-        query_source = get_active_psych_query_source()
+        query_source = get_active_psych_query_source(user_id)
         tuned_at = state.tuned_at
     else:
         enabled = settings.digest_enabled
@@ -129,9 +129,8 @@ def _profile_status(profile: DigestProfileName) -> DigestProfileStatus:
 def digest_status(
     current_user: User = Depends(get_current_user),
 ) -> DigestStatusResponse:
-    del current_user
-    ai_status = _profile_status("ai")
-    psych_status = _profile_status("psychology")
+    ai_status = _profile_status(current_user.id, "ai")
+    psych_status = _profile_status(current_user.id, "psychology")
 
     return DigestStatusResponse(
         enabled=ai_status.enabled,
@@ -210,7 +209,7 @@ def psych_tune_queries(
         current_user.id,
         collection="psychology",
     )
-    result = tune_psych_queries(feedback_profile)
+    result = tune_psych_queries(feedback_profile, user_id=current_user.id)
     return PsychQueryTuneResponse(
         status=result.status,
         queries=result.queries,

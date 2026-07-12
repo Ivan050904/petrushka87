@@ -6,6 +6,7 @@ import type {
   TokenResponse,
   User,
 } from "@/lib/types";
+import { resolveApiBaseUrl } from "@/lib/api-base-url";
 import type {
   FinanceAIStatus,
   FinanceBankCode,
@@ -24,11 +25,18 @@ import type {
   WorkoutSet,
 } from "@/lib/workouts";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+
+const DEFAULT_ENTRY_PAGE_SIZE = 200;
 
 type RequestOptions = RequestInit & {
   token?: string | null;
 };
+
+let unauthorizedHandler: (() => void) | null = null;
+
+export function setUnauthorizedHandler(handler: (() => void) | null) {
+  unauthorizedHandler = handler;
+}
 
 export class ApiError extends Error {
   constructor(
@@ -98,12 +106,28 @@ function formatValidationIssue(item: unknown): string | null {
 }
 
 async function errorMessageFromResponse(response: Response) {
+  if (response.status === 429) {
+    const retryAfter = response.headers.get("Retry-After");
+    if (retryAfter && /^\d+$/.test(retryAfter)) {
+      return `Слишком много попыток. Подождите ${retryAfter} сек.`;
+    }
+    return "Слишком много попыток. Подождите немного и попробуйте снова.";
+  }
+
   try {
     const body = (await response.json()) as { detail?: unknown };
     return formatErrorDetail(body.detail) ?? (response.statusText || "Request failed");
   } catch {
     return response.statusText || "Request failed";
   }
+}
+
+async function handleFailedResponse(response: Response) {
+  const isAuthLoginRequest = response.url.includes("/auth/login");
+  if (response.status === 401 && unauthorizedHandler && !isAuthLoginRequest) {
+    unauthorizedHandler();
+  }
+  throw new ApiError(await errorMessageFromResponse(response), response.status);
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -121,13 +145,13 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     headers.set("Authorization", `Bearer ${options.token}`);
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(`${resolveApiBaseUrl()}${path}`, {
     ...options,
     headers,
   });
 
   if (!response.ok) {
-    throw new ApiError(await errorMessageFromResponse(response), response.status);
+    await handleFailedResponse(response);
   }
 
   if (response.status === 204) {
@@ -143,13 +167,13 @@ async function requestBlob(path: string, options: RequestOptions = {}) {
     headers.set("Authorization", `Bearer ${options.token}`);
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(`${resolveApiBaseUrl()}${path}`, {
     ...options,
     headers,
   });
 
   if (!response.ok) {
-    throw new ApiError(await errorMessageFromResponse(response), response.status);
+    await handleFailedResponse(response);
   }
 
   return response.blob();
@@ -191,6 +215,8 @@ export function listEntries(
     q?: string;
     type?: EntryType;
     kind?: string;
+    metadata_status?: string;
+    metadata_source?: string;
     limit?: number;
     offset?: number;
     collection?: string;
@@ -211,6 +237,12 @@ export function listEntries(
   }
   if (params.kind) {
     searchParams.set("kind", params.kind);
+  }
+  if (params.metadata_status) {
+    searchParams.set("metadata_status", params.metadata_status);
+  }
+  if (params.metadata_source) {
+    searchParams.set("metadata_source", params.metadata_source);
   }
   if (params.limit) {
     searchParams.set("limit", String(params.limit));
@@ -242,6 +274,28 @@ export function listEntries(
 
   const query = searchParams.toString();
   return request<EntryList>(`/entries${query ? `?${query}` : ""}`, { token });
+}
+
+export async function fetchAllEntries(
+  token: string,
+  params: Omit<Parameters<typeof listEntries>[1], "limit" | "offset"> = {},
+  pageSize = DEFAULT_ENTRY_PAGE_SIZE,
+): Promise<EntryList> {
+  const items: Entry[] = [];
+  let offset = 0;
+  let total = 0;
+
+  while (true) {
+    const page = await listEntries(token, { ...params, limit: pageSize, offset });
+    total = page.total;
+    items.push(...page.items);
+    offset += page.items.length;
+    if (offset >= total || page.items.length === 0) {
+      break;
+    }
+  }
+
+  return { items, total };
 }
 
 export function createEntry(
@@ -457,11 +511,36 @@ export function listAssistantConversations(token: string): Promise<AssistantConv
   return request<AssistantConversation[]>("/assistant/conversations", { token });
 }
 
-export function createAssistantConversation(token: string, title = "Новый диалог"): Promise<AssistantConversation> {
+export function createAssistantConversation(
+  token: string,
+  options: { title?: string; scope?: string } = {},
+): Promise<AssistantConversation> {
   return request<AssistantConversation>("/assistant/conversations", {
     method: "POST",
     token,
-    body: JSON.stringify({ title, scope: "all" }),
+    body: JSON.stringify({
+      title: options.title ?? "Новый диалог",
+      scope: options.scope ?? "all",
+    }),
+  });
+}
+
+export function deleteAssistantConversation(token: string, conversationId: string): Promise<void> {
+  return request<void>(`/assistant/conversations/${conversationId}`, {
+    method: "DELETE",
+    token,
+  });
+}
+
+export function updateAssistantConversation(
+  token: string,
+  conversationId: string,
+  payload: { title: string },
+): Promise<AssistantConversation> {
+  return request<AssistantConversation>(`/assistant/conversations/${conversationId}`, {
+    method: "PATCH",
+    token,
+    body: JSON.stringify(payload),
   });
 }
 
@@ -482,7 +561,7 @@ export async function streamAssistantChat(
     onDone?: (payload: AssistantChatDonePayload) => void;
   },
 ): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/assistant/conversations/${conversationId}/chat`, {
+  const response = await fetch(`${resolveApiBaseUrl()}/assistant/conversations/${conversationId}/chat`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -813,7 +892,7 @@ export async function uploadTherapySession(
     formData.append("session_date", payload.sessionDate.trim());
   }
 
-  const response = await fetch(`${API_BASE_URL}/therapy-sessions`, {
+  const response = await fetch(`${resolveApiBaseUrl()}/therapy-sessions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
     body: formData,
@@ -822,6 +901,21 @@ export async function uploadTherapySession(
     throw new ApiError(await errorMessageFromResponse(response), response.status);
   }
   return response.json() as Promise<TherapySessionJob>;
+}
+
+export function uploadTherapySessionText(
+  token: string,
+  payload: { text: string; title?: string; sessionDate?: string },
+): Promise<TherapySessionJob> {
+  return request<TherapySessionJob>("/therapy-sessions/text", {
+    method: "POST",
+    token,
+    body: JSON.stringify({
+      text: payload.text,
+      title: payload.title?.trim() || "",
+      session_date: payload.sessionDate?.trim() || null,
+    }),
+  });
 }
 
 export function retryTherapySession(
@@ -839,6 +933,64 @@ export function deleteTherapySession(token: string, jobId: number): Promise<void
   return request<void>(`/therapy-sessions/${jobId}`, { method: "DELETE", token });
 }
 
+export type AgendaBundle = {
+  tasks: Entry[];
+  events: Entry[];
+  reminders: Entry[];
+};
+
+export function getAgendaEntries(token: string): Promise<AgendaBundle> {
+  return request<AgendaBundle>("/plans/agenda", { token });
+}
+
+export type EntryLink = {
+  id: string;
+  source_entry_id: string;
+  target_entry_id: string;
+  link_type: string;
+};
+
+export function listEntryLinks(token: string, entryId: string): Promise<EntryLink[]> {
+  return request<EntryLink[]>(`/entries/${entryId}/links`, { token });
+}
+
+export function createEntryLink(
+  token: string,
+  entryId: string,
+  payload: { target_entry_id: string; link_type?: string },
+): Promise<EntryLink> {
+  return request<EntryLink>(`/entries/${entryId}/links`, {
+    method: "POST",
+    token,
+    body: JSON.stringify({ link_type: "related", ...payload }),
+  });
+}
+
+export function deleteEntryLink(token: string, entryId: string, linkId: string): Promise<void> {
+  return request<void>(`/entries/${entryId}/links/${linkId}`, {
+    method: "DELETE",
+    token,
+  });
+}
+
+export type UserSettingsPayload = {
+  food_targets?: Record<string, unknown> | null;
+  finance_accounts?: Array<Record<string, unknown>> | null;
+  finance_categories?: string[] | null;
+};
+
+export function getUserSettings(token: string): Promise<UserSettingsPayload> {
+  return request<UserSettingsPayload>("/user/settings", { token });
+}
+
+export function patchUserSettings(token: string, payload: UserSettingsPayload): Promise<UserSettingsPayload> {
+  return request<UserSettingsPayload>("/user/settings", {
+    method: "PATCH",
+    token,
+    body: JSON.stringify(payload),
+  });
+}
+
 export function listWorkoutCatalog(token: string, muscleGroup?: MuscleGroup): Promise<ExerciseCatalogItem[]> {
   const query = muscleGroup ? `?muscle_group=${muscleGroup}` : "";
   return request<ExerciseCatalogItem[]>(`/workouts/catalog${query}`, { token });
@@ -853,6 +1005,22 @@ export function createWorkoutCatalogItem(
     token,
     body: JSON.stringify(payload),
   });
+}
+
+export function updateWorkoutCatalogItem(
+  token: string,
+  catalogId: string,
+  payload: { name?: string; muscle_group?: MuscleGroup },
+): Promise<ExerciseCatalogItem> {
+  return request<ExerciseCatalogItem>(`/workouts/catalog/${catalogId}`, {
+    method: "PATCH",
+    token,
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteWorkoutCatalogItem(token: string, catalogId: string): Promise<void> {
+  return request<void>(`/workouts/catalog/${catalogId}`, { method: "DELETE", token });
 }
 
 export function createWorkoutSession(
@@ -891,6 +1059,10 @@ export function updateWorkoutSession(
     token,
     body: JSON.stringify(payload),
   });
+}
+
+export function deleteWorkoutSession(token: string, sessionId: string): Promise<void> {
+  return request<void>(`/workouts/sessions/${sessionId}`, { method: "DELETE", token });
 }
 
 export function listWorkoutSessions(

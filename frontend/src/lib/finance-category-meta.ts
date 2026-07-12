@@ -81,3 +81,23 @@ export function computeKpiDelta(current: number, compare: number): string | null
   }
   return percent > 0 ? `+${percent}%` : `${percent}%`;
 }
+
+export type KpiKind = "expense" | "income" | "balance";
+
+export type KpiDeltaMeta = {
+  label: string | null;
+  sentiment: "good" | "bad" | "neutral";
+};
+
+export function computeKpiDeltaMeta(kind: KpiKind, current: number, compare: number): KpiDeltaMeta {
+  const label = computeKpiDelta(current, compare);
+  if (!label || label === "0%") {
+    return { label, sentiment: "neutral" };
+  }
+
+  const increased = current > compare;
+  if (kind === "expense") {
+    return { label, sentiment: increased ? "bad" : "good" };
+  }
+  return { label, sentiment: increased ? "good" : "bad" };
+}

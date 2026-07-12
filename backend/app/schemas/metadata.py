@@ -205,19 +205,77 @@ class HabitMetadata(BaseModel):
         return value
 
 
+class PersonContactItem(BaseModel):
+    type: Literal["phone", "email", "telegram", "other"] = "other"
+    value: str = Field(min_length=1, max_length=200)
+    label: str | None = None
+
+
 class PersonMetadata(BaseModel):
     model_config = ConfigDict(extra="allow")
 
-    full_name: str = Field(min_length=1, max_length=200)
+    last_name: str | None = Field(default=None, max_length=100)
+    first_name: str | None = Field(default=None, max_length=100)
+    middle_name: str | None = Field(default=None, max_length=100)
+    full_name: str | None = Field(default=None, max_length=200)
     description: str | None = None
     birthday: str | None = None
     contacts: list[str] = Field(default_factory=list)
+    contact_items: list[PersonContactItem] = Field(default_factory=list)
     notes: str | None = None
 
     @field_validator("birthday")
     @classmethod
     def validate_birthday(cls, value: str | None) -> str | None:
         return _validate_iso_date(value, field_name="birthday")
+
+    @staticmethod
+    def _compose_full_name(
+        last_name: str | None,
+        first_name: str | None,
+        middle_name: str | None,
+        full_name: str | None,
+    ) -> str:
+        parts = [part.strip() for part in (last_name, first_name, middle_name) if part and part.strip()]
+        if parts:
+            return " ".join(parts)
+        cleaned = (full_name or "").strip()
+        if cleaned:
+            return cleaned
+        raise ValueError("full_name or at least one name part is required")
+
+    @model_validator(mode="after")
+    def normalize_contacts(self) -> "PersonMetadata":
+        self.full_name = self._compose_full_name(
+            self.last_name,
+            self.first_name,
+            self.middle_name,
+            self.full_name,
+        )
+        if self.contact_items:
+            self.contacts = [f"{item.type}: {item.value.strip()}" for item in self.contact_items if item.value.strip()]
+            return self
+
+        parsed_items: list[PersonContactItem] = []
+        for raw_contact in self.contacts:
+            cleaned = raw_contact.strip()
+            if not cleaned:
+                continue
+            if ":" in cleaned:
+                raw_type, value = cleaned.split(":", 1)
+                contact_type = raw_type.strip().lower()
+                mapped_type = contact_type if contact_type in {"phone", "email", "telegram", "other"} else "other"
+                parsed_items.append(PersonContactItem(type=mapped_type, value=value.strip() or cleaned))
+            elif "@" in cleaned and not cleaned.startswith("@"):
+                parsed_items.append(PersonContactItem(type="email", value=cleaned))
+            elif cleaned.startswith("@") or "t.me" in cleaned.lower():
+                parsed_items.append(PersonContactItem(type="telegram", value=cleaned))
+            elif cleaned.replace(" ", "").replace("-", "").replace("(", "").replace(")", "").isdigit():
+                parsed_items.append(PersonContactItem(type="phone", value=cleaned))
+            else:
+                parsed_items.append(PersonContactItem(type="other", value=cleaned))
+        self.contact_items = parsed_items
+        return self
 
 
 class DiaryMetadata(BaseModel):

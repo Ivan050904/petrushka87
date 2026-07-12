@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
@@ -14,15 +14,18 @@ from app.api.deps import get_current_user
 from app.core.config import settings
 from app.db.session import SessionLocal, get_db
 from app.models.user import User
+from app.models.assistant import AssistantMessage
 from app.services.ai.base import AIUnavailableError
 from app.services.assistant.agent import run_assistant_turn
 from app.services.assistant.chat import (
     AssistantStreamMeta,
     add_message,
     create_conversation,
+    delete_conversation,
     get_conversation,
     list_conversations,
     stream_assistant_reply,
+    update_conversation,
 )
 from app.services.assistant.llm import check_assistant_provider_health
 from app.services.assistant.schemas import (
@@ -62,6 +65,10 @@ class ConversationDetail(ConversationRead):
 class ConversationCreate(BaseModel):
     title: str = Field(default="Новый диалог", max_length=200)
     scope: str = Field(default="all", max_length=32)
+
+
+class ConversationUpdate(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
 
 
 class ChatRequest(BaseModel):
@@ -220,6 +227,44 @@ def get_conversation_detail(
     )
 
 
+@router.delete("/conversations/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_conversation(
+    conversation_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    if not delete_conversation(db, current_user.id, conversation_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.patch("/conversations/{conversation_id}", response_model=ConversationRead)
+def patch_conversation(
+    conversation_id: uuid.UUID,
+    payload: ConversationUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ConversationRead:
+    conversation = update_conversation(
+        db,
+        current_user.id,
+        conversation_id,
+        title=payload.title,
+    )
+    if conversation is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+    db.commit()
+    db.refresh(conversation)
+    return ConversationRead(
+        id=conversation.id,
+        title=conversation.title,
+        scope=conversation.scope,
+        created_at=conversation.created_at,
+        updated_at=conversation.updated_at,
+    )
+
+
 @router.post("/conversations/{conversation_id}/chat")
 def post_chat_stream(
     conversation_id: uuid.UUID,
@@ -232,7 +277,8 @@ def post_chat_stream(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
 
     question = payload.message.strip()
-    add_message(db, conversation=conversation, role="user", content=question)
+    user_message = add_message(db, conversation=conversation, role="user", content=question)
+    user_message_id = user_message.id
     db.commit()
 
     conversation_id_val = conversation.id
@@ -298,6 +344,14 @@ def post_chat_stream(
 
             yield f"event: done\ndata: {json.dumps(payload_done, ensure_ascii=False)}\n\n"
         except Exception as exc:  # noqa: BLE001
+            cleanup_db = SessionLocal()
+            try:
+                stale_message = cleanup_db.get(AssistantMessage, user_message_id)
+                if stale_message is not None:
+                    cleanup_db.delete(stale_message)
+                    cleanup_db.commit()
+            finally:
+                cleanup_db.close()
             yield f"event: error\ndata: {json.dumps({'message': str(exc)}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(

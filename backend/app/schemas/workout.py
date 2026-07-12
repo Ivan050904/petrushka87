@@ -11,6 +11,7 @@ class MuscleGroup(StrEnum):
     LEGS = "legs"
     SHOULDERS = "shoulders"
     BACK = "back"
+    CHEST = "chest"
     BICEPS = "biceps"
     TRICEPS = "triceps"
 
@@ -19,6 +20,7 @@ MUSCLE_GROUP_LABELS: dict[MuscleGroup, str] = {
     MuscleGroup.LEGS: "Ноги",
     MuscleGroup.SHOULDERS: "Плечи",
     MuscleGroup.BACK: "Спина",
+    MuscleGroup.CHEST: "Грудь",
     MuscleGroup.BICEPS: "Бицепс",
     MuscleGroup.TRICEPS: "Трицепс",
 }

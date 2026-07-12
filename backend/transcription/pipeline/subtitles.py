@@ -10,9 +10,8 @@ import json
 import re
 from pathlib import Path
 
-from yt_dlp import YoutubeDL
-
 from transcription.config import settings
+from transcription.pipeline.ytdlp_opts import run_ytdlp
 
 
 def _pick_subtitle_url(info: dict, lang: str) -> str | None:
@@ -55,9 +54,7 @@ def _json3_to_text(raw: str) -> str:
 
 def get_video_info(url: str) -> dict:
     """Достаёт метаданные видео (без скачивания)."""
-    opts = {"quiet": True, "skip_download": True, "no_warnings": True}
-    with YoutubeDL(opts) as ydl:
-        return ydl.extract_info(url, download=False)
+    return run_ytdlp(url, download=False)
 
 
 def fetch_subtitles(url: str, info: dict | None = None, lang: str | None = None) -> str | None:
@@ -82,15 +79,13 @@ def download_audio(url: str, out_dir: Path | None = None) -> Path:
     """Скачивает только аудио для последующего распознавания Whisper."""
     out_dir = out_dir or settings.tmp_path
     outtmpl = str(out_dir / "%(id)s.%(ext)s")
-    opts = {
-        "quiet": True,
-        "no_warnings": True,
-        "format": "bestaudio/best",
-        "outtmpl": outtmpl,
-        "postprocessors": [
+    info = run_ytdlp(
+        url,
+        download=True,
+        outtmpl=outtmpl,
+        format="bestaudio/best",
+        postprocessors=[
             {"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "128"}
         ],
-    }
-    with YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(url, download=True)
+    )
     return out_dir / f"{info['id']}.mp3"

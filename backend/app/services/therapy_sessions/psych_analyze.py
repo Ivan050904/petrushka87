@@ -49,7 +49,7 @@ def analyze_therapy_session(
 ) -> TherapySessionAnalysis:
     text = diarized_transcript.strip()
     if not text:
-        raise TherapyLLMUnavailableError("Transcript is empty for analysis")
+        raise TherapyLLMUnavailableError("Текст сессии пуст — нечего анализировать")
 
     long_session = duration_sec >= 15 * 60 or len(text) > CHUNK_CHARS
     if not long_session:

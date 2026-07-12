@@ -7,6 +7,8 @@ import Link from "next/link";
 import { NutritionArcChart } from "@/components/nutrition-arc-chart";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { BirthdaysWidget } from "@/features/dashboard/birthdays-widget";
+import { FinanceMonthWidget } from "@/features/dashboard/finance-month-widget";
 import { inboxPreviewTitle } from "@/features/inbox/inbox-helpers";
 import { entryModuleHref } from "@/lib/entry-helpers";
 import {
@@ -16,9 +18,10 @@ import {
   type NutritionTargets,
 } from "@/lib/food-tracking";
 import { formatDateKey, readHabitMetadata } from "@/lib/habits";
+import type { FinanceSummary } from "@/lib/finance-import";
 import { formatEntryType } from "@/lib/labels";
 import { buildNutritionSummary } from "@/lib/nutrition-summary";
-import { ROUTES } from "@/lib/navigation";
+import { ROUTES, trackingFinanceDashboardHref } from "@/lib/navigation";
 import type { Entry } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -29,6 +32,10 @@ type DashboardWidgetsProps = {
   userId: string | undefined;
   updatingHabitId: string | null;
   onToggleHabit: (habit: Entry) => void;
+  financeSummary: FinanceSummary | null;
+  financeCompareSummary: FinanceSummary | null;
+  financeCompareMonth: string;
+  isFinanceLoading: boolean;
 };
 
 export function DashboardWidgets({
@@ -38,11 +45,16 @@ export function DashboardWidgets({
   userId,
   updatingHabitId,
   onToggleHabit,
+  financeSummary,
+  financeCompareSummary,
+  financeCompareMonth,
+  isFinanceLoading,
 }: DashboardWidgetsProps) {
   const todayKey = formatDateKey(new Date());
   const [targets, setTargets] = useState<NutritionTargets>(DEFAULT_NUTRITION_TARGETS);
   const nutrition = buildNutritionSummary(entries);
   const inboxPreview = inboxEntries.slice(0, 3);
+  const people = entries.filter((entry) => entry.type === "person");
 
   useEffect(() => {
     if (!userId) {
@@ -58,7 +70,7 @@ export function DashboardWidgets({
 
   return (
     <section
-      className="grid min-w-0 shrink-0 gap-3 border-t border-border/70 pt-4 sm:grid-cols-2 lg:gap-4 lg:pt-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1.2fr)]"
+      className="grid min-w-0 shrink-0 gap-3 border-t border-border/70 pt-4 sm:grid-cols-2 lg:gap-4 lg:pt-4 xl:grid-cols-5"
       aria-label="Виджеты дня"
     >
       <WidgetBlock title="Привычки" actionHref={`${ROUTES.tracking}?tab=habits`} actionLabel="Все">
@@ -129,6 +141,17 @@ export function DashboardWidgets({
       <WidgetBlock title="КБЖУ сегодня" actionHref={`${ROUTES.tracking}?tab=food`} actionLabel="Трекинг">
         <NutritionArcChart summary={nutrition} targets={targets} compact />
       </WidgetBlock>
+
+      <WidgetBlock title="Финансы" actionHref={trackingFinanceDashboardHref()} actionLabel="Дашборд">
+        <FinanceMonthWidget
+          summary={financeSummary}
+          compareSummary={financeCompareSummary}
+          compareMonth={financeCompareMonth}
+          isLoading={isFinanceLoading}
+        />
+      </WidgetBlock>
+
+      <BirthdaysWidget people={people} />
     </section>
   );
 }

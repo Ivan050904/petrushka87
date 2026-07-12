@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
@@ -16,6 +17,7 @@ from app.services.agent.prompts import (
 from app.services.agent.psych_queries import (
     PsychQuerySelection,
     configured_psych_queries,
+    select_rotated_psych_queries,
     uses_configured_psych_queries,
 )
 from app.services.agent.psych_relevance import filter_psych_candidates
@@ -49,7 +51,10 @@ def _ai_topics() -> list[str]:
 
 
 def _psych_topics() -> list[str]:
-    return [item.query for item in configured_psych_queries()]
+    override = [item.strip() for item in settings.psych_digest_queries if item.strip()]
+    if override:
+        return override
+    return [item.query for item in select_rotated_psych_queries()]
 
 
 def _search_habr(
@@ -137,11 +142,13 @@ def _extract_source_site(url: str) -> str | None:
 
 def collect_psychology_candidates(
     topics: list[str] | None = None,
+    *,
+    user_id: uuid.UUID,
 ) -> tuple[list[SearchResult], dict[str, str]]:
     if topics:
         selections = [PsychQuerySelection(query=topic, tier="custom") for topic in topics]
     else:
-        selections = configured_psych_queries()
+        selections = configured_psych_queries(user_id)
     tier_by_query = {item.query: item.tier for item in selections}
 
     candidates_by_query: dict[str, list[SearchResult]] = {}

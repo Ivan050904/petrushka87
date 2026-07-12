@@ -264,7 +264,7 @@ export function CaptureDock({ token, onSaved, className }: CaptureDockProps) {
               </div>
             )}
             {suggestAi && !aiEntryPreview ? (
-              <p className="mt-2 text-xs font-medium text-amber-700 dark:text-amber-500">
+              <p className="mt-2 text-xs font-medium text-warning">
                 Сложный текст — попробуйте ИИ
               </p>
             ) : null}

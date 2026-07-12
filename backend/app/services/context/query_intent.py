@@ -3,8 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from app.core.config import settings
-from app.services.context.context_models import ContextScope, infer_scopes_from_query
+from app.services.context.context_models import ContextScope, RetrievalMode, infer_scopes_from_query
 from app.services.context.date_query import parse_dates_from_query
+from app.services.context.entity_query import extract_entity_name, is_entity_timeline_query
 from app.services.context.query_parsers import parse_date_range, parse_finance_month
 
 
@@ -16,6 +17,9 @@ class QueryIntent:
     date_range: tuple[str, str] | None = None
     finance_month: str | None = None
     keywords: list[str] = field(default_factory=list)
+    retrieval_mode: RetrievalMode = "ranked"
+    entity_name: str | None = None
+    entity_terms: list[str] = field(default_factory=list)
 
 
 def route_query(query: str, conversation_scope: ContextScope = "all") -> QueryIntent:
@@ -27,11 +31,21 @@ def route_query(query: str, conversation_scope: ContextScope = "all") -> QueryIn
     date_range = parse_date_range(normalized)
     finance_month = parse_finance_month(normalized)
 
+    entity_name = extract_entity_name(normalized)
+    retrieval_mode: RetrievalMode = "ranked"
+    if entity_name and is_entity_timeline_query(normalized):
+        retrieval_mode = "entity_timeline"
+
     keyword_scopes = infer_scopes_from_query(normalized)
     scopes: list[ContextScope] = []
     confidence = 0.0
 
-    if keyword_scopes:
+    if retrieval_mode == "entity_timeline":
+        scopes = ["all"]
+        confidence = 0.92
+        if any(token in normalized for token in ("в заметк", "в дневник", "life note", "life_notes")):
+            scopes = ["notes"]
+    elif keyword_scopes:
         scopes = keyword_scopes if settings.context_router_multi_scope else [keyword_scopes[0]]
         confidence = min(0.95, 0.55 + 0.1 * len(keyword_scopes))
 
@@ -69,4 +83,6 @@ def route_query(query: str, conversation_scope: ContextScope = "all") -> QueryIn
         date_range=date_range,
         finance_month=finance_month,
         keywords=keywords,
+        retrieval_mode=retrieval_mode,
+        entity_name=entity_name,
     )

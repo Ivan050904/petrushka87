@@ -2,7 +2,7 @@ export type EntryType = "task" | "reminder" | "event" | "finance" | "habit" | "f
 
 export const ENTRY_TYPES = ["task", "reminder", "event", "finance", "habit", "food", "person", "note", "diary", "resource"] as const satisfies readonly EntryType[];
 
-export const MVP_ENTRY_TYPES = ["task", "reminder", "event", "finance", "habit", "person", "note", "diary", "resource"] as const satisfies readonly EntryType[];
+export const MVP_ENTRY_TYPES = ["task", "reminder", "event", "finance", "habit", "food", "person", "note", "diary", "resource"] as const satisfies readonly EntryType[];
 
 export type User = {
   id: string;

@@ -8,6 +8,7 @@ from app.models.entry_link import EntryLink
 from app.models.therapy_session import TherapySessionJob
 from app.models.transcription import TranscriptionChat, TranscriptionChatMessage, TranscriptionJob
 from app.models.user import User
+from app.models.user_settings import UserSettings
 from app.models.workout import ExerciseCatalog, PersonalRecord, WorkoutExercise, WorkoutSession
 
 __all__ = [
@@ -24,6 +25,7 @@ __all__ = [
     "TranscriptionChatMessage",
     "TranscriptionJob",
     "User",
+    "UserSettings",
     "WorkoutExercise",
     "WorkoutSession",
 ]

@@ -27,6 +27,7 @@ from app.services.agent.digest_profiles import (
 )
 from app.services.agent.llm import DigestLLMClient, check_ollama_health
 from app.services.agent.state import load_digest_state, save_digest_state
+from app.services.embeddings.indexer import index_entry
 from app.services.agent.tools.web_search import SearchResult
 from app.services.ai.base import AIUnavailableError
 
@@ -284,6 +285,7 @@ def _save_articles(
     digest_profile = get_digest_profile(digest_profile_name)
     saved = 0
     skipped = 0
+    created_entries: list[Entry] = []
 
     for article in articles:
         is_psych = digest_profile_name == "psychology"
@@ -339,10 +341,15 @@ def _save_articles(
             metadata_=normalize_metadata(EntryType.resource, metadata),
         )
         db.add(entry)
+        created_entries.append(entry)
         existing_urls.add(url)
         saved += 1
 
     if saved:
+        db.commit()
+        for entry in created_entries:
+            db.refresh(entry)
+            index_entry(db, entry)
         db.commit()
     return saved, skipped
 
@@ -358,6 +365,7 @@ def run_daily_digest(
     force: bool = False,
     profile: DigestProfileName = "ai",
 ) -> DigestResult:
+    user = _resolve_user(db, user_id, user_email)
     digest_profile = get_digest_profile(profile)
     if not digest_profile.enabled:
         result = DigestResult(
@@ -368,12 +376,18 @@ def run_daily_digest(
             message=f"Digest profile '{profile}' is disabled in configuration",
             profile=profile,
         )
-        save_digest_state(profile=profile, status=result.status, error=result.message, topics=result.topics)
+        save_digest_state(
+            user_id=user.id,
+            profile=profile,
+            status=result.status,
+            error=result.message,
+            topics=result.topics,
+        )
         return result
 
     selected_topics = topics or digest_profile.default_topic_list()
     article_limit = max_articles or digest_profile.max_articles
-    digest_state = load_digest_state(profile)
+    digest_state = load_digest_state(user.id, profile)
     today = _user_today()
     date_range = compute_search_date_range(
         today=today,
@@ -398,7 +412,12 @@ def run_daily_digest(
                 search_period_to=today.isoformat(),
                 profile=profile,
             )
-            save_digest_state(profile=profile, status=result.status, topics=selected_topics)
+            save_digest_state(
+                user_id=user.id,
+                profile=profile,
+                status=result.status,
+                topics=selected_topics,
+            )
             return result
 
     period_from = date_range.date_from.isoformat()
@@ -406,7 +425,6 @@ def run_daily_digest(
     tier_by_query: dict[str, str] = {}
 
     try:
-        user = _resolve_user(db, user_id, user_email)
         if (
             not skip_health_check
             and digest_profile.requires_ollama_health
@@ -415,7 +433,7 @@ def run_daily_digest(
             raise AIUnavailableError("Ollama is not reachable. Start Ollama before running digest.")
 
         if profile == "psychology":
-            candidates, tier_by_query = collect_psychology_candidates(selected_topics)
+            candidates, tier_by_query = collect_psychology_candidates(selected_topics, user_id=user.id)
         else:
             candidates = collect_ai_candidates(
                 selected_topics,
@@ -448,6 +466,7 @@ def run_daily_digest(
                 profile=profile,
             )
             save_digest_state(
+                user_id=user.id,
                 profile=profile,
                 status=result.status,
                 topics=selected_topics,
@@ -505,6 +524,7 @@ def run_daily_digest(
             profile=profile,
         )
         save_digest_state(
+            user_id=user.id,
             profile=profile,
             status=result.status,
             articles_saved=result.articles_saved,
@@ -514,5 +534,11 @@ def run_daily_digest(
         return result
     except Exception as exc:
         message = str(exc) or exc.__class__.__name__
-        save_digest_state(profile=profile, status="error", error=message, topics=selected_topics)
+        save_digest_state(
+            user_id=user.id,
+            profile=profile,
+            status="error",
+            error=message,
+            topics=selected_topics,
+        )
         raise

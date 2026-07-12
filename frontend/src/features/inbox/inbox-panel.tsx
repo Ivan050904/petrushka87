@@ -6,6 +6,7 @@ import { ArrowRight, CheckCircle2, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { LoadError } from "@/components/load-error";
 import { Empty } from "@/components/ui/empty";
 import { Notice } from "@/components/ui/notice";
 import {
@@ -15,7 +16,8 @@ import {
   type InboxGroup,
 } from "@/features/inbox/inbox-helpers";
 import { useRequireAuth } from "@/hooks/use-auth";
-import { deleteEntry, getErrorMessage, listEntries, updateEntry } from "@/lib/api";
+import { deleteEntry, getErrorMessage, updateEntry } from "@/lib/api";
+import { fetchInboxEntries } from "@/lib/entry-queries";
 import { formatDate, getString } from "@/lib/entry-helpers";
 import { formatEntryType } from "@/lib/labels";
 import { notesHref, plansHref } from "@/lib/navigation";
@@ -36,8 +38,8 @@ export function InboxPanel() {
     setIsLoading(true);
     setLoadError(null);
     try {
-      const result = await listEntries(token, { limit: 100 });
-      setEntries(result.items);
+      const result = await fetchInboxEntries(token);
+      setEntries(result);
     } catch (requestError) {
       setLoadError(getErrorMessage(requestError, "Не удалось загрузить входящие."));
     } finally {
@@ -118,7 +120,7 @@ export function InboxPanel() {
         <p className="text-sm text-muted-foreground">Новые задачи, срочные напоминания и свежие заметки для разбора.</p>
       </header>
 
-      {loadError ? <Notice variant="error">{loadError}</Notice> : null}
+      {loadError ? <LoadError message={loadError} onRetry={() => void loadEntries()} /> : null}
       {actionError ? <Notice variant="error">{actionError}</Notice> : null}
 
       {isLoading ? (
@@ -155,19 +157,20 @@ export function InboxPanel() {
                           <span>{formatDate(entry.updated_at)}</span>
                         </div>
                       </div>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
                         {group === "tasks" ? (
                           <>
                             <Button
                               size="sm"
                               variant="outline"
+                              className="min-h-11"
                               disabled={busyId === entry.id}
                               onClick={() => void activateTask(entry)}
                             >
                               <CheckCircle2 data-icon="inline-start" />
                               В работу
                             </Button>
-                            <Button size="sm" variant="ghost" asChild>
+                            <Button size="sm" variant="ghost" className="min-h-11" asChild>
                               <Link href={plansHref({ tab: "tasks", selected: entry.id })}>
                                 В планы
                                 <ArrowRight data-icon="inline-end" />
@@ -180,24 +183,26 @@ export function InboxPanel() {
                             <Button
                               size="sm"
                               variant="outline"
+                              className="min-h-11"
                               disabled={busyId === entry.id}
                               onClick={() => void completeReminder(entry)}
                             >
                               Готово
                             </Button>
-                            <Button size="sm" variant="ghost" asChild>
+                            <Button size="sm" variant="ghost" className="min-h-11" asChild>
                               <Link href={plansHref({ tab: "reminders", selected: entry.id })}>В планы</Link>
                             </Button>
                           </>
                         ) : null}
                         {group === "notes" ? (
                           <>
-                            <Button size="sm" variant="outline" asChild>
+                            <Button size="sm" variant="outline" className="min-h-11" asChild>
                               <Link href={notesHref(entry.id)}>В заметки</Link>
                             </Button>
                             <Button
                               size="sm"
                               variant="ghost"
+                              className="min-h-11"
                               disabled={busyId === entry.id}
                               onClick={() => void removeNote(entry)}
                               aria-label="Удалить заметку"

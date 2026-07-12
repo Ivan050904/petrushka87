@@ -125,6 +125,39 @@ def test_type_change_requires_valid_metadata(client: TestClient) -> None:
     assert valid_update.json()["type"] == "finance"
 
 
+def test_patch_entry_merges_metadata(client: TestClient) -> None:
+    token = _register(client)
+    headers = _auth_headers(token)
+
+    created = client.post(
+        "/api/v1/entries",
+        headers=headers,
+        json={
+            "type": "task",
+            "title": "Merged task",
+            "content": "Task body",
+            "metadata": {
+                "status": "active",
+                "collection": "inbox",
+                "external_id": "task-123",
+            },
+        },
+    )
+    assert created.status_code == 201
+    entry_id = created.json()["id"]
+
+    updated = client.patch(
+        f"/api/v1/entries/{entry_id}",
+        headers=headers,
+        json={"metadata": {"status": "done"}},
+    )
+    assert updated.status_code == 200
+    metadata = updated.json()["metadata"]
+    assert metadata["status"] == "done"
+    assert metadata["collection"] == "inbox"
+    assert metadata["external_id"] == "task-123"
+
+
 def test_entry_search_matches_metadata(client: TestClient) -> None:
     token = _register(client)
     headers = _auth_headers(token)
@@ -150,6 +183,33 @@ def test_entry_search_matches_metadata(client: TestClient) -> None:
     assert listed.status_code == 200
     assert listed.json()["total"] == 1
     assert listed.json()["items"][0]["id"] == created.json()["id"]
+
+
+def test_person_contact_items_are_normalized(client: TestClient) -> None:
+    token = _register(client)
+    headers = _auth_headers(token)
+
+    created = client.post(
+        "/api/v1/entries",
+        headers=headers,
+        json={
+            "type": "person",
+            "title": "Maria",
+            "content": "Designer",
+            "metadata": {
+                "full_name": "Maria Ivanova",
+                "contact_items": [
+                    {"type": "telegram", "value": "@masha"},
+                    {"type": "email", "value": "masha@studio.ru"},
+                ],
+            },
+        },
+    )
+    assert created.status_code == 201
+    metadata = created.json()["metadata"]
+    assert metadata["contact_items"][0]["type"] == "telegram"
+    assert "telegram: @masha" in metadata["contacts"]
+    assert "email: masha@studio.ru" in metadata["contacts"]
 
 
 def test_entries_are_isolated_between_users(client: TestClient) -> None:
@@ -769,7 +829,7 @@ def test_resource_file_is_removed_when_file_metadata_is_removed(client: TestClie
             "type": "resource",
             "title": resource["title"],
             "content": resource["content"],
-            "metadata": {"description": "Detached from file"},
+            "metadata": {"description": "Detached from file", "file": None},
         },
     )
 
@@ -1000,23 +1060,7 @@ def test_task_ai_parse_endpoint_returns_task_candidates(
     assert body["tasks"][0]["priority"] == "high"
 
 
-def _register(client: TestClient) -> str:
-    response = client.post(
-        "/api/v1/auth/register",
-        json={
-            "email": f"user-{uuid.uuid4().hex[:8]}@example.com",
-            "password": "password123",
-            "full_name": "MVP User",
-        },
-    )
-    assert response.status_code == 201
-
-    login = client.post(
-        "/api/v1/auth/login",
-        json={"email": response.json()["user"]["email"], "password": "password123"},
-    )
-    assert login.status_code == 200
-    return login.json()["access_token"]
+from tests.auth_helpers import create_user_token as _register
 
 
 def _auth_headers(token: str) -> dict[str, str]:

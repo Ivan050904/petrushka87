@@ -574,7 +574,66 @@ export function FinanceImportWizard({
                 {renderCategoryControls()}
 
                 <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
-                <div className="max-h-[480px] overflow-auto rounded-md border">
+                <div className="flex flex-col gap-3 md:hidden">
+                  {visibleRows.map((row) => {
+                    const rowIndex = rows.indexOf(row);
+                    return (
+                      <div
+                        key={`mobile-${row.external_id ?? row.description}-${rowIndex}`}
+                        className={cn("rounded-md border p-3", row.isDuplicate && "bg-muted/40 opacity-60")}
+                      >
+                        <label className="mb-2 flex min-h-11 items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={row.selected}
+                            disabled={row.isDuplicate}
+                            onChange={(event) => updateRow(rowIndex, { selected: event.target.checked })}
+                          />
+                          Импортировать
+                        </label>
+                        <div className="grid gap-2 text-sm">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-muted-foreground">Дата</span>
+                            <Input
+                              type="date"
+                              value={row.transaction_date.slice(0, 10)}
+                              onChange={(event) => updateRow(rowIndex, { transaction_date: event.target.value })}
+                            />
+                          </div>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-mono">{formatCurrency(row.amount, row.currency)}</span>
+                            <Select
+                              value={row.kind ?? row.direction}
+                              onChange={(event) => updateRow(rowIndex, { kind: event.target.value as PreviewImportRow["kind"] })}
+                            >
+                              <option value="expense">Расход</option>
+                              <option value="income">Доход</option>
+                              <option value="transfer">Перевод</option>
+                            </Select>
+                          </div>
+                          <Input
+                            value={row.title ?? ""}
+                            placeholder={row.description}
+                            onChange={(event) => updateRow(rowIndex, { title: event.target.value || null })}
+                          />
+                          <FinanceCategoryCombobox
+                            value={row.category ?? ""}
+                            categories={tableCategories}
+                            onChange={(category) => updateRow(rowIndex, { category: category || null })}
+                            onBrowseAll={() => openCategoryPanel(rowIndex)}
+                            onCreateCategory={() => {
+                              setPendingCategoryRowIndex(rowIndex);
+                              setIsCreatingCategory(true);
+                            }}
+                          />
+                          <p className="text-xs text-muted-foreground">{row.parser_note || row.description}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="hidden md:block max-h-[480px] overflow-auto rounded-md border">
                   <table className="min-w-full text-sm">
                     <thead className="sticky top-0 bg-muted/80 text-left text-xs uppercase tracking-wide text-muted-foreground backdrop-blur">
                       <tr>

@@ -58,6 +58,12 @@ class WorkoutSession(Base):
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
+    entry_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID(),
+        ForeignKey("entries.id", ondelete="SET NULL"),
+        index=True,
+        nullable=True,
+    )
     date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     body_weight: Mapped[float] = mapped_column(Float, nullable=False)
     mood: Mapped[int] = mapped_column(Integer, nullable=False)

@@ -69,17 +69,7 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[TestCli
         engine.dispose()
 
 
-def _register(client: TestClient) -> str:
-    response = client.post(
-        "/api/v1/auth/register",
-        json={
-            "email": "assistant@example.com",
-            "password": "password12345",
-            "full_name": "Assistant User",
-        },
-    )
-    assert response.status_code == 201
-    return response.json()["access_token"]
+from tests.auth_helpers import create_user_token as _register
 
 
 def test_missing_fields_for_event() -> None:

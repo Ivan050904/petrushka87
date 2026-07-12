@@ -8,25 +8,30 @@ import {
   CalendarRange,
   CheckSquare,
   Check,
-  Sparkles,
+  Plus,
   Repeat,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Empty } from "@/components/ui/empty";
+import { LoadError } from "@/components/load-error";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Notice } from "@/components/ui/notice";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { parseQuickTasks } from "@/features/capture/task-draft-parser";
+import { taskDraftToPayload } from "@/features/capture/quick-capture-helpers";
 import { CalendarCreateForm } from "@/features/plans/calendar-create-form";
+import { EntryLinksPanel } from "@/features/entries/entry-links-panel";
 import { EventsPanel } from "@/features/plans/events-panel";
 import { PlansWeekCalendar } from "@/features/plans/plans-week-calendar";
 import { TasksPanel } from "@/features/plans/tasks-panel";
 import { TimeRail } from "@/features/dashboard/time-rail";
 import { useRequireAuth } from "@/hooks/use-auth";
-import { createEntry, getErrorMessage, listEntries, parseTasks, updateEntry } from "@/lib/api";
+import { createEntry, getErrorMessage, listEntries, updateEntry } from "@/lib/api";
+import { agendaEntriesFromBundle, fetchAgendaEntries } from "@/lib/entry-queries";
 import {
   type AgendaItem,
   type PlansScope,
@@ -92,6 +97,18 @@ export function PlansView() {
   const [selectedDay, setSelectedDay] = useState<Date | null>(() => startOfDay(new Date()));
   const [createDraftSlot, setCreateDraftSlot] = useState<{ start: Date; end: Date } | null>(null);
 
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    const normalizedTab: PlansTypeFilter =
+      tab === "tasks" ? "tasks" : tab === "events" ? "events" : tab === "reminders" ? "reminders" : "all";
+    setTypeFilter(normalizedTab);
+    setDetailMode(tab === "tasks" ? "tasks" : tab === "events" ? "events" : "timeline");
+
+    const selected = searchParams.get("selected");
+    setSelectedId(selected);
+    setSelectedAgendaId(selected);
+  }, [searchParams]);
+
   const loadEntries = useCallback(async () => {
     if (!token) {
       return;
@@ -99,12 +116,8 @@ export function PlansView() {
     setIsLoading(true);
     setLoadError(null);
     try {
-      const [tasks, events, reminders] = await Promise.all([
-        listEntries(token, { type: "task", limit: 100 }),
-        listEntries(token, { type: "event", limit: 100 }),
-        listEntries(token, { type: "reminder", limit: 100 }),
-      ]);
-      setEntries([...tasks.items, ...events.items, ...reminders.items]);
+      const bundle = await fetchAgendaEntries(token);
+      setEntries(agendaEntriesFromBundle(bundle));
     } catch (requestError) {
       setLoadError(getErrorMessage(requestError, "Не удалось загрузить планы."));
     } finally {
@@ -146,36 +159,19 @@ export function PlansView() {
     if (!token || !quickInput.trim() || isQuickSaving) {
       return;
     }
+
+    const drafts = parseQuickTasks(quickInput.trim()).filter((draft) => draft.title.trim());
+    if (drafts.length === 0) {
+      setQuickError("Напиши одну или несколько задач.");
+      return;
+    }
+
     setIsQuickSaving(true);
     setQuickError(null);
     try {
-      const result = await parseTasks(token, quickInput.trim());
-      const tasks = result.tasks.filter((task) => task.title?.trim());
-      if (tasks.length === 0) {
-        await createEntry(token, {
-          type: "task",
-          title: quickInput.trim(),
-          content: quickInput.trim(),
-          metadata: { status: "inbox", priority: "medium", source: "plans_quick" },
-        });
-      } else {
-        await Promise.all(
-          tasks.map((task) =>
-            createEntry(token, {
-              type: "task",
-              title: task.title,
-              content: task.description || task.title,
-              metadata: {
-                status: task.status ?? "inbox",
-                priority: task.priority ?? "medium",
-                scheduled_at: task.scheduled_at ?? null,
-                deadline: task.deadline ?? null,
-                source: "plans_quick",
-              },
-            }),
-          ),
-        );
-      }
+      await Promise.all(
+        drafts.map((draft) => createEntry(token, taskDraftToPayload(draft, "plans_quick"))),
+      );
       setQuickInput("");
       await loadEntries();
     } catch (requestError) {
@@ -192,7 +188,7 @@ export function PlansView() {
         <p className="text-sm text-muted-foreground">Задачи, события и напоминания на одной временной оси.</p>
       </header>
 
-      {loadError ? <Notice variant="error">{loadError}</Notice> : null}
+      {loadError ? <LoadError message={loadError} onRetry={() => void loadEntries()} /> : null}
 
       <div className="flex flex-wrap gap-2">
         <Button
@@ -230,8 +226,8 @@ export function PlansView() {
         </Button>
       </div>
 
-      {detailMode === "tasks" ? <TasksPanel embedded /> : null}
-      {detailMode === "events" ? <EventsPanel embedded /> : null}
+      {detailMode === "tasks" ? <TasksPanel embedded initialSelectedId={selectedId} /> : null}
+      {detailMode === "events" ? <EventsPanel embedded initialSelectedId={selectedId} /> : null}
 
       {detailMode === "calendar" ? (
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px] xl:items-start">
@@ -288,8 +284,8 @@ export function PlansView() {
                 />
               </Field>
               <div className="flex flex-wrap gap-2">
-                <Button variant="outline" onClick={() => void createFromQuickInput()} disabled={isQuickSaving || !quickInput.trim()}>
-                  <Sparkles data-icon="inline-start" />
+                <Button onClick={() => void createFromQuickInput()} disabled={isQuickSaving || !quickInput.trim()}>
+                  <Plus data-icon="inline-start" />
                   {isQuickSaving ? "Создание" : "Создать"}
                 </Button>
               </div>
@@ -706,6 +702,8 @@ function PlanInspector({
           {isSaving ? "Сохранение" : "Сохранить"}
         </Button>
       </FieldGroup>
+
+      <EntryLinksPanel token={token} entry={entry} className="mt-4 border-t border-border pt-4" />
       </div>
 
       {showDayRail ? <DayRailPanel day={activeDay} dayItems={dayItems} freeSlots={freeSlots} /> : null}

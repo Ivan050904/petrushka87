@@ -25,6 +25,7 @@ from app.schemas.finance import (
     FinanceSummaryRead,
 )
 from app.schemas.metadata import normalize_metadata
+from app.services.embeddings.indexer import index_entry
 from app.services.finance.ai_config import resolve_finance_ai_config
 from app.services.finance.categorizer import FinanceAIUnavailableError, categorize_transactions
 from app.services.finance.dedup import build_transaction_fingerprint, fingerprint_from_metadata
@@ -38,6 +39,9 @@ from app.services.finance.parsers.generic import build_external_id
 from app.services.finance.transfer_detector import apply_transfer_pairs, apply_transfer_rules
 
 router = APIRouter()
+
+# Bank CSV preview uses backend parsers; the frontend also ships richer client-side parsers
+# for specific banks during import UX. Keep both layers until parsers are unified.
 
 
 def _row_from_parsed(item: ParsedTransaction) -> FinanceImportRow:
@@ -199,6 +203,7 @@ def finance_import_confirm(
     import_batch_id = str(uuid.uuid4())
     created = 0
     skipped = 0
+    created_entries: list[Entry] = []
 
     for row in payload.rows:
         parsed_row = _parsed_from_row(row)
@@ -245,11 +250,17 @@ def finance_import_confirm(
             metadata_=metadata,
         )
         db.add(entry)
+        created_entries.append(entry)
         existing_external_ids.add(external_id)
         existing_fingerprints.add(fingerprint)
         created += 1
 
     db.commit()
+    for entry in created_entries:
+        db.refresh(entry)
+        index_entry(db, entry)
+    if created_entries:
+        db.commit()
     return FinanceImportConfirmRead(created=created, skipped_duplicates=skipped)
 
 

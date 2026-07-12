@@ -5,12 +5,20 @@ export function setAuthCookie() {
   if (typeof document === "undefined") {
     return;
   }
-  document.cookie = `${AUTH_COOKIE}=1; path=/; max-age=604800; SameSite=Lax`;
+  const secure = window.location.protocol === "https:" ? "; Secure" : "";
+  document.cookie = `${AUTH_COOKIE}=1; Path=/; Max-Age=604800; SameSite=Lax${secure}`;
 }
 
 export function clearAuthCookie() {
   if (typeof document === "undefined") {
     return;
   }
-  document.cookie = `${AUTH_COOKIE}=; path=/; max-age=0`;
+  document.cookie = `${AUTH_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
+}
+
+export function hasAuthCookie() {
+  if (typeof document === "undefined") {
+    return false;
+  }
+  return document.cookie.split(";").some((part) => part.trim().startsWith(`${AUTH_COOKIE}=1`));
 }

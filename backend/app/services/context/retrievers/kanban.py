@@ -18,9 +18,12 @@ SCOPE: ContextScope = "kanban"
 
 
 def _kanban_filter(statement):
+    board_id_extract = func.json_extract(Entry.metadata_, "$.board_id")
+    board_extract = func.json_extract(Entry.metadata_, "$.board")
     return statement.where(
         or_(
-            func.json_extract(Entry.metadata_, "$.board_id").isnot(None),
+            board_id_extract.isnot(None),
+            board_extract.isnot(None),
             func.json_extract(Entry.metadata_, "$.collection") == KANBAN_BOARD_CONFIG_COLLECTION,
         )
     )

@@ -1,17 +1,32 @@
 "use client";
 
-import { useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { SegmentTabs } from "@/components/ui/segment-tabs";
 import { PeoplePanel } from "@/features/reference/people-panel";
 import { ResourcesPanel } from "@/features/reference/resources-panel";
-import type { ReferenceTab } from "@/lib/navigation";
+import { referenceHref, type ReferenceTab } from "@/lib/navigation";
 
 export function ReferenceView() {
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const initialTab = (searchParams.get("tab") as ReferenceTab | null) ?? "people";
-  const [tab, setTab] = useState<ReferenceTab>(initialTab === "resources" ? "resources" : "people");
+  const tabParam = searchParams.get("tab");
+  const initialTab: ReferenceTab = tabParam === "resources" ? "resources" : "people";
+  const [tab, setTab] = useState<ReferenceTab>(initialTab);
+
+  useEffect(() => {
+    const nextTab: ReferenceTab = tabParam === "resources" ? "resources" : "people";
+    setTab(nextTab);
+  }, [tabParam]);
+
+  const handleTabChange = useCallback(
+    (nextTab: ReferenceTab) => {
+      setTab(nextTab);
+      router.replace(referenceHref({ tab: nextTab }), { scroll: false });
+    },
+    [router],
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -22,7 +37,7 @@ export function ReferenceView() {
 
       <SegmentTabs
         value={tab}
-        onChange={setTab}
+        onChange={handleTabChange}
         className="grid-cols-2 sm:max-w-sm"
         options={[
           { value: "people", label: "Люди" },

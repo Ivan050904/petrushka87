@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
   AlarmClock,
+  ArrowLeft,
   CalendarClock,
   CheckCircle2,
   ChevronDown,
@@ -49,6 +50,7 @@ import { useRequireAuth } from "@/hooks/use-auth";
 import {
   createEntry,
   deleteEntry,
+  fetchAllEntries,
   getErrorMessage,
   listEntries,
   parseTasks as parseTasksWithAi,
@@ -129,13 +131,20 @@ const taskScopeFilters: Array<{ value: TaskScopeFilter; label: string }> = [
   { value: "all", label: "Все" },
 ];
 
-export function TasksPanel({ embedded = false }: { embedded?: boolean }) {
+export function TasksPanel({
+  embedded = false,
+  initialSelectedId = null,
+}: {
+  embedded?: boolean;
+  initialSelectedId?: string | null;
+}) {
   const { token, user } = useRequireAuth();
   const [tasks, setTasks] = useState<Entry[]>([]);
   const [people, setPeople] = useState<Entry[]>([]);
   const [resources, setResources] = useState<Entry[]>([]);
   const [entries, setEntries] = useState<Entry[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId);
+  const [mobileDetailView, setMobileDetailView] = useState(Boolean(initialSelectedId));
   const [statusFilter, setStatusFilter] = useState<TaskScopeFilter>("open");
   const [taskQuery, setTaskQuery] = useState("");
   const [form, setForm] = useState<TaskForm>(emptyTaskForm);
@@ -160,6 +169,13 @@ export function TasksPanel({ embedded = false }: { embedded?: boolean }) {
   const [isDraftLoaded, setIsDraftLoaded] = useState(false);
   const draftKey = user?.id ? `${TASK_DRAFT_STORAGE_KEY}:${user.id}` : null;
   const quickDraftKey = user?.id ? `${QUICK_TASK_STORAGE_KEY}:${user.id}` : null;
+
+  useEffect(() => {
+    setSelectedId(initialSelectedId);
+    if (initialSelectedId) {
+      setMobileDetailView(true);
+    }
+  }, [initialSelectedId]);
 
   const selectedTask = useMemo(
     () => tasks.find((task) => task.id === selectedId) ?? null,
@@ -229,10 +245,10 @@ export function TasksPanel({ embedded = false }: { embedded?: boolean }) {
     setIsLoading(true);
     setLoadError(null);
     Promise.all([
-      listEntries(token, { type: "task", limit: 100 }),
-      listEntries(token, { type: "person", limit: 100 }),
-      listEntries(token, { type: "resource", limit: 100 }),
-      listEntries(token, { limit: 100 }),
+      fetchAllEntries(token, { type: "task" }),
+      fetchAllEntries(token, { type: "person" }),
+      fetchAllEntries(token, { type: "resource" }),
+      fetchAllEntries(token, {}),
     ])
       .then(([taskResult, peopleResult, resourceResult, entryResult]) => {
         if (isMounted) {
@@ -327,6 +343,7 @@ export function TasksPanel({ embedded = false }: { embedded?: boolean }) {
     setLinkedEntryCandidate("");
     setError(null);
     setQuickNotice(null);
+    setMobileDetailView(true);
   }
 
   function startNewTask() {
@@ -339,6 +356,14 @@ export function TasksPanel({ embedded = false }: { embedded?: boolean }) {
     setSubtaskTitle("");
     setError(null);
     setQuickNotice(null);
+    setMobileDetailView(true);
+  }
+
+  function closeMobileDetail() {
+    setMobileDetailView(false);
+    setSelectedId(null);
+    setForm(emptyTaskForm);
+    setError(null);
   }
 
   function clearTaskDraft() {
@@ -359,10 +384,10 @@ export function TasksPanel({ embedded = false }: { embedded?: boolean }) {
     }
 
     const [taskResult, peopleResult, resourceResult, entryResult] = await Promise.all([
-      listEntries(token, { type: "task", limit: 100 }),
-      listEntries(token, { type: "person", limit: 100 }),
-      listEntries(token, { type: "resource", limit: 100 }),
-      listEntries(token, { limit: 100 }),
+      fetchAllEntries(token, { type: "task" }),
+      fetchAllEntries(token, { type: "person" }),
+      fetchAllEntries(token, { type: "resource" }),
+      fetchAllEntries(token, {}),
     ]);
     setTasks(taskResult.items);
     setPeople(peopleResult.items);
@@ -736,12 +761,18 @@ export function TasksPanel({ embedded = false }: { embedded?: boolean }) {
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_480px]">
-          <main className="min-w-0 rounded-md border border-border bg-card shadow-panel">
+          <main className={cn("min-w-0 rounded-md border border-border bg-card shadow-panel", mobileDetailView && "hidden xl:block")}>
             <div className="border-b border-border p-4">
               <div className="flex flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between">
-                <div>
-                  <h2 className="text-base font-semibold leading-6">Список задач</h2>
-                  <p className="text-sm text-muted-foreground">{filteredTasks.length} в текущем срезе</p>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-base font-semibold leading-6">Список задач</h2>
+                    <p className="text-sm text-muted-foreground">{filteredTasks.length} в текущем срезе</p>
+                  </div>
+                  <Button type="button" size="sm" className="shrink-0 xl:hidden" onClick={startNewTask}>
+                    <Plus data-icon="inline-start" />
+                    Новая
+                  </Button>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {taskScopeFilters.map((filter) => (
@@ -796,7 +827,7 @@ export function TasksPanel({ embedded = false }: { embedded?: boolean }) {
                   <Empty title={tasks.length === 0 ? "Задач пока нет" : "Задач не найдено"} />
                 </div>
               ) : (
-                <div className="flex max-h-[calc(100dvh-330px)] min-h-[420px] flex-col gap-5 overflow-y-auto pr-1">
+                <div className="flex max-h-[calc(100dvh-330px)] min-h-0 flex-col gap-5 overflow-y-auto pr-1 xl:min-h-[420px]">
                   {groupedTasks.map((group) => (
                     <section key={group.key} className="flex flex-col gap-2">
                       <div className="sticky top-0 z-10 flex items-center justify-between rounded-md bg-card/95 px-2 py-1.5 backdrop-blur">
@@ -830,8 +861,14 @@ export function TasksPanel({ embedded = false }: { embedded?: boolean }) {
             </div>
           </main>
 
-          <aside className="min-w-0 rounded-md border border-border bg-card shadow-panel xl:sticky xl:top-4 xl:max-h-[calc(100dvh-2rem)] xl:overflow-y-auto">
+          <aside className={cn("min-w-0 rounded-md border border-border bg-card shadow-panel xl:sticky xl:top-4 xl:max-h-[calc(100dvh-2rem)] xl:overflow-y-auto", !mobileDetailView && "hidden xl:block")}>
             <div className="border-b border-border p-4">
+              <div className="mb-3 xl:hidden">
+                <Button type="button" variant="ghost" size="sm" className="min-h-11" onClick={closeMobileDetail}>
+                  <ArrowLeft data-icon="inline-start" />
+                  К списку
+                </Button>
+              </div>
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h2 className="text-base font-semibold leading-6">{selectedTask ? "Детали задачи" : "Новая задача"}</h2>
