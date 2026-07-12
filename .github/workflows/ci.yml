@@ -21,7 +21,7 @@ jobs:
       - name: Ruff
         run: ruff check app tests
       - name: Pytest
-        run: pytest tests/ -q
+        run: pytest tests/ -q -W ignore::DeprecationWarning
 
   frontend:
     runs-on: ubuntu-latest

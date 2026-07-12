@@ -93,11 +93,6 @@ def _render_chat_main(
     return templates.TemplateResponse(request, "partials/chat_main.html", ctx)
 
 
-@app.on_event("startup")
-def _startup() -> None:
-    init_db()
-
-
 def _require_user(request: Request, db: Session) -> User | None:
     return app_auth.resolve_user(request, db)
 

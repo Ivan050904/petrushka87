@@ -1,5 +1,13 @@
 from __future__ import annotations
 
+import warnings
+
+warnings.filterwarnings(
+    "ignore",
+    message=".*on_event is deprecated.*",
+    category=DeprecationWarning,
+)
+
 import pytest
 
 from app.core.rate_limit import limiter
