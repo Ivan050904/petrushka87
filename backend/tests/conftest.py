@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+import os
+
+# Must run before importing app modules (settings are cached at import time).
+os.environ.setdefault("DIGEST_SCHEDULER_ENABLED", "0")
+
 import warnings
 
 warnings.filterwarnings(
