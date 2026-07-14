@@ -39,17 +39,15 @@ export function ArticlesToolbar({
         </p>
       </div>
       <div className="flex flex-wrap gap-2">
-        {tab === "psychology" ? (
-          <button
-            type="button"
-            onClick={onTuneQueries}
-            disabled={isTuning}
-            className="articles-btn-ghost focus-ring inline-flex min-h-11 items-center gap-2 rounded-md border border-[var(--articles-border)] px-3 py-2 text-sm font-medium"
-          >
-            {isTuning ? <RefreshCw className="size-4 animate-spin" /> : null}
-            Обновить запросы
-          </button>
-        ) : null}
+        <button
+          type="button"
+          onClick={onTuneQueries}
+          disabled={isTuning}
+          className="articles-btn-ghost focus-ring inline-flex min-h-11 items-center gap-2 rounded-md border border-[var(--articles-border)] px-3 py-2 text-sm font-medium"
+        >
+          {isTuning ? <RefreshCw className="size-4 animate-spin" /> : null}
+          Обновить запросы
+        </button>
         <button
           type="button"
           onClick={onRunDigest}

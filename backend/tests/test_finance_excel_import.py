@@ -68,6 +68,25 @@ def test_parse_finance_workbook_skips_numeric_categories(tmp_path: Path) -> None
     assert parsed.rows[-1].sheet_name == "04.2026"
 
 
+def test_parse_finance_workbook_detects_shifted_income_columns(tmp_path: Path) -> None:
+    workbook = Workbook()
+    worksheet = workbook.active
+    worksheet.title = "Октябрь"
+    worksheet.append(["расходы", None, None, "доходы", None])
+    worksheet.append(["кофе", 250, None, "зарплата", 38000])
+    worksheet.append(["такси", 500, None, "аванс", 5000])
+
+    file_path = tmp_path / "shifted-income.xlsx"
+    workbook.save(file_path)
+
+    parsed = parse_finance_workbook(file_path)
+
+    assert parsed.income_count == 2
+    assert parsed.expense_count == 2
+    income_rows = [row for row in parsed.rows if row.side == "income"]
+    assert {row.category for row in income_rows} == {"зарплата", "аванс"}
+
+
 def test_parse_finance_workbook_requires_existing_file(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError):
         parse_finance_workbook(tmp_path / "missing.xlsx")

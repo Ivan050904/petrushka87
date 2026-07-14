@@ -17,6 +17,8 @@ from app.schemas.entry import EntryRead
 from app.services.agent.article_feedback import apply_article_feedback, load_feedback_profile
 from app.services.agent.digest import compute_search_date_range, run_daily_digest
 from app.services.agent.llm import check_ollama_health
+from app.services.agent.ai_queries import get_active_ai_query_source
+from app.services.agent.ai_query_tuner import tune_ai_queries
 from app.services.agent.psych_query_tuner import get_active_psych_query_source, tune_psych_queries
 from app.services.agent.state import load_digest_state
 
@@ -69,6 +71,14 @@ class PsychQueryTuneResponse(BaseModel):
     next_search_from: str | None = None
 
 
+class AiQueryTuneResponse(BaseModel):
+    status: str
+    queries: list[str]
+    message: str
+    source: str
+    next_search_from: str | None = None
+
+
 class DigestStatusResponse(BaseModel):
     enabled: bool
     ollama_reachable: bool
@@ -83,6 +93,8 @@ class DigestStatusResponse(BaseModel):
     last_topics: list[str] | None = None
     last_search_until: str | None = None
     next_search_from: str | None = None
+    query_source: str | None = None
+    tuned_at: str | None = None
     psychology: DigestProfileStatus
 
 
@@ -108,8 +120,8 @@ def _profile_status(user_id: uuid.UUID, profile: DigestProfileName) -> DigestPro
         tuned_at = state.tuned_at
     else:
         enabled = settings.digest_enabled
-        query_source = None
-        tuned_at = None
+        query_source = get_active_ai_query_source(user_id)
+        tuned_at = state.tuned_at
 
     return DigestProfileStatus(
         enabled=enabled,
@@ -146,6 +158,8 @@ def digest_status(
         last_topics=ai_status.last_topics,
         last_search_until=ai_status.last_search_until,
         next_search_from=ai_status.next_search_from,
+        query_source=ai_status.query_source,
+        tuned_at=ai_status.tuned_at,
         psychology=psych_status,
     )
 
@@ -211,6 +225,25 @@ def psych_tune_queries(
     )
     result = tune_psych_queries(feedback_profile, user_id=current_user.id)
     return PsychQueryTuneResponse(
+        status=result.status,
+        queries=result.queries,
+        message=result.message,
+        source=result.source,
+    )
+
+
+@router.post("/digest/ai/tune-queries", response_model=AiQueryTuneResponse)
+def ai_tune_queries(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> AiQueryTuneResponse:
+    feedback_profile = load_feedback_profile(
+        db,
+        current_user.id,
+        collection="ai",
+    )
+    result = tune_ai_queries(feedback_profile, user_id=current_user.id)
+    return AiQueryTuneResponse(
         status=result.status,
         queries=result.queries,
         message=result.message,

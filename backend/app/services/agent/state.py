@@ -152,3 +152,18 @@ def save_psych_tuned_queries(user_id: uuid.UUID, queries: list[str]) -> ProfileD
         tuned_queries=queries,
         tuned_at=datetime.now(UTC).isoformat(),
     )
+
+
+def save_ai_tuned_queries(user_id: uuid.UUID, queries: list[str]) -> ProfileDigestState:
+    previous = load_digest_state(user_id, "ai")
+    return save_digest_state(
+        user_id=user_id,
+        profile="ai",
+        status=previous.last_status,
+        articles_saved=previous.last_articles_saved,
+        error=previous.last_error,
+        topics=queries,
+        last_search_until=previous.last_search_until,
+        tuned_queries=queries,
+        tuned_at=datetime.now(UTC).isoformat(),
+    )

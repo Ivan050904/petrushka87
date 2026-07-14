@@ -14,6 +14,7 @@ from app.models.entry import Entry
 from app.models.user import User
 from app.schemas.entry import EntryType
 from app.schemas.metadata import normalize_metadata
+from app.services.agent.ai_queries import configured_ai_queries
 from app.services.agent.article_feedback import (
     FeedbackProfile,
     candidate_matches_negative_themes,
@@ -385,7 +386,9 @@ def run_daily_digest(
         )
         return result
 
-    selected_topics = topics or digest_profile.default_topic_list()
+    selected_topics = topics or (
+        configured_ai_queries(user.id) if profile == "ai" else digest_profile.default_topic_list()
+    )
     article_limit = max_articles or digest_profile.max_articles
     digest_state = load_digest_state(user.id, profile)
     today = _user_today()
@@ -439,6 +442,7 @@ def run_daily_digest(
                 selected_topics,
                 date_from=date_range.date_from,
                 date_to=date_range.date_to,
+                user_id=user.id,
             )
 
         feedback_profile = load_feedback_profile(

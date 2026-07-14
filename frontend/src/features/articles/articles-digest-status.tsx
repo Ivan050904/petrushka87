@@ -32,7 +32,14 @@ export function ArticlesDigestStatus({ tab, status, profileStatus }: ArticlesDig
     },
   ];
 
-  if (tab === "psychology" && profileStatus.query_source) {
+  if (tab === "psychology" && profileStatus.last_error) {
+    chips.push({
+      label: "Ошибка",
+      value: profileStatus.last_error,
+    });
+  }
+
+  if (profileStatus.query_source) {
     chips.push({
       label: "Запросы",
       value: QUERY_SOURCE_LABELS[profileStatus.query_source] ?? profileStatus.query_source,
@@ -47,9 +54,6 @@ export function ArticlesDigestStatus({ tab, status, profileStatus }: ArticlesDig
           <span className="text-[var(--articles-foreground)]">{chip.value}</span>
         </span>
       ))}
-      {tab === "psychology" && profileStatus.last_error ? (
-        <span className="articles-chip border-rose-500/40 text-rose-300">{profileStatus.last_error}</span>
-      ) : null}
     </div>
   );
 }

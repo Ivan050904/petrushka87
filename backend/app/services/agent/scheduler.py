@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.core.config import settings
 from app.db.session import SessionLocal
+from app.services.agent.ai_query_tuner import tune_ai_queries
 from app.services.agent.article_feedback import load_feedback_profile
 from app.services.agent.digest import _resolve_user, run_daily_digest
 from app.services.agent.psych_query_tuner import tune_psych_queries
@@ -54,6 +55,16 @@ def _maybe_tune_psych_queries(db) -> None:  # noqa: ANN001
         logger.exception("Psych query tuning failed")
 
 
+def _maybe_tune_ai_queries(db) -> None:  # noqa: ANN001
+    try:
+        user = _resolve_user(db, None, settings.digest_user_email)
+        feedback_profile = load_feedback_profile(db, user.id, collection="ai")
+        result = tune_ai_queries(feedback_profile, user_id=user.id)
+        logger.info("AI query tuning: status=%s message=%s", result.status, result.message)
+    except Exception:
+        logger.exception("AI query tuning failed")
+
+
 async def _run_scheduled_digest() -> None:
     global _last_scheduled_run_date
 
@@ -70,6 +81,7 @@ async def _run_scheduled_digest() -> None:
         db = SessionLocal()
         try:
             if settings.digest_enabled:
+                _maybe_tune_ai_queries(db)
                 result = run_daily_digest(db, user_email=settings.digest_user_email, profile="ai")
                 logger.info(
                     "AI digest scheduler finished: status=%s saved=%s message=%s",

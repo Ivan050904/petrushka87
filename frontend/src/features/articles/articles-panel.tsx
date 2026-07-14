@@ -28,6 +28,7 @@ import {
   listEntries,
   runDigest,
   submitArticleFeedback,
+  tuneAiQueries,
   tunePsychQueries,
   type ArticleFeedbackType,
   type DigestProfileStatus,
@@ -249,8 +250,10 @@ export function ArticlesPanel() {
     setActionError(null);
     setActionInfo(null);
     try {
-      const result = await tunePsychQueries(token);
-      await loadArticles({ activeTab: tab });
+      const result =
+        tab === "psychology" ? await tunePsychQueries(token) : await tuneAiQueries(token);
+      const digestStatus = await getDigestStatus(token);
+      setStatus(digestStatus);
       setActionInfo(result.message);
     } catch (requestError) {
       setActionError(getErrorMessage(requestError, "Не удалось обновить запросы поиска."));

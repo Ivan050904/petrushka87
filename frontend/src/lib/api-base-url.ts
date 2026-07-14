@@ -10,10 +10,10 @@ export function resolveApiBaseUrl() {
     return configured;
   }
 
-  const hostname = window.location.hostname;
+  const { hostname, protocol, host } = window.location;
   if (isLocalHostname(hostname)) {
     return configured;
   }
 
-  return `http://${hostname}:8000/api/v1`;
+  return `${protocol}//${host}/api/v1`;
 }

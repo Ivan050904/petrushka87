@@ -732,6 +732,8 @@ export type DigestStatus = {
   last_topics: string[] | null;
   last_search_until: string | null;
   next_search_from: string | null;
+  query_source?: string | null;
+  tuned_at?: string | null;
   psychology: DigestProfileStatus;
 };
 
@@ -774,6 +776,13 @@ export type PsychQueryTuneResponse = {
 
 export function tunePsychQueries(token: string): Promise<PsychQueryTuneResponse> {
   return request<PsychQueryTuneResponse>("/agent/digest/psychology/tune-queries", {
+    method: "POST",
+    token,
+  });
+}
+
+export function tuneAiQueries(token: string): Promise<PsychQueryTuneResponse> {
+  return request<PsychQueryTuneResponse>("/agent/digest/ai/tune-queries", {
     method: "POST",
     token,
   });

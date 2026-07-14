@@ -497,8 +497,10 @@ def test_tune_psych_queries_rejects_unapproved_llm_sources(
 
 @patch("app.services.agent.scheduler.run_daily_digest")
 @patch("app.services.agent.scheduler.tune_psych_queries")
+@patch("app.services.agent.scheduler.tune_ai_queries")
 def test_scheduler_runs_both_profiles_and_tunes(
-    mock_tune: MagicMock,
+    mock_tune_ai: MagicMock,
+    mock_tune_psych: MagicMock,
     mock_run_digest: MagicMock,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -506,7 +508,8 @@ def test_scheduler_runs_both_profiles_and_tunes(
 
     from app.services.agent import scheduler
 
-    mock_tune.return_value = MagicMock(status="skipped", message="not enough feedback")
+    mock_tune_ai.return_value = MagicMock(status="skipped", message="not enough feedback")
+    mock_tune_psych.return_value = MagicMock(status="skipped", message="not enough feedback")
 
     monkeypatch.setattr(
         scheduler,
@@ -526,7 +529,8 @@ def test_scheduler_runs_both_profiles_and_tunes(
 
     asyncio.run(run_once())
 
-    mock_tune.assert_called_once()
+    mock_tune_ai.assert_called_once()
+    mock_tune_psych.assert_called_once()
     assert mock_run_digest.call_count == 2
     profiles = [call.kwargs.get("profile") for call in mock_run_digest.call_args_list]
     assert profiles == ["ai", "psychology"]

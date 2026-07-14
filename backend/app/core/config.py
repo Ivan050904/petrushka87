@@ -131,6 +131,8 @@ class Settings:
     digest_search_provider: str = "habr"
     digest_first_run_lookback_days: int = 7
     digest_scheduler_enabled: bool = True
+    ai_digest_tuned_queries_max_age_days: int = 7
+    ai_digest_tune_min_feedback: int = 3
 
     psych_digest_enabled: bool = True
     psych_digest_max_articles: int = 3
@@ -288,6 +290,10 @@ def get_settings() -> Settings:
         digest_search_provider=_env(dotenv, "DIGEST_SEARCH_PROVIDER", "habr"),
         digest_first_run_lookback_days=_env_int(dotenv, "DIGEST_FIRST_RUN_LOOKBACK_DAYS", 7),
         digest_scheduler_enabled=_env_bool(dotenv, "DIGEST_SCHEDULER_ENABLED", True),
+        ai_digest_tuned_queries_max_age_days=_env_int(
+            dotenv, "AI_DIGEST_TUNED_QUERIES_MAX_AGE_DAYS", 7
+        ),
+        ai_digest_tune_min_feedback=_env_int(dotenv, "AI_DIGEST_TUNE_MIN_FEEDBACK", 3),
         psych_digest_enabled=_env_bool(dotenv, "PSYCH_DIGEST_ENABLED", True),
         psych_digest_max_articles=_env_int(dotenv, "PSYCH_DIGEST_MAX_ARTICLES", 3),
         psych_digest_schedule_hour=_env_int(dotenv, "PSYCH_DIGEST_SCHEDULE_HOUR", 8),

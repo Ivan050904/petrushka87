@@ -93,9 +93,22 @@ def _normalize_category(value: object) -> str | None:
         return None
     if category.isdigit():
         return None
-    if category.lower() in {"расходы", "доходы", "все расходы", "все доходы"}:
+    lowered = category.casefold()
+    if lowered in {"расходы", "доходы", "все расходы", "все доходы"}:
+        return None
+    if "расход" in lowered or "доход" in lowered:
         return None
     return category[:160]
+
+
+def _detect_side_columns(worksheet, *, side: FinanceSide) -> tuple[int, int]:
+    marker = "расход" if side == "expense" else "доход"
+    fallback = (1, 2) if side == "expense" else (3, 4)
+    for col in range(1, worksheet.max_column + 1):
+        value = worksheet.cell(1, col).value
+        if isinstance(value, str) and marker in value.casefold():
+            return col, col + 1
+    return fallback
 
 
 def _normalize_amount(value: object) -> float | None:
@@ -119,10 +132,16 @@ def parse_finance_workbook(path: str | Path) -> ParsedExcelWorkbook:
     for sheet_name in workbook.sheetnames:
         worksheet = workbook[sheet_name]
         transaction_date = sheet_to_transaction_date(sheet_name)
+        expense_category_col, expense_amount_col = _detect_side_columns(worksheet, side="expense")
+        income_category_col, income_amount_col = _detect_side_columns(worksheet, side="income")
 
         for row_number in range(2, worksheet.max_row + 1):
-            expense_category = _normalize_category(worksheet.cell(row_number, 1).value)
-            expense_amount = _normalize_amount(worksheet.cell(row_number, 2).value)
+            expense_category = _normalize_category(
+                worksheet.cell(row_number, expense_category_col).value
+            )
+            expense_amount = _normalize_amount(
+                worksheet.cell(row_number, expense_amount_col).value
+            )
             if expense_category and expense_amount is not None:
                 rows.append(
                     _build_row(
@@ -138,8 +157,12 @@ def parse_finance_workbook(path: str | Path) -> ParsedExcelWorkbook:
                 expense_total += expense_amount
                 expense_count += 1
 
-            income_category = _normalize_category(worksheet.cell(row_number, 3).value)
-            income_amount = _normalize_amount(worksheet.cell(row_number, 4).value)
+            income_category = _normalize_category(
+                worksheet.cell(row_number, income_category_col).value
+            )
+            income_amount = _normalize_amount(
+                worksheet.cell(row_number, income_amount_col).value
+            )
             if income_category and income_amount is not None:
                 rows.append(
                     _build_row(

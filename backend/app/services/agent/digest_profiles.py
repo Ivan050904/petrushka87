@@ -8,6 +8,7 @@ from typing import Literal
 from urllib.parse import urlparse
 
 from app.core.config import settings
+from app.services.agent.ai_queries import get_tuned_ai_queries
 from app.services.agent.prompts import (
     DIGEST_FILTER_PROMPT,
     PSYCH_DIGEST_FILTER_PROMPT,
@@ -101,12 +102,39 @@ def _search_duckduckgo_habr_fallback(queries: list[str]) -> list[SearchResult]:
     return candidates
 
 
+def _search_ddg_queries(queries: list[str]) -> list[SearchResult]:
+    candidates: list[SearchResult] = []
+    seen_urls: set[str] = set()
+    for query in queries:
+        for result in web_search(query, max_results=12, timelimit="w", pause_seconds=1.0):
+            if result.url in seen_urls:
+                continue
+            seen_urls.add(result.url)
+            candidates.append(
+                SearchResult(
+                    title=result.title,
+                    url=result.url,
+                    snippet=result.snippet,
+                    query=query,
+                    published_at=result.published_at,
+                    source_site=result.source_site or "habr.com",
+                )
+            )
+    return candidates
+
+
 def collect_ai_candidates(
     topics: list[str],
     *,
     date_from: date,
     date_to: date,
+    user_id: uuid.UUID | None = None,
 ) -> list[SearchResult]:
+    if user_id is not None:
+        tuned = get_tuned_ai_queries(user_id)
+        if tuned:
+            return _search_ddg_queries(tuned)
+
     provider = settings.digest_search_provider.strip().lower()
     if provider == "habr":
         candidates = _search_habr(topics, date_from=date_from, date_to=date_to)
