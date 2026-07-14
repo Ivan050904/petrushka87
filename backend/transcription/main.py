@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 from starlette.middleware.sessions import SessionMiddleware
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from transcription import app_auth, auth
 from transcription.chat_service import ensure_chats_for_user, get_chat_for_job, get_owned_chat, get_user_chats
@@ -35,6 +36,7 @@ def _url(path: str) -> str:
 from app.core.config import settings as app_settings
 
 app = FastAPI(title="Video Summary")
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.secret_key,
@@ -84,6 +86,13 @@ async def _run_process_job(job_id: int) -> None:
     await run_in_threadpool(process_job, job_id)
 
 
+def _page_context(request: Request, ctx: dict) -> dict:
+    token = app_auth.client_access_token(request)
+    if token:
+        ctx["access_token"] = token
+    return ctx
+
+
 def _render_chat_main(
     request: Request,
     user: User,
@@ -93,11 +102,14 @@ def _render_chat_main(
     messages: list[ChatMessage] | None = None,
     refresh_sidebar: bool = False,
 ):
-    ctx = {
-        **_chat_context(user, db, active_chat),
-        "messages": messages if messages is not None else [],
-        "refresh_sidebar": refresh_sidebar,
-    }
+    ctx = _page_context(
+        request,
+        {
+            **_chat_context(user, db, active_chat),
+            "messages": messages if messages is not None else [],
+            "refresh_sidebar": refresh_sidebar,
+        },
+    )
     return templates.TemplateResponse(request, "partials/chat_main.html", ctx)
 
 
@@ -153,7 +165,7 @@ def sso_login(request: Request, db: Session = Depends(get_db)):
     if user:
         response = RedirectResponse(_url("/"), status_code=302)
         if token:
-            app_auth.set_auth_cookie(response, token, secure=request.url.scheme == "https")
+            app_auth.set_auth_cookie(response, token, secure=app_auth.request_is_secure(request))
         return response
     return RedirectResponse(app_auth.app_login_url(), status_code=302)
 
@@ -207,8 +219,8 @@ def index(request: Request, db: Session = Depends(get_db)):
     user = _require_user(request, db)
     if not user:
         return RedirectResponse(app_auth.app_login_url(), status_code=302)
-    ctx = _chat_context(user, db)
-    return templates.TemplateResponse(request, "chat.html", {**ctx, "messages": []})
+    ctx = _page_context(request, {**_chat_context(user, db), "messages": []})
+    return templates.TemplateResponse(request, "chat.html", ctx)
 
 
 @app.get("/panel/new", response_class=HTMLResponse)
@@ -242,7 +254,7 @@ def chat_page(chat_id: int, request: Request, db: Session = Depends(get_db)):
     messages = _chat_messages(db, chat.id)
     if _is_htmx(request):
         return _render_chat_main(request, user, db, active_chat=chat, messages=messages)
-    ctx = {**_chat_context(user, db, active_chat=chat), "messages": messages}
+    ctx = _page_context(request, {**_chat_context(user, db, active_chat=chat), "messages": messages})
     return templates.TemplateResponse(request, "chat.html", ctx)
 
 

@@ -1,7 +1,32 @@
 (function () {
   const ROOT_PATH = document.querySelector('meta[name="root-path"]')?.content?.replace(/\/$/, "") || "";
+  const ACCESS_TOKEN = document.querySelector('meta[name="folio-access-token"]')?.content?.trim() || "";
+
   function apiPath(path) {
     return `${ROOT_PATH}${path}`;
+  }
+
+  function authHeaders(extra) {
+    const headers = new Headers(extra || {});
+    if (ACCESS_TOKEN && !headers.has("Authorization")) {
+      headers.set("Authorization", `Bearer ${ACCESS_TOKEN}`);
+    }
+    return headers;
+  }
+
+  function fetchWithAuth(path, options) {
+    const opts = options || {};
+    return fetch(apiPath(path), {
+      ...opts,
+      credentials: "same-origin",
+      headers: authHeaders(opts.headers),
+    });
+  }
+
+  if (ACCESS_TOKEN && typeof document !== "undefined" && document.body) {
+    document.body.addEventListener("htmx:configRequest", (event) => {
+      event.detail.headers["Authorization"] = `Bearer ${ACCESS_TOKEN}`;
+    });
   }
 
   let activePollToken = 0;
@@ -93,7 +118,7 @@
         if (!chatId) return;
         if (!confirm("Удалить чат и все данные по этому видео?")) return;
 
-        const res = await fetch(apiPath(`/chats/${chatId}`), { method: "DELETE" });
+        const res = await fetchWithAuth(`/chats/${chatId}`, { method: "DELETE" });
         if (!res.ok) return;
         const data = await res.json();
         const boot = document.getElementById("chat-boot");
@@ -267,7 +292,7 @@
 
     function poll() {
       if (pollToken !== activePollToken) return;
-      fetch(apiPath(`/chats/${chatId}/status`))
+      fetchWithAuth(`/chats/${chatId}/status`)
         .then((r) => {
           if (!r.ok) throw new Error("status");
           return r.json();
@@ -301,7 +326,7 @@
           if (chatSend) chatSend.disabled = true;
           if (suggestionChips) suggestionChips.hidden = true;
 
-          fetch(apiPath(`/chats/${chatId}/retry?mode=${mode}`), {
+          fetchWithAuth(`/chats/${chatId}/retry?mode=${mode}`, {
             method: "POST",
             headers: { "HX-Request": "true" },
           })
@@ -336,7 +361,7 @@
         toggleBtn.setAttribute("aria-expanded", opening ? "true" : "false");
         toggleBtn.textContent = opening ? "Скрыть текст" : "Полный текст";
         if (opening && !transcriptLoaded && transcriptEl) {
-          fetch(apiPath(`/chats/${chatId}/transcript`))
+          fetchWithAuth(`/chats/${chatId}/transcript`)
             .then((r) => r.text())
             .then((t) => {
               transcriptEl.textContent = t || "Текст пуст.";
@@ -389,7 +414,7 @@
       }
 
       try {
-        const res = await fetch(apiPath(`/chats/${chatId}/messages/stream`), {
+        const res = await fetchWithAuth(`/chats/${chatId}/messages/stream`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ message: question }),
@@ -489,7 +514,7 @@
     setProgress(parseInt(boot.dataset.progress || "0", 10), stageEl ? stageEl.textContent : "");
 
     if (status !== "done" && status !== "error") {
-      fetch(apiPath(`/chats/${chatId}/status`))
+      fetchWithAuth(`/chats/${chatId}/status`)
         .then((r) => (r.ok ? r.json() : null))
         .then((data) => {
           if (!data || pollToken !== activePollToken) return;

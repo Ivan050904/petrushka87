@@ -4,6 +4,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="root-path" content="{{ root_path }}">
+    {% if access_token %}
+    <meta name="folio-access-token" content="{{ access_token }}">
+    {% endif %}
     <base href="{{ root_path }}/">
     <title>{% block title %}Пересказ видео{% endblock %}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">

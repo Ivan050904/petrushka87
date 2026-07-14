@@ -10,6 +10,7 @@ import { Notice } from "@/components/ui/notice";
 import { VoiceTranscribePanel } from "@/features/transcription/voice-transcribe-panel";
 import { TRACKING_MOBILE_SCROLL } from "@/features/tracking/tracking-layout";
 import { useRequireAuth } from "@/hooks/use-auth";
+import { AUTH_TOKEN_KEY } from "@/lib/auth-cookie";
 import { resolveApiBaseUrl } from "@/lib/api-base-url";
 import { ROUTES } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
@@ -23,38 +24,35 @@ function transcriptionBackendOrigin() {
   return resolveApiBaseUrl().replace(/\/api\/v1\/?$/, "");
 }
 
-function useIsMobileLegacyLayout() {
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia("(max-width: 1279px)");
-    function update() {
-      setIsMobile(mediaQuery.matches);
-    }
-    update();
-    mediaQuery.addEventListener("change", update);
-    return () => mediaQuery.removeEventListener("change", update);
-  }, []);
-
-  return isMobile;
+function readStoredToken() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  return window.localStorage.getItem(AUTH_TOKEN_KEY);
 }
 
 export function TranscriptionView() {
   const { token, isLoading } = useRequireAuth();
   const [tab, setTab] = useState<TranscriptionTab>("voice");
   const [iframeStatus, setIframeStatus] = useState<IframeStatus>("loading");
-  const isMobileLegacyLayout = useIsMobileLegacyLayout();
+  const [storedToken, setStoredToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    setStoredToken(readStoredToken());
+  }, [token]);
+
+  const authToken = token ?? storedToken;
 
   const embedUrl = useMemo(() => {
     const origin = transcriptionBackendOrigin();
-    if (!token) {
+    if (!authToken) {
       return `${origin}/transcription/sso`;
     }
-    return `${origin}/transcription/sso?access_token=${encodeURIComponent(token)}`;
-  }, [token]);
+    return `${origin}/transcription/sso?access_token=${encodeURIComponent(authToken)}`;
+  }, [authToken]);
 
   useEffect(() => {
-    if (tab !== "legacy" || isMobileLegacyLayout) {
+    if (tab !== "legacy") {
       return;
     }
     setIframeStatus("loading");
@@ -62,13 +60,13 @@ export function TranscriptionView() {
       setIframeStatus((current) => (current === "loading" ? "error" : current));
     }, IFRAME_TIMEOUT_MS);
     return () => window.clearTimeout(timeoutId);
-  }, [tab, embedUrl, isMobileLegacyLayout]);
+  }, [tab, embedUrl]);
 
   if (isLoading) {
     return <p className="px-4 py-6 text-sm text-muted-foreground lg:px-6">Загрузка…</p>;
   }
 
-  if (!token) {
+  if (!authToken) {
     return (
       <div className="mx-auto flex max-w-md flex-col gap-4 px-4 py-8 lg:px-6">
         <h1 className="text-xl font-semibold">Транскрибация</h1>
@@ -105,52 +103,58 @@ export function TranscriptionView() {
         <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", TRACKING_MOBILE_SCROLL)}>
           <VoiceTranscribePanel />
         </div>
-      ) : isMobileLegacyLayout ? (
-        <div className={cn("flex min-h-0 flex-1 flex-col gap-4 p-4", TRACKING_MOBILE_SCROLL)}>
-          <Notice variant="info">
-            YouTube-транскрибация на телефоне открывается отдельной страницей — так надёжнее сохраняется вход в
-            аккаунт.
-          </Notice>
-          <Button className="min-h-11 w-full" onClick={() => window.location.assign(embedUrl)}>
-            <ExternalLink data-icon="inline-start" />
-            Открыть YouTube транскрибацию
-          </Button>
-          <p className="text-sm text-muted-foreground">
-            После обработки видео вернитесь в меню → Транскрибация → Голос или на главную.
-          </p>
-        </div>
-      ) : iframeStatus === "error" ? (
-        <div className={cn("flex min-h-0 flex-1 flex-col gap-4 p-4 lg:p-6", TRACKING_MOBILE_SCROLL)}>
-          <Notice variant="info">
-            Не удалось загрузить встроенный интерфейс транскрибации. Откройте его в отдельной вкладке.
-          </Notice>
-          <LoadError
-            message="Проверьте, что backend запущен и доступен по адресу API."
-            onRetry={() => setIframeStatus("loading")}
-          />
-          <Button asChild variant="outline" className="w-fit">
-            <a href={embedUrl} target="_blank" rel="noopener noreferrer">
-              Открыть транскрибацию в новой вкладке
-            </a>
-          </Button>
-        </div>
       ) : (
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          {iframeStatus === "loading" ? (
-            <p className="shrink-0 px-4 py-3 text-sm text-muted-foreground lg:px-6">Загрузка интерфейса…</p>
-          ) : null}
-          <iframe
-            title="Транскрибация YouTube"
-            src={embedUrl}
-            className={cn(
-              "block min-h-0 w-full flex-1 border-0 bg-background",
-              iframeStatus === "loading" && "opacity-0",
+        <>
+          <div className={cn("flex min-h-0 flex-1 flex-col gap-4 p-4 xl:hidden", TRACKING_MOBILE_SCROLL)}>
+            <Notice variant="info">
+              YouTube-транскрибация на телефоне открывается отдельной страницей — так надёжнее сохраняется вход в
+              аккаунт.
+            </Notice>
+            <Button className="min-h-11 w-full" onClick={() => window.location.assign(embedUrl)}>
+              <ExternalLink data-icon="inline-start" />
+              Открыть YouTube транскрибацию
+            </Button>
+            <p className="text-sm text-muted-foreground">
+              После обработки видео вернитесь в меню → Транскрибация → Голос или на главную.
+            </p>
+          </div>
+
+          <div className="hidden min-h-0 flex-1 flex-col overflow-hidden xl:flex">
+            {iframeStatus === "error" ? (
+              <div className={cn("flex min-h-0 flex-1 flex-col gap-4 p-4 lg:p-6", TRACKING_MOBILE_SCROLL)}>
+                <Notice variant="info">
+                  Не удалось загрузить встроенный интерфейс транскрибации. Откройте его в отдельной вкладке.
+                </Notice>
+                <LoadError
+                  message="Проверьте, что backend запущен и доступен по адресу API."
+                  onRetry={() => setIframeStatus("loading")}
+                />
+                <Button asChild variant="outline" className="w-fit">
+                  <a href={embedUrl} target="_blank" rel="noopener noreferrer">
+                    Открыть транскрибацию в новой вкладке
+                  </a>
+                </Button>
+              </div>
+            ) : (
+              <>
+                {iframeStatus === "loading" ? (
+                  <p className="shrink-0 px-4 py-3 text-sm text-muted-foreground lg:px-6">Загрузка интерфейса…</p>
+                ) : null}
+                <iframe
+                  title="Транскрибация YouTube"
+                  src={embedUrl}
+                  className={cn(
+                    "block min-h-0 w-full flex-1 border-0 bg-background",
+                    iframeStatus === "loading" && "opacity-0",
+                  )}
+                  allow="clipboard-write"
+                  onLoad={() => setIframeStatus("ready")}
+                  onError={() => setIframeStatus("error")}
+                />
+              </>
             )}
-            allow="clipboard-write"
-            onLoad={() => setIframeStatus("ready")}
-            onError={() => setIframeStatus("error")}
-          />
-        </div>
+          </div>
+        </>
       )}
     </div>
   );

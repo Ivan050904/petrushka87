@@ -22,6 +22,17 @@ def app_login_url() -> str:
     return app_settings.cors_origins[0] + "/login"
 
 
+def request_is_secure(request: Request) -> bool:
+    forwarded = request.headers.get("x-forwarded-proto", "").split(",")[0].strip().lower()
+    if forwarded == "https":
+        return True
+    return request.url.scheme == "https"
+
+
+def client_access_token(request: Request) -> str | None:
+    return _extract_token(request)
+
+
 def set_auth_cookie(response: Response, token: str, *, secure: bool) -> None:
     response.set_cookie(
         AUTH_COOKIE_NAME,
