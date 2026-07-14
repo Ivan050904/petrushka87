@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { ExternalLink } from "lucide-react";
 
 import { LoadError } from "@/components/load-error";
 import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
 import { VoiceTranscribePanel } from "@/features/transcription/voice-transcribe-panel";
+import { TRACKING_MOBILE_SCROLL } from "@/features/tracking/tracking-layout";
 import { useRequireAuth } from "@/hooks/use-auth";
 import { resolveApiBaseUrl } from "@/lib/api-base-url";
 import { ROUTES } from "@/lib/navigation";
@@ -21,10 +23,27 @@ function transcriptionBackendOrigin() {
   return resolveApiBaseUrl().replace(/\/api\/v1\/?$/, "");
 }
 
+function useIsMobileLegacyLayout() {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 1279px)");
+    function update() {
+      setIsMobile(mediaQuery.matches);
+    }
+    update();
+    mediaQuery.addEventListener("change", update);
+    return () => mediaQuery.removeEventListener("change", update);
+  }, []);
+
+  return isMobile;
+}
+
 export function TranscriptionView() {
   const { token, isLoading } = useRequireAuth();
   const [tab, setTab] = useState<TranscriptionTab>("voice");
   const [iframeStatus, setIframeStatus] = useState<IframeStatus>("loading");
+  const isMobileLegacyLayout = useIsMobileLegacyLayout();
 
   const embedUrl = useMemo(() => {
     const origin = transcriptionBackendOrigin();
@@ -35,7 +54,7 @@ export function TranscriptionView() {
   }, [token]);
 
   useEffect(() => {
-    if (tab !== "legacy") {
+    if (tab !== "legacy" || isMobileLegacyLayout) {
       return;
     }
     setIframeStatus("loading");
@@ -43,7 +62,7 @@ export function TranscriptionView() {
       setIframeStatus((current) => (current === "loading" ? "error" : current));
     }, IFRAME_TIMEOUT_MS);
     return () => window.clearTimeout(timeoutId);
-  }, [tab, embedUrl]);
+  }, [tab, embedUrl, isMobileLegacyLayout]);
 
   if (isLoading) {
     return <p className="px-4 py-6 text-sm text-muted-foreground lg:px-6">Загрузка…</p>;
@@ -64,7 +83,12 @@ export function TranscriptionView() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col">
+    <div
+      className={cn(
+        "flex min-h-0 flex-1 flex-col overflow-hidden",
+        "max-xl:fixed max-xl:inset-x-0 max-xl:top-[var(--shell-mobile-header)] max-xl:bottom-0 max-xl:z-20 max-xl:bg-background max-xl:pb-[env(safe-area-inset-bottom,0px)]",
+      )}
+    >
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2 lg:px-4">
         <h1 className="text-lg font-semibold tracking-tight">Транскрибация</h1>
         <div className="flex flex-wrap gap-2">
@@ -78,9 +102,25 @@ export function TranscriptionView() {
       </div>
 
       {tab === "voice" ? (
-        <VoiceTranscribePanel />
+        <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", TRACKING_MOBILE_SCROLL)}>
+          <VoiceTranscribePanel />
+        </div>
+      ) : isMobileLegacyLayout ? (
+        <div className={cn("flex min-h-0 flex-1 flex-col gap-4 p-4", TRACKING_MOBILE_SCROLL)}>
+          <Notice variant="info">
+            YouTube-транскрибация на телефоне открывается отдельной страницей — так надёжнее сохраняется вход в
+            аккаунт.
+          </Notice>
+          <Button className="min-h-11 w-full" onClick={() => window.location.assign(embedUrl)}>
+            <ExternalLink data-icon="inline-start" />
+            Открыть YouTube транскрибацию
+          </Button>
+          <p className="text-sm text-muted-foreground">
+            После обработки видео вернитесь в меню → Транскрибация → Голос или на главную.
+          </p>
+        </div>
       ) : iframeStatus === "error" ? (
-        <div className="flex flex-1 flex-col gap-4 p-4 lg:p-6">
+        <div className={cn("flex min-h-0 flex-1 flex-col gap-4 p-4 lg:p-6", TRACKING_MOBILE_SCROLL)}>
           <Notice variant="info">
             Не удалось загрузить встроенный интерфейс транскрибации. Откройте его в отдельной вкладке.
           </Notice>
@@ -95,9 +135,9 @@ export function TranscriptionView() {
           </Button>
         </div>
       ) : (
-        <>
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {iframeStatus === "loading" ? (
-            <p className="px-4 py-3 text-sm text-muted-foreground lg:px-6">Загрузка интерфейса…</p>
+            <p className="shrink-0 px-4 py-3 text-sm text-muted-foreground lg:px-6">Загрузка интерфейса…</p>
           ) : null}
           <iframe
             title="Транскрибация YouTube"
@@ -110,7 +150,7 @@ export function TranscriptionView() {
             onLoad={() => setIframeStatus("ready")}
             onError={() => setIframeStatus("error")}
           />
-        </>
+        </div>
       )}
     </div>
   );

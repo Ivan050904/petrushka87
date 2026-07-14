@@ -5,7 +5,7 @@ import { TranscriptionView } from "@/features/transcription/transcription-view";
 
 export default function TranscribePage() {
   return (
-    <AppShell contentClassName="p-0">
+    <AppShell contentClassName="min-h-0 flex-1 overflow-hidden p-0">
       <TranscriptionView />
     </AppShell>
   );

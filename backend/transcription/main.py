@@ -32,8 +32,16 @@ def _url(path: str) -> str:
     return f"{prefix}{path}" if prefix else path
 
 
+from app.core.config import settings as app_settings
+
 app = FastAPI(title="Video Summary")
-app.add_middleware(SessionMiddleware, secret_key=settings.secret_key)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.secret_key,
+    same_site="lax",
+    https_only=app_settings.environment == "production",
+    path="/transcription",
+)
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
@@ -140,9 +148,13 @@ class ChatMessageIn(BaseModel):
 
 @app.get("/sso")
 def sso_login(request: Request, db: Session = Depends(get_db)):
+    token = request.query_params.get("access_token", "").strip()
     user = _require_user(request, db)
     if user:
-        return RedirectResponse(_url("/"), status_code=302)
+        response = RedirectResponse(_url("/"), status_code=302)
+        if token:
+            app_auth.set_auth_cookie(response, token, secure=request.url.scheme == "https")
+        return response
     return RedirectResponse(app_auth.app_login_url(), status_code=302)
 
 
