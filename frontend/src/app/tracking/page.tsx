@@ -21,7 +21,7 @@ function TrackingFallback() {
 
 export default function TrackingPage() {
   return (
-    <AppShell>
+    <AppShell contentClassName="min-h-0 flex-1 overflow-hidden">
       <Suspense fallback={<TrackingFallback />}>
         <TrackingView />
       </Suspense>

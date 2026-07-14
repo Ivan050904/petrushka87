@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FilePenLine, Plus, Search, Trash2, TrendingDown, TrendingUp, Upload, WalletCards, X } from "lucide-react";
+import { FilePenLine, Plus, Search, Trash2, TrendingDown, TrendingUp, Upload, WalletCards, X, ArrowLeft } from "lucide-react";
 
 import { LoadError } from "@/components/load-error";
 import { FinanceCategorySelect } from "@/features/tracking/finance-category-select";
@@ -34,7 +34,7 @@ import { formatFinanceDirection } from "@/lib/labels";
 import { parseFinancePanelView, trackingTabHref } from "@/lib/navigation";
 import type { Entry } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { TRACKING_GRID, TRACKING_SCROLL_COL } from "@/features/tracking/tracking-layout";
+import { TRACKING_GRID, TRACKING_MOBILE_SCROLL, TRACKING_SCROLL_COL } from "@/features/tracking/tracking-layout";
 
 type FinanceDirection = "income" | "expense";
 type FinanceDirectionFilter = "all" | FinanceDirection;
@@ -101,6 +101,7 @@ export function FinancePanel({
   const [dashboardMonth, setDashboardMonth] = useState(() => currentMonthValue());
   const [compareMonth, setCompareMonth] = useState(() => shiftMonth(currentMonthValue(), -1));
   const [financeAccounts, setFinanceAccounts] = useState<FinanceAccount[]>([]);
+  const [mobileDetailView, setMobileDetailView] = useState(Boolean(selectedIdFromUrl));
   const draftKey = user?.id ? `${FINANCE_DRAFT_STORAGE_KEY}:${user.id}` : null;
 
   const financeViewFromUrl = parseFinancePanelView(searchParams.get("financeView"));
@@ -258,6 +259,12 @@ export function FinancePanel({
   }, [selectedIdFromUrl, entries, isLoading, onSelectedChange]);
 
   useEffect(() => {
+    if (selectedIdFromUrl) {
+      setMobileDetailView(true);
+    }
+  }, [selectedIdFromUrl]);
+
+  useEffect(() => {
     if (!draftKey || !isDraftLoaded || selectedId) {
       return;
     }
@@ -399,9 +406,19 @@ export function FinancePanel({
     setSelectedId(entry.id);
     setForm(entryToFinanceForm(entry));
     setError(null);
+    setMobileDetailView(true);
   }
 
   function startNewFinanceEntry() {
+    clearFinanceDraft();
+    setSelectedId(null);
+    setForm(emptyFinanceForm);
+    setError(null);
+    setMobileDetailView(true);
+  }
+
+  function closeMobileFinanceDetail() {
+    setMobileDetailView(false);
     clearFinanceDraft();
     setSelectedId(null);
     setForm(emptyFinanceForm);
@@ -491,7 +508,7 @@ export function FinancePanel({
       setEntries((current) => current.filter((entry) => entry.id !== selectedEntry.id));
       setEntryTotal((current) => Math.max(0, current - 1));
       await loadSummary();
-      startNewFinanceEntry();
+      closeMobileFinanceDetail();
     } catch (requestError) {
       setError(getErrorMessage(requestError, "Не удалось удалить операцию."));
     }
@@ -513,7 +530,7 @@ export function FinancePanel({
         )}
 
         {panelTab === "import" ? (
-          <div className={cn(compact && "min-h-0 flex-1 overflow-y-auto")}>
+          <div className={cn(compact && TRACKING_MOBILE_SCROLL)}>
             <FinanceImportWizard
               onImported={() => void handleImported()}
               existingExternalIds={existingExternalIds}
@@ -524,7 +541,7 @@ export function FinancePanel({
         ) : null}
 
         {panelTab === "dashboard" ? (
-          <div className={cn(compact && "min-h-0 flex-1 overflow-y-auto")}>
+          <div className={cn(compact && TRACKING_MOBILE_SCROLL)}>
             {summaryError ? (
               <LoadError message={summaryError} onRetry={() => void loadSummary()} className="mb-4" />
             ) : null}
@@ -578,10 +595,35 @@ export function FinancePanel({
           </Notice>
         ) : null}
 
-        <section className={cn(compact ? TRACKING_GRID : "grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]")}>
-          <Card className={cn(compact && TRACKING_SCROLL_COL, compact && "xl:self-stretch")}>
+        <section
+          className={cn(
+            compact ? TRACKING_GRID : "grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]",
+            compact && "max-xl:flex max-xl:min-h-0 max-xl:flex-1 max-xl:flex-col",
+          )}
+        >
+          <Card
+            className={cn(
+              compact && TRACKING_SCROLL_COL,
+              compact && "xl:self-stretch",
+              mobileDetailView ? undefined : "hidden xl:block",
+            )}
+          >
             <CardHeader className={cn("flex-row items-center justify-between", compact && "px-3 py-3 xl:px-4")}>
-              <CardTitle className={compact ? "text-base xl:text-lg" : undefined}>{selectedEntry ? "Операция" : "Новая операция"}</CardTitle>
+              <div className="flex min-w-0 flex-1 flex-col gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="w-fit min-h-11 xl:hidden"
+                  onClick={closeMobileFinanceDetail}
+                >
+                  <ArrowLeft data-icon="inline-start" />
+                  К списку
+                </Button>
+                <CardTitle className={compact ? "text-base xl:text-lg" : undefined}>
+                  {selectedEntry ? "Операция" : "Новая операция"}
+                </CardTitle>
+              </div>
               {selectedEntry ? (
                 <Button variant="destructive" size="sm" onClick={removeFinanceEntry}>
                   <Trash2 data-icon="inline-start" />
@@ -679,10 +721,20 @@ export function FinancePanel({
             </CardContent>
           </Card>
 
-          <Card className={cn(compact && "flex min-h-0 flex-col", compact && TRACKING_SCROLL_COL)}>
+          <Card
+            className={cn(
+              mobileDetailView && "hidden xl:block",
+              compact && "flex max-xl:min-h-0 max-xl:flex-1 max-xl:flex-col",
+              compact && TRACKING_SCROLL_COL,
+            )}
+          >
             <CardHeader className={cn("flex-row items-center justify-between", compact && "shrink-0 py-3")}>
               <CardTitle className={compact ? "text-base" : undefined}>Последние операции</CardTitle>
               <div className="flex items-center gap-2">
+                <Button type="button" size="sm" className="min-h-11 xl:hidden" onClick={startNewFinanceEntry}>
+                  <Plus data-icon="inline-start" />
+                  Новая
+                </Button>
                 {hasActiveFilters ? (
                   <Button variant="ghost" size="sm" onClick={resetFinanceFilters}>
                     <X data-icon="inline-start" />
@@ -692,7 +744,7 @@ export function FinancePanel({
                 <Badge variant="secondary">{entryTotal || filteredEntries.length}</Badge>
               </div>
             </CardHeader>
-            <CardContent className={cn("flex flex-col gap-3", compact && "min-h-0 flex-1 overflow-hidden pt-0")}>
+            <CardContent className={cn("flex flex-col gap-3", compact && "min-h-0 max-xl:flex-1 max-xl:overflow-hidden pt-0")}>
               <div className="grid shrink-0 gap-3 md:grid-cols-[1fr_180px_180px]">
                 <Field>
                   <FieldLabel htmlFor="finance-search">Поиск</FieldLabel>
@@ -757,7 +809,7 @@ export function FinancePanel({
                   }
                 />
               ) : (
-                <div className={cn("flex flex-col gap-2", compact && "min-h-0 flex-1 overflow-y-auto")}>
+                <div className={cn("flex flex-col gap-2", compact && "min-h-0 max-xl:flex-1 max-xl:overflow-y-auto")}>
                 {filteredEntries.map((entry) => {
                   const amount = getNumber(entry.metadata.amount);
                   const currency = getString(entry.metadata.currency, "RUB");

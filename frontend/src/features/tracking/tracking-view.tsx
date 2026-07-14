@@ -106,7 +106,7 @@ export function TrackingView() {
 
   return (
     <div className={TRACKING_SHELL}>
-      <div className="flex min-h-0 flex-1 flex-col pb-[env(safe-area-inset-bottom)]">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {tab === "habits" ? <HabitsPanel embedded compact /> : null}
         {tab === "finance" ? (
           <FinancePanel embedded compact selectedId={selectedId} onSelectedChange={changeSelected} />

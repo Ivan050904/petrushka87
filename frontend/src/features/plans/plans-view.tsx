@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   AlarmClock,
+  ArrowLeft,
   CalendarDays,
   CalendarRange,
   CheckSquare,
@@ -96,6 +97,7 @@ export function PlansView() {
   const [selectedAgendaId, setSelectedAgendaId] = useState<string | null>(searchParams.get("selected"));
   const [selectedDay, setSelectedDay] = useState<Date | null>(() => startOfDay(new Date()));
   const [createDraftSlot, setCreateDraftSlot] = useState<{ start: Date; end: Date } | null>(null);
+  const [mobileCalendarDetail, setMobileCalendarDetail] = useState(Boolean(searchParams.get("selected")));
 
   useEffect(() => {
     const tab = searchParams.get("tab");
@@ -107,6 +109,9 @@ export function PlansView() {
     const selected = searchParams.get("selected");
     setSelectedId(selected);
     setSelectedAgendaId(selected);
+    if (selected) {
+      setMobileCalendarDetail(true);
+    }
   }, [searchParams]);
 
   const loadEntries = useCallback(async () => {
@@ -153,6 +158,14 @@ export function PlansView() {
     setSelectedAgendaId(null);
     setSelectedId(null);
     setSelectedDay(startOfDay(day));
+    setMobileCalendarDetail(true);
+  }
+
+  function closeMobileCalendarDetail() {
+    setMobileCalendarDetail(false);
+    setCreateDraftSlot(null);
+    setSelectedAgendaId(null);
+    setSelectedId(null);
   }
 
   async function createFromQuickInput() {
@@ -182,57 +195,68 @@ export function PlansView() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold leading-8">Планы</h1>
-        <p className="text-sm text-muted-foreground">Задачи, события и напоминания на одной временной оси.</p>
-      </header>
+    <div className="mx-auto flex min-h-0 w-full max-w-[1600px] flex-1 flex-col overflow-hidden">
+      <div className="flex shrink-0 flex-col gap-4">
+        <header className="flex flex-col gap-1">
+          <h1 className="text-2xl font-semibold leading-8">Планы</h1>
+          <p className="text-sm text-muted-foreground">Задачи, события и напоминания на одной временной оси.</p>
+        </header>
 
-      {loadError ? <LoadError message={loadError} onRetry={() => void loadEntries()} /> : null}
+        {loadError ? <LoadError message={loadError} onRetry={() => void loadEntries()} /> : null}
 
-      <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          variant={detailMode === "timeline" ? "secondary" : "outline"}
-          size="sm"
-          onClick={() => setDetailMode("timeline")}
-        >
-          Лента
-        </Button>
-        <Button
-          type="button"
-          variant={detailMode === "calendar" ? "secondary" : "outline"}
-          size="sm"
-          onClick={() => setDetailMode("calendar")}
-        >
-          <CalendarDays data-icon="inline-start" />
-          Календарь
-        </Button>
-        <Button
-          type="button"
-          variant={detailMode === "tasks" ? "secondary" : "outline"}
-          size="sm"
-          onClick={() => setDetailMode("tasks")}
-        >
-          Задачи
-        </Button>
-        <Button
-          type="button"
-          variant={detailMode === "events" ? "secondary" : "outline"}
-          size="sm"
-          onClick={() => setDetailMode("events")}
-        >
-          События
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant={detailMode === "timeline" ? "secondary" : "outline"}
+            size="sm"
+            onClick={() => setDetailMode("timeline")}
+          >
+            Лента
+          </Button>
+          <Button
+            type="button"
+            variant={detailMode === "calendar" ? "secondary" : "outline"}
+            size="sm"
+            onClick={() => setDetailMode("calendar")}
+          >
+            <CalendarDays data-icon="inline-start" />
+            Календарь
+          </Button>
+          <Button
+            type="button"
+            variant={detailMode === "tasks" ? "secondary" : "outline"}
+            size="sm"
+            onClick={() => setDetailMode("tasks")}
+          >
+            Задачи
+          </Button>
+          <Button
+            type="button"
+            variant={detailMode === "events" ? "secondary" : "outline"}
+            size="sm"
+            onClick={() => setDetailMode("events")}
+          >
+            События
+          </Button>
+        </div>
       </div>
 
+      <div
+        className={cn(
+          "min-h-0 flex-1",
+          detailMode === "calendar" ? "flex flex-col overflow-hidden" : "overflow-y-auto overscroll-contain",
+        )}
+      >
       {detailMode === "tasks" ? <TasksPanel embedded initialSelectedId={selectedId} /> : null}
       {detailMode === "events" ? <EventsPanel embedded initialSelectedId={selectedId} /> : null}
 
       {detailMode === "calendar" ? (
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px] xl:items-start">
+        <section className="flex min-h-0 flex-1 flex-col gap-4 xl:grid xl:grid-cols-[minmax(0,1fr)_420px] xl:items-start xl:overflow-y-auto">
           <PlansWeekCalendar
-            className="max-h-[calc(100dvh-11rem)] min-h-[520px]"
+            className={cn(
+              "min-h-0 flex-1",
+              mobileCalendarDetail && "hidden xl:flex",
+            )}
             entries={entries}
             selectedId={selectedAgendaId}
             selectedDay={selectedDay}
@@ -240,11 +264,29 @@ export function PlansView() {
               setSelectedAgendaId(item.id);
               setSelectedId(item.entry?.id ?? null);
               setSelectedDay(startOfDay(item.date));
+              setMobileCalendarDetail(true);
             }}
             onSelectDay={setSelectedDay}
             onSlotClick={handleCalendarSlotClick}
           />
-          <aside className="flex min-h-0 flex-col gap-3 xl:sticky xl:top-4 xl:max-h-[calc(100dvh-11rem)] xl:overflow-y-auto">
+          <aside
+            className={cn(
+              "flex min-h-0 flex-col gap-3",
+              "xl:sticky xl:top-4 xl:max-h-[calc(100dvh-11rem)] xl:overflow-y-auto",
+              !mobileCalendarDetail && "hidden xl:flex",
+              mobileCalendarDetail && "min-h-0 flex-1 overflow-y-auto overscroll-contain",
+            )}
+          >
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="w-fit min-h-11 xl:hidden"
+              onClick={closeMobileCalendarDetail}
+            >
+              <ArrowLeft data-icon="inline-start" />
+              К календарю
+            </Button>
             <CalendarCreateForm
               token={token}
               selectedDay={selectedDay}
@@ -360,6 +402,7 @@ export function PlansView() {
           </section>
         </>
       ) : null}
+      </div>
     </div>
   );
 }
