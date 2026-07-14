@@ -90,11 +90,8 @@ export const WeekTimeGrid = forwardRef<WeekTimeGridHandle, WeekTimeGridProps>(fu
   }, [scrollToTodayToken, scrollToCurrentTime]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-border bg-card shadow-panel">
-      <div
-        ref={scrollRef}
-        className="scrollbar-subtle min-h-0 flex-1 overflow-auto max-lg:min-h-[40dvh] lg:min-h-[520px]"
-      >
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-border bg-card shadow-panel max-xl:rounded-none max-xl:border-x-0 max-xl:border-b-0 max-xl:shadow-none">
+      <div ref={scrollRef} className="scrollbar-subtle min-h-0 flex-1 overflow-auto lg:min-h-[520px]">
         <div style={{ minWidth: GRID_MIN_WIDTH }}>
           <div className="sticky top-0 z-30 flex shrink-0 border-b border-border bg-muted/30">
             <div

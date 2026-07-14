@@ -75,8 +75,8 @@ export function PlansWeekCalendar({
   }
 
   return (
-    <div className={cn("flex min-h-0 flex-col gap-3", className)}>
-      <div className="relative z-20 flex shrink-0 flex-wrap items-center justify-between gap-3">
+    <div className={cn("flex min-h-0 flex-col gap-3 max-xl:gap-0", className)}>
+      <div className="relative z-20 hidden shrink-0 flex-wrap items-center justify-between gap-3 xl:flex">
         <div className="flex items-center gap-2">
           <span className="flex size-9 items-center justify-center rounded-md bg-primary/10 text-primary">
             <CalendarDays className="size-4" aria-hidden="true" />
@@ -109,6 +109,35 @@ export function PlansWeekCalendar({
             <ChevronRight aria-hidden="true" />
           </Button>
         </div>
+      </div>
+
+      <div className="relative z-20 flex shrink-0 items-center justify-between gap-2 border-b border-border px-2 py-1.5 xl:hidden">
+        <div className="flex min-w-0 items-center gap-1">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="size-8 shrink-0"
+            onClick={() => setWeekStart((current) => addDays(current, -7))}
+            aria-label="Предыдущая неделя"
+          >
+            <ChevronLeft className="size-4" aria-hidden="true" />
+          </Button>
+          <span className="truncate text-xs font-medium tabular-nums">{formatWeekRangeLabel(weekStart)}</span>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            className="size-8 shrink-0"
+            onClick={() => setWeekStart((current) => addDays(current, 7))}
+            aria-label="Следующая неделя"
+          >
+            <ChevronRight className="size-4" aria-hidden="true" />
+          </Button>
+        </div>
+        <Button type="button" variant="secondary" size="sm" className="h-8 shrink-0 px-2.5 text-xs" onClick={goToToday}>
+          Сегодня
+        </Button>
       </div>
 
       <WeekTimeGrid

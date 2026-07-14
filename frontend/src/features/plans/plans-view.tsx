@@ -194,9 +194,17 @@ export function PlansView() {
     }
   }
 
+  const isMobileCalendarMode = detailMode === "calendar";
+
   return (
-    <div className="mx-auto flex min-h-0 w-full max-w-[1600px] flex-1 flex-col overflow-hidden">
-      <div className="flex shrink-0 flex-col gap-4">
+    <div
+      className={cn(
+        "mx-auto flex min-h-0 w-full max-w-[1600px] flex-1 flex-col overflow-hidden",
+        isMobileCalendarMode &&
+          "max-xl:fixed max-xl:inset-x-0 max-xl:top-[var(--shell-mobile-header)] max-xl:bottom-0 max-xl:z-20 max-xl:max-w-none max-xl:bg-background max-xl:pb-[env(safe-area-inset-bottom,0px)]",
+      )}
+    >
+      <div className={cn("flex shrink-0 flex-col gap-4", isMobileCalendarMode && "max-xl:hidden")}>
         <header className="flex flex-col gap-1">
           <h1 className="text-2xl font-semibold leading-8">Планы</h1>
           <p className="text-sm text-muted-foreground">Задачи, события и напоминания на одной временной оси.</p>
@@ -241,6 +249,50 @@ export function PlansView() {
         </div>
       </div>
 
+      {isMobileCalendarMode && !mobileCalendarDetail ? (
+        <div className="hidden max-xl:flex shrink-0 flex-col gap-1 border-b border-border px-2 py-1.5">
+          <div className="flex items-center gap-1 overflow-x-auto">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 shrink-0 px-2.5 text-xs"
+              onClick={() => setDetailMode("timeline")}
+            >
+              Лента
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="h-8 shrink-0 px-2.5 text-xs"
+            >
+              <CalendarDays className="size-3.5" data-icon="inline-start" />
+              Календарь
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 shrink-0 px-2.5 text-xs"
+              onClick={() => setDetailMode("tasks")}
+            >
+              Задачи
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 shrink-0 px-2.5 text-xs"
+              onClick={() => setDetailMode("events")}
+            >
+              События
+            </Button>
+          </div>
+          {loadError ? <LoadError message={loadError} onRetry={() => void loadEntries()} /> : null}
+        </div>
+      ) : null}
+
       <div
         className={cn(
           "min-h-0 flex-1",
@@ -251,7 +303,7 @@ export function PlansView() {
       {detailMode === "events" ? <EventsPanel embedded initialSelectedId={selectedId} /> : null}
 
       {detailMode === "calendar" ? (
-        <section className="flex min-h-0 flex-1 flex-col gap-4 xl:grid xl:grid-cols-[minmax(0,1fr)_420px] xl:items-start xl:overflow-y-auto">
+        <section className="flex min-h-0 flex-1 flex-col gap-4 max-xl:gap-0 xl:grid xl:grid-cols-[minmax(0,1fr)_420px] xl:items-start xl:overflow-y-auto">
           <PlansWeekCalendar
             className={cn(
               "min-h-0 flex-1",
@@ -274,7 +326,7 @@ export function PlansView() {
               "flex min-h-0 flex-col gap-3",
               "xl:sticky xl:top-4 xl:max-h-[calc(100dvh-11rem)] xl:overflow-y-auto",
               !mobileCalendarDetail && "hidden xl:flex",
-              mobileCalendarDetail && "min-h-0 flex-1 overflow-y-auto overscroll-contain",
+              mobileCalendarDetail && "min-h-0 flex-1 overflow-y-auto overscroll-contain max-xl:px-2 max-xl:pt-1",
             )}
           >
             <Button
