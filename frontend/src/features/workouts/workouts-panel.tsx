@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BarChart3, Dumbbell, Plus } from "lucide-react";
+import { ArrowLeft, BarChart3, Dumbbell, Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Notice } from "@/components/ui/notice";
-import { TRACKING_SCROLL_COL, TRACKING_SHELL } from "@/features/tracking/tracking-layout";
+import { TRACKING_MOBILE_SCROLL } from "@/features/tracking/tracking-layout";
 import { WorkoutHistoryView } from "@/features/workouts/workout-history-view";
 import { WorkoutMuscleGroupAccordion } from "@/features/workouts/workout-muscle-group-accordion";
 import { WorkoutSessionBar } from "@/features/workouts/workout-session-bar";
@@ -84,6 +84,7 @@ export function WorkoutsPanel() {
   const [notice, setNotice] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [mobileExerciseDetail, setMobileExerciseDetail] = useState(false);
 
   const catalogByGroup = useMemo(() => groupCatalogByMuscle(catalog), [catalog]);
   const sessionProgress = useMemo(() => countSessionExercisesDone(sessionExercises, catalog), [sessionExercises, catalog]);
@@ -204,6 +205,7 @@ export function WorkoutsPanel() {
       }
     }
     setSelectedExerciseId(exerciseId);
+    setMobileExerciseDetail(true);
     const exercise = catalog.find((item) => item.id === exerciseId);
     if (exercise) {
       setExpandedGroups((current) => new Set(current).add(exercise.muscle_group));
@@ -392,6 +394,7 @@ export function WorkoutsPanel() {
     setStartForm(defaultWorkoutStartForm());
     setSessionExercises([]);
     setSelectedExerciseId(null);
+    setMobileExerciseDetail(false);
     setSetCount(DEFAULT_SET_COUNT);
     setSetRows(rowsWithKeys(buildSetRows(DEFAULT_SET_COUNT)));
     setNewExerciseNames({});
@@ -430,7 +433,7 @@ export function WorkoutsPanel() {
   };
 
   return (
-    <div className={cn(TRACKING_SHELL, "gap-3")}>
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Dumbbell className="size-5 text-primary" aria-hidden="true" />
@@ -465,7 +468,7 @@ export function WorkoutsPanel() {
       ) : null}
 
       {!isLoading && view === "wizard" ? (
-        <div className="flex min-h-0 flex-1 flex-col gap-3">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {step === "workout" ? (
             <WorkoutSessionBar
               doneCount={sessionProgress.done}
@@ -474,15 +477,7 @@ export function WorkoutsPanel() {
             />
           ) : null}
 
-          <div
-            className={cn(
-              "grid min-h-0 w-full flex-1 gap-3",
-              step === "workout" && "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]",
-              step === "start" && "grid-cols-1",
-              step === "summary" && "grid-cols-1",
-              TRACKING_SCROLL_COL,
-            )}
-          >
+          <div className={cn(TRACKING_MOBILE_SCROLL, "flex min-h-0 flex-1 flex-col gap-3")}>
             {step === "start" ? (
               <WorkoutStartCard
                 startForm={startForm}
@@ -495,7 +490,12 @@ export function WorkoutsPanel() {
 
             {step === "workout" ? (
               <>
-                <div className="flex min-h-0 flex-col gap-3">
+                <div
+                  className={cn(
+                    "grid min-h-0 w-full gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-start",
+                    mobileExerciseDetail && "max-lg:hidden",
+                  )}
+                >
                   <WorkoutMuscleGroupAccordion
                     catalog={catalog}
                     sessionExercises={sessionExercises}
@@ -510,13 +510,26 @@ export function WorkoutsPanel() {
                     }
                     onCreateExercise={(group) => void createExercise(group)}
                   />
-                  <div className="lg:hidden">
-                    <WorkoutSetsEditor {...setsEditorProps} variant="inline" />
+                  <div className="hidden lg:block">
+                    <WorkoutSetsEditor {...setsEditorProps} variant="sidebar" />
                   </div>
                 </div>
-                <div className="hidden lg:block">
-                  <WorkoutSetsEditor {...setsEditorProps} variant="sidebar" />
-                </div>
+
+                {mobileExerciseDetail ? (
+                  <div className="flex min-h-0 flex-1 flex-col gap-3 lg:hidden">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="w-fit min-h-11 shrink-0"
+                      onClick={() => setMobileExerciseDetail(false)}
+                    >
+                      <ArrowLeft data-icon="inline-start" />
+                      К упражнениям
+                    </Button>
+                    <WorkoutSetsEditor {...setsEditorProps} variant="inline" />
+                  </div>
+                ) : null}
               </>
             ) : null}
 
@@ -539,7 +552,8 @@ export function WorkoutsPanel() {
       ) : null}
 
       {!isLoading && view === "history" ? (
-        <WorkoutHistoryView
+        <div className={cn(TRACKING_MOBILE_SCROLL, "min-h-0 flex-1")}>
+          <WorkoutHistoryView
           historyTab={historyTab}
           catalog={catalog}
           sessions={sessions}
@@ -559,6 +573,7 @@ export function WorkoutsPanel() {
           onSelectExerciseForChart={selectExerciseForChart}
           onStartWorkout={startWorkout}
         />
+        </div>
       ) : null}
     </div>
   );

@@ -1,6 +1,15 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  async redirects() {
+    return [
+      {
+        source: "/transcription",
+        destination: "/transcribe",
+        permanent: true,
+      },
+    ];
+  },
   // Next.js 15 blocks /_next/* from non-localhost origins unless listed here.
   // Required for phone/tablet testing via LAN IP (npm run dev:lan).
   allowedDevOrigins: [

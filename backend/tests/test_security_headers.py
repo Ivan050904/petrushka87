@@ -17,7 +17,7 @@ def test_transcription_allows_frontend_iframe_embedding() -> None:
     with TestClient(app) as client:
         response = client.get(
             "/transcription/sso",
-            headers={"Referer": "http://localhost:3000/transcription"},
+            headers={"Referer": "http://localhost:3000/transcribe"},
             follow_redirects=False,
         )
     assert response.status_code in {302, 401}

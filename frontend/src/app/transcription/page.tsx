@@ -1,12 +1,8 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { AppShell } from "@/components/app-shell";
-import { TranscriptionView } from "@/features/transcription/transcription-view";
+import { ROUTES } from "@/lib/navigation";
 
-export default function TranscriptionPage() {
-  return (
-    <AppShell contentClassName="p-0">
-      <TranscriptionView />
-    </AppShell>
-  );
+/** Legacy path — nginx may proxy `/transcription/` to backend; frontend UI lives at `/transcribe`. */
+export default function TranscriptionLegacyRedirectPage() {
+  redirect(ROUTES.transcription);
 }

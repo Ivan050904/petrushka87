@@ -5,7 +5,8 @@ export const ROUTES = {
   board: "/board",
   plans: "/plans",
   tracking: "/tracking",
-  transcription: "/transcription",
+  /** Frontend voice UI — not `/transcription` (backend YouTube module on nginx). */
+  transcription: "/transcribe",
   therapySessions: "/therapy-sessions",
   assistant: "/assistant",
   articles: "/articles",

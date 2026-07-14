@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Empty } from "@/components/ui/empty";
 import { ShellSidebarNav } from "@/components/shell-sidebar-nav";
-import { formatCountBadge, getMobilePageTitle } from "@/components/shell-nav-utils";
+import { formatCountBadge, getMobilePageTitle, normalizeShellPathname } from "@/components/shell-nav-utils";
 import { countInboxEntries } from "@/features/inbox/inbox-helpers";
 import { useAuth } from "@/hooks/use-auth";
 import { useNavOrder } from "@/hooks/use-nav-order";
@@ -160,7 +160,8 @@ export function AppShell({
     : notifications.filter((entry) => !seenNotificationIds.includes(notificationSeenId(entry))).length;
   const isBoardRoute = pathname === ROUTES.board;
   const isNotesRoute = pathname === ROUTES.notes;
-  const isTranscriptionRoute = pathname === ROUTES.transcription;
+  const shellPath = normalizeShellPathname(pathname);
+  const isTranscriptionRoute = shellPath === ROUTES.transcription || shellPath === "/transcription";
   const isImmersiveRoute = isNotesRoute || isTranscriptionRoute;
   const showDesktopHeader = !isBoardRoute && !isImmersiveRoute;
 

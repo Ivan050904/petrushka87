@@ -1,7 +1,6 @@
 "use client";
 
 import { SegmentTabs } from "@/components/ui/segment-tabs";
-import { TRACKING_SCROLL_COL } from "@/features/tracking/tracking-layout";
 import { WorkoutHistoryCharts } from "@/features/workouts/workout-history-charts";
 import { WorkoutHistoryOverview } from "@/features/workouts/workout-history-overview";
 import { WorkoutHistoryRecords } from "@/features/workouts/workout-history-records";
@@ -14,7 +13,6 @@ import {
   type ProgressPoint,
   type WorkoutSession,
 } from "@/lib/workouts";
-import { cn } from "@/lib/utils";
 
 const HISTORY_TAB_OPTIONS: Array<{ value: HistoryTab; label: string }> = [
   { value: "overview", label: "Обзор" },
@@ -65,7 +63,7 @@ export function WorkoutHistoryView({
   onStartWorkout,
 }: WorkoutHistoryViewProps) {
   return (
-    <div className={cn("flex min-h-0 w-full flex-1 flex-col gap-3", TRACKING_SCROLL_COL)}>
+    <div className="flex min-h-0 w-full flex-1 flex-col gap-3">
       <SegmentTabs
         value={historyTab}
         options={HISTORY_TAB_OPTIONS}
